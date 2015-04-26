@@ -64,7 +64,7 @@ SECTORDER_FLAGS_Production[sdk=iphoneos*] = -Wl,-order_file,$(SDKROOT)/AppleInte
 SECTORDER_FLAGS_Production[sdk=macosx*] = -Wl,-order_file,WebCore.order;
 
 NORMAL_WEBCORE_FRAMEWORKS_DIR[sdk=iphone*] = $(PRODUCTION_FRAMEWORKS_DIR);
-NORMAL_WEBCORE_FRAMEWORKS_DIR[sdk=macosx*] = $(SYSTEM_LIBRARY_DIR)/Frameworks/WebKit.framework/Versions/A/Frameworks;
+NORMAL_WEBCORE_FRAMEWORKS_DIR[sdk=macosx*] = @executable_path/../Frameworks;
 
 WEBCORE_FRAMEWORKS_DIR[sdk=iphone*] = $(NORMAL_WEBCORE_FRAMEWORKS_DIR);
 WEBCORE_FRAMEWORKS_DIR = $(WEBCORE_FRAMEWORKS_DIR_$(PLATFORM_NAME)_USE_STAGING_INSTALL_PATH_$(USE_STAGING_INSTALL_PATH));

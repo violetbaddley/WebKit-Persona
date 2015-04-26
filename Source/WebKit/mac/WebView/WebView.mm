@@ -5000,11 +5000,15 @@ static bool needsWebViewInitThreadWorkaround()
 
 - (instancetype)initWithFrame:(NSRect)f
 {
+    NSLog(@"\n\n\nI EXIST!!! (in initWithFrame:)\n\n\n");
+    
     return [self initWithFrame:f frameName:nil groupName:nil];
 }
 
 - (instancetype)initWithFrame:(NSRect)f frameName:(NSString *)frameName groupName:(NSString *)groupName
 {
+    NSLog(@"\n\n\nI EXIST!!! (in initWithFrame:frameName:groupName:)\n\n\n");
+    
 #if !PLATFORM(IOS)
     if (needsWebViewInitThreadWorkaround())
         return [[self _webkit_invokeOnMainThread] initWithFrame:f frameName:frameName groupName:groupName];
@@ -5017,6 +5021,8 @@ static bool needsWebViewInitThreadWorkaround()
 #if !PLATFORM(IOS)
 - (instancetype)initWithCoder:(NSCoder *)decoder
 {
+    NSLog(@"\n\n\nI EXIST!!! (in initWithCoder:)\n\n\n");
+    
     if (needsWebViewInitThreadWorkaround())
         return [[self _webkit_invokeOnMainThread] initWithCoder:decoder];
 

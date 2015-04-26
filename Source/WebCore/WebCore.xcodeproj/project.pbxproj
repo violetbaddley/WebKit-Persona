@@ -3787,6 +3787,11 @@
 		9BD8A95A18BEFC7600987E9A /* CollectionIndexCache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9BD8A95918BEFC7600987E9A /* CollectionIndexCache.cpp */; };
 		9BF9A8801648DD2F001C6B23 /* JSHTMLFormControlsCollection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9BF9A87E1648DD2F001C6B23 /* JSHTMLFormControlsCollection.cpp */; };
 		9BF9A8811648DD2F001C6B23 /* JSHTMLFormControlsCollection.h in Headers */ = {isa = PBXBuildFile; fileRef = 9BF9A87F1648DD2F001C6B23 /* JSHTMLFormControlsCollection.h */; };
+		9C6EC19E1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC19D1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h */; };
+		9C6EC1A01ACF7128007A8E49 /* BrowsPersona.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC19F1ACF7128007A8E49 /* BrowsPersona.h */; };
+		9C6EC1A31AD0CB48007A8E49 /* PersonaBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC1A11AD0CB48007A8E49 /* PersonaBridge.h */; };
+		9C6EC1A41AD0CB48007A8E49 /* PersonaBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9C6EC1A21AD0CB48007A8E49 /* PersonaBridge.mm */; };
+		9C6EC1AA1AD2355B007A8E49 /* WebFrameInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC1A91AD2355B007A8E49 /* WebFrameInternal.h */; };
 		9F72304F11184B4100AD0126 /* ScriptProfile.h in Headers */ = {isa = PBXBuildFile; fileRef = 9F72304C11184B4100AD0126 /* ScriptProfile.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9FA37EE41172FC8000C4CD55 /* ScriptProfileNode.h in Headers */ = {isa = PBXBuildFile; fileRef = 9FA37EE31172FC8000C4CD55 /* ScriptProfileNode.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9FA37EFA1172FDA600C4CD55 /* JSScriptProfile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9FA37EF61172FD9300C4CD55 /* JSScriptProfile.cpp */; };
@@ -11072,6 +11077,12 @@
 		9BD8A95918BEFC7600987E9A /* CollectionIndexCache.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CollectionIndexCache.cpp; sourceTree = "<group>"; };
 		9BF9A87E1648DD2F001C6B23 /* JSHTMLFormControlsCollection.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSHTMLFormControlsCollection.cpp; sourceTree = "<group>"; };
 		9BF9A87F1648DD2F001C6B23 /* JSHTMLFormControlsCollection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSHTMLFormControlsCollection.h; sourceTree = "<group>"; };
+		9C6EC19D1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EIIGIsolatedCookieWebViewResourceLoadDelegate.h; path = "../../../../Projects/Personæ/Brows Personæ/Brows Personæ/EIIGIsolatedCookieWebViewResourceLoadDelegate.h"; sourceTree = "<group>"; };
+		9C6EC19F1ACF7128007A8E49 /* BrowsPersona.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BrowsPersona.h; path = "../../../../Projects/Personæ/Brows Personæ/Brows Personæ/BrowsPersona.h"; sourceTree = "<group>"; };
+		9C6EC1A11AD0CB48007A8E49 /* PersonaBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PersonaBridge.h; path = "Eightt Extras/PersonaBridge.h"; sourceTree = "<group>"; };
+		9C6EC1A21AD0CB48007A8E49 /* PersonaBridge.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = PersonaBridge.mm; path = "Eightt Extras/PersonaBridge.mm"; sourceTree = "<group>"; };
+		9C6EC1A71AD234EE007A8E49 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = ../../WebKitBuild/Debug/WebKit.framework; sourceTree = "<group>"; };
+		9C6EC1A91AD2355B007A8E49 /* WebFrameInternal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = WebFrameInternal.h; path = ../WebKit/mac/WebView/WebFrameInternal.h; sourceTree = "<group>"; };
 		9F72304C11184B4100AD0126 /* ScriptProfile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScriptProfile.h; sourceTree = "<group>"; };
 		9FA37EE31172FC8000C4CD55 /* ScriptProfileNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScriptProfileNode.h; sourceTree = "<group>"; };
 		9FA37EEF1172FD4100C4CD55 /* ScriptProfile.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = ScriptProfile.idl; sourceTree = "<group>"; };
@@ -14896,6 +14907,7 @@
 		0867D691FE84028FC02AAC07 /* WebKit */ = {
 			isa = PBXGroup;
 			children = (
+				9C6EC19B1ACF6E19007A8E49 /* Eightt Extras */,
 				65C97AF208EA908800ACD273 /* config.h */,
 				EDEC98020AED7E170059137F /* WebCorePrefix.h */,
 				9307061309E0CA8200B17FE4 /* DerivedSources.make */,
@@ -14940,6 +14952,7 @@
 		0867D69AFE84028FC02AAC07 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				9C6EC1A71AD234EE007A8E49 /* WebKit.framework */,
 				FD2DBF0E12B048A300ED98C6 /* Accelerate.framework */,
 				FD2DBF0F12B048A300ED98C6 /* AudioToolbox.framework */,
 				FD2DBF1112B048A300ED98C6 /* CoreAudio.framework */,
@@ -18743,6 +18756,18 @@
 				99CC0B4C18BE9849006CEBCC /* WebInputs.json */,
 			);
 			path = replay;
+			sourceTree = "<group>";
+		};
+		9C6EC19B1ACF6E19007A8E49 /* Eightt Extras */ = {
+			isa = PBXGroup;
+			children = (
+				9C6EC1A91AD2355B007A8E49 /* WebFrameInternal.h */,
+				9C6EC19F1ACF7128007A8E49 /* BrowsPersona.h */,
+				9C6EC19D1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h */,
+				9C6EC1A11AD0CB48007A8E49 /* PersonaBridge.h */,
+				9C6EC1A21AD0CB48007A8E49 /* PersonaBridge.mm */,
+			);
+			name = "Eightt Extras";
 			sourceTree = "<group>";
 		};
 		A148328B187F506800DA63A6 /* wak */ = {
@@ -23756,6 +23781,7 @@
 				FD315FFC12B0267600C1A359 /* AudioBufferSourceNode.h in Headers */,
 				FD31607C12B026F700C1A359 /* AudioBus.h in Headers */,
 				FD31607E12B026F700C1A359 /* AudioChannel.h in Headers */,
+				9C6EC1AA1AD2355B007A8E49 /* WebFrameInternal.h in Headers */,
 				FD31600512B0267600C1A359 /* AudioContext.h in Headers */,
 				FD31607F12B026F700C1A359 /* AudioDestination.h in Headers */,
 				070F549E17F2402700169E04 /* AudioDestinationConsumer.h in Headers */,
@@ -24264,6 +24290,7 @@
 				85089CDB0A98C42800A275AA /* DOMDocumentFragment.h in Headers */,
 				44311F8212E4E66C000A8D19 /* DOMDocumentFragmentInternal.h in Headers */,
 				44311CD612E4E22D000A8D19 /* DOMDocumentFragmentPrivate.h in Headers */,
+				9C6EC1A31AD0CB48007A8E49 /* PersonaBridge.h in Headers */,
 				85E711950AC5D5350053270F /* DOMDocumentInternal.h in Headers */,
 				44311CD712E4E22D000A8D19 /* DOMDocumentPrivate.h in Headers */,
 				85CA975C0A962E5400690CCF /* DOMDocumentType.h in Headers */,
@@ -26404,6 +26431,7 @@
 				B8DBDB4C130B0F8A00F5CDB1 /* SetSelectionCommand.h in Headers */,
 				93F1994F08245E59001E9ABC /* Settings.h in Headers */,
 				53EF766B16530A61004CBE49 /* SettingsMacros.h in Headers */,
+				9C6EC1A01ACF7128007A8E49 /* BrowsPersona.h in Headers */,
 				0F3DD45012F5EA1B000D9190 /* ShadowBlur.h in Headers */,
 				BC5EB8C40E82031B00B25965 /* ShadowData.h in Headers */,
 				A6D169641346B4C1000EB770 /* ShadowRoot.h in Headers */,
@@ -26734,6 +26762,7 @@
 				5824ABA71AE81384009074B7 /* RubyTextElement.h in Headers */,
 				8419D2BA120E0C7600141F8F /* SVGPathStringBuilder.h in Headers */,
 				84300BD6120C9AAC0021954A /* SVGPathStringSource.h in Headers */,
+				9C6EC19E1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h in Headers */,
 				84C5B2FB1216DC810088B53A /* SVGPathTraversalStateBuilder.h in Headers */,
 				7C93F34E1AA6BF0700A98BAB /* ContentExtensionCompiler.h in Headers */,
 				71A57DF2154BE25C0009D120 /* SVGPathUtilities.h in Headers */,
@@ -27469,6 +27498,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9C6EC1A41AD0CB48007A8E49 /* PersonaBridge.mm in Sources */,
 				41E1B1D00FF5986900576B3B /* AbstractWorker.cpp in Sources */,
 				37F57AB91A50726900876F98 /* AccessibilityARIAGrid.cpp in Sources */,
 				37F57ABA1A50726F00876F98 /* AccessibilityARIAGridCell.cpp in Sources */,
@@ -30551,6 +30581,12 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
+				);
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Debug;
 		};
@@ -30558,6 +30594,12 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
+				);
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Release;
 		};
@@ -30566,6 +30608,12 @@
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
 				BUILD_VARIANTS = normal;
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
+				);
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Production;
 		};
@@ -30619,6 +30667,7 @@
 		41816F7A13859C560057AAA4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 				PRODUCT_NAME = All;
 			};
 			name = Debug;
@@ -30626,6 +30675,7 @@
 		41816F7B13859C560057AAA4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 				PRODUCT_NAME = All;
 			};
 			name = Release;
@@ -30633,6 +30683,7 @@
 		41816F7C13859C560057AAA4 /* Production */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 				PRODUCT_NAME = All;
 			};
 			name = Production;

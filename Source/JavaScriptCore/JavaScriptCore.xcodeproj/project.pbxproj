@@ -7804,6 +7804,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Debug;
 		};
@@ -7811,6 +7813,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Release;
 		};
@@ -7819,6 +7823,8 @@
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
 				BUILD_VARIANTS = normal;
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Production;
 		};
@@ -8046,6 +8052,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Profiling;
 		};

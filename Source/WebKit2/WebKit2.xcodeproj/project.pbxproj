@@ -10436,6 +10436,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5DAD7294116FF70B00EE5396 /* WebContentProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Debug;
 		};
@@ -10443,6 +10444,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5DAD7294116FF70B00EE5396 /* WebContentProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Release;
 		};
@@ -10450,6 +10452,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A1EDD2D91884ACE000BBFE98 /* All.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 				PRODUCT_NAME = All;
 			};
 			name = Debug;
@@ -10458,6 +10461,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A1EDD2D91884ACE000BBFE98 /* All.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 				PRODUCT_NAME = All;
 			};
 			name = Release;
@@ -10466,6 +10470,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1A50F0F819199E42001ACD12 /* WebKit2.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Debug;
 		};
@@ -10473,6 +10479,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1A50F0F819199E42001ACD12 /* WebKit2.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Release;
 		};
@@ -10480,6 +10488,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1A50F0F819199E42001ACD12 /* WebKit2.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Production;
 		};
@@ -10523,6 +10533,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BCB86F4B116AAACD00CE20B7 /* WebKit.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
 					"-l$(WEBKIT_SYSTEM_INTERFACE_LIBRARY)",
@@ -10534,6 +10546,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BCB86F4B116AAACD00CE20B7 /* WebKit.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
 					"-l$(WEBKIT_SYSTEM_INTERFACE_LIBRARY)",
@@ -10585,6 +10599,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 510CC8461613C7C600D03ED3 /* NetworkProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Debug;
 		};
@@ -10592,6 +10607,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 510CC8461613C7C600D03ED3 /* NetworkProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Release;
 		};
@@ -10599,6 +10615,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 510CC8461613C7C600D03ED3 /* NetworkProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Production;
 		};
@@ -10648,6 +10665,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 51A60B27180CCD9000F3BF50 /* DatabaseProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Debug;
 		};
@@ -10655,6 +10673,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 51A60B27180CCD9000F3BF50 /* DatabaseProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Release;
 		};
@@ -10662,6 +10681,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 51A60B27180CCD9000F3BF50 /* DatabaseProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Production;
 		};
@@ -10676,6 +10696,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = A1EDD2D91884ACE000BBFE98 /* All.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 				PRODUCT_NAME = All;
 			};
 			name = Production;
@@ -10684,6 +10705,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BCB86F4B116AAACD00CE20B7 /* WebKit.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",
 					"-lWebKitSystemInterface",
@@ -10695,6 +10718,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5DAD7294116FF70B00EE5396 /* WebContentProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Production;
 		};
@@ -10891,6 +10915,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BC122FA3132707F300F7EAC1 /* PluginProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Debug;
 		};
@@ -10898,6 +10923,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BC122FA3132707F300F7EAC1 /* PluginProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Release;
 		};
@@ -10905,6 +10931,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = BC122FA3132707F300F7EAC1 /* PluginProcess.xcconfig */;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 			};
 			name = Production;
 		};

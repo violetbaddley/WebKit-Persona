@@ -216,6 +216,8 @@ Page::Page(PageConfiguration& pageConfiguration)
     , m_isClosing(false)
 {
     setTimerThrottlingEnabled(m_viewState & ViewState::IsVisuallyIdle);
+    
+    ei_browsPersonaForPage = nil;
 
     m_storageNamespaceProvider->addPage(*this);
 
@@ -244,6 +246,8 @@ Page::Page(PageConfiguration& pageConfiguration)
 
 Page::~Page()
 {
+    ei_browsPersonaForPage = nil;
+    
     m_mainFrame->setView(0);
     setGroupName(String());
     allPages->remove(this);
@@ -305,6 +309,20 @@ std::unique_ptr<Page> Page::createPageFromBuffer(PageConfiguration& pageConfigur
     
     return newPage;
 }
+    
+    
+    
+    
+    void Page::set_ei_browsPersona(BrowsPersona *persona) {
+        ei_browsPersonaForPage = persona;
+    }
+    
+    BrowsPersona *Page::ei_browsPersona() {
+        return ei_browsPersonaForPage;
+    }
+    
+    
+    
 
 void Page::clearPreviousItemFromAllPages(HistoryItem* item)
 {
