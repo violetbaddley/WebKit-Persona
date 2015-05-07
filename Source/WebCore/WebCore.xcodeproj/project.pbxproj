@@ -11077,8 +11077,8 @@
 		9BD8A95918BEFC7600987E9A /* CollectionIndexCache.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CollectionIndexCache.cpp; sourceTree = "<group>"; };
 		9BF9A87E1648DD2F001C6B23 /* JSHTMLFormControlsCollection.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSHTMLFormControlsCollection.cpp; sourceTree = "<group>"; };
 		9BF9A87F1648DD2F001C6B23 /* JSHTMLFormControlsCollection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSHTMLFormControlsCollection.h; sourceTree = "<group>"; };
-		9C6EC19D1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EIIGIsolatedCookieWebViewResourceLoadDelegate.h; path = "../../../../Projects/Personæ/Brows Personæ/Brows Personæ/EIIGIsolatedCookieWebViewResourceLoadDelegate.h"; sourceTree = "<group>"; };
-		9C6EC19F1ACF7128007A8E49 /* BrowsPersona.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BrowsPersona.h; path = "../../../../Projects/Personæ/Brows Personæ/Brows Personæ/BrowsPersona.h"; sourceTree = "<group>"; };
+		9C6EC19D1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EIIGIsolatedCookieWebViewResourceLoadDelegate.h; path = "../../../Brows Personæ/EIIGIsolatedCookieWebViewResourceLoadDelegate.h"; sourceTree = "<group>"; };
+		9C6EC19F1ACF7128007A8E49 /* BrowsPersona.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BrowsPersona.h; path = "../../../Brows Personæ/BrowsPersona.h"; sourceTree = "<group>"; };
 		9C6EC1A11AD0CB48007A8E49 /* PersonaBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PersonaBridge.h; path = "Eightt Extras/PersonaBridge.h"; sourceTree = "<group>"; };
 		9C6EC1A21AD0CB48007A8E49 /* PersonaBridge.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = PersonaBridge.mm; path = "Eightt Extras/PersonaBridge.mm"; sourceTree = "<group>"; };
 		9C6EC1A71AD234EE007A8E49 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = ../../WebKitBuild/Debug/WebKit.framework; sourceTree = "<group>"; };
@@ -30584,7 +30584,11 @@
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
+					"$(TARGET_BUILD_DIR)",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(STAGED_FRAMEWORKS_SEARCH_PATH)",
+					"$(TARGET_BUILD_DIR)",
 				);
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
@@ -30599,6 +30603,10 @@
 					"$(inherited)",
 					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
 				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(STAGED_FRAMEWORKS_SEARCH_PATH)",
+					"$(TARGET_BUILD_DIR)",
+				);
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Release;
@@ -30612,6 +30620,10 @@
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=macosx*]" = (
+					"$(STAGED_FRAMEWORKS_SEARCH_PATH)",
+					"$(TARGET_BUILD_DIR)",
 				);
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
