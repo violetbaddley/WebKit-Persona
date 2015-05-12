@@ -4,5 +4,25 @@
 <dict>
 	<key>IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded</key>
 	<false/>
+	<key>BuildLocationStyle</key>
+	<string>CustomLocation</string>
+	<key>CustomBuildIntermediatesPath</key>
+	<string>WebKitBuild</string>
+	<key>CustomBuildLocationType</key>
+	<string>RelativeToWorkspace</string>
+	<key>CustomBuildProductsPath</key>
+	<string>WebKitBuild</string>
+	<key>DerivedDataCustomLocation</key>
+	<string>WebKitBuild</string>
+	<key>DerivedDataLocationStyle</key>
+	<string>RelativeToWorkspace</string>
+	<key>IssueFilterStyle</key>
+	<string>ShowActiveSchemeOnly</string>
+	<key>LiveSourceIssuesEnabled</key>
+	<true/>
+	<key>SnapshotAutomaticallyBeforeSignificantChanges</key>
+	<true/>
+	<key>SnapshotLocationStyle</key>
+	<string>Default</string>
 </dict>
 </plist>
