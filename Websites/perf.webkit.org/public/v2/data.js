@@ -406,16 +406,18 @@ RunsData.unitFromMetricName = function (metricName)
         'FrameRate': 'fps',
         'Runs': '/s',
         'Time': 'ms',
+        'Duration': 'ms',
         'Malloc': 'bytes',
         'Heap': 'bytes',
-        'Allocations': 'bytes'
+        'Allocations': 'bytes',
+        'Score': 'pt',
     }[suffix];
     return unit;
 }
 
 RunsData.isSmallerBetter = function (unit)
 {
-    return unit != 'fps' && unit != '/s';
+    return unit != 'fps' && unit != '/s' && unit != 'pt';
 }
 
 function TimeSeries(series)

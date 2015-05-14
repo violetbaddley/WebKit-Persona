@@ -251,13 +251,13 @@ public:
     };
     typedef unsigned BehaviorRestrictions;
 
-    bool userGestureRequiredForAudioStart() const { return m_restrictions & RequireUserGestureForAudioStartRestriction; }
-    bool pageConsentRequiredForAudioStart() const { return m_restrictions & RequirePageConsentForAudioStartRestriction; }
-
+    BehaviorRestrictions behaviorRestrictions() const { return m_restrictions; }
     void addBehaviorRestriction(BehaviorRestrictions restriction) { m_restrictions |= restriction; }
     void removeBehaviorRestriction(BehaviorRestrictions restriction) { m_restrictions &= ~restriction; }
 
     void isPlayingAudioDidChange();
+
+    void nodeWillBeginPlayback();
 
 protected:
     explicit AudioContext(Document&);
@@ -270,6 +270,12 @@ private:
 
     void lazyInitialize();
     void uninitialize();
+
+    bool willBeginPlayback();
+    bool willPausePlayback();
+
+    bool userGestureRequiredForAudioStart() const { return m_restrictions & RequireUserGestureForAudioStartRestriction; }
+    bool pageConsentRequiredForAudioStart() const { return m_restrictions & RequirePageConsentForAudioStartRestriction; }
 
     enum class State { Suspended, Running, Interrupted, Closed };
     void setState(State);
@@ -301,13 +307,13 @@ private:
     void derefUnfinishedSourceNodes();
 
     // MediaSessionClient
-    virtual MediaSession::MediaType mediaType() const { return MediaSession::WebAudio; }
-    virtual MediaSession::MediaType presentationType() const { return MediaSession::WebAudio; }
-    virtual bool canReceiveRemoteControlCommands() const { return false; }
-    virtual void didReceiveRemoteControlCommand(MediaSession::RemoteControlCommandType) { }
-    virtual bool overrideBackgroundPlaybackRestriction() const { return false; }
-    virtual void suspendPlayback() override;
+    virtual MediaSession::MediaType mediaType() const override { return MediaSession::WebAudio; }
+    virtual MediaSession::MediaType presentationType() const override { return MediaSession::WebAudio; }
     virtual void mayResumePlayback(bool shouldResume) override;
+    virtual void suspendPlayback() override;
+    virtual bool canReceiveRemoteControlCommands() const override { return false; }
+    virtual void didReceiveRemoteControlCommand(MediaSession::RemoteControlCommandType) override { }
+    virtual bool overrideBackgroundPlaybackRestriction() const override { return false; }
 
     // EventTarget
     virtual void refEventTarget() override { ref(); }

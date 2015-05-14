@@ -37,6 +37,7 @@
 #include "StructureChain.h"
 #include "StructureRareDataInlines.h"
 #include "SymbolPrototype.h"
+#include "TemplateRegistry.h"
 #include "VM.h"
 #include "Watchpoint.h"
 #include <JavaScriptCore/JSBase.h>
@@ -232,7 +233,6 @@ protected:
     WriteBarrier<Structure> m_namedFunctionStructure;
     PropertyOffset m_functionNameOffset;
     WriteBarrier<Structure> m_privateNameStructure;
-    WriteBarrier<Structure> m_regExpMatchesArrayStructure;
     WriteBarrier<Structure> m_regExpStructure;
     WriteBarrier<Structure> m_consoleStructure;
     WriteBarrier<Structure> m_dollarVMStructure;
@@ -284,6 +284,8 @@ protected:
     std::unique_ptr<JSGlobalObjectRareData> m_rareData;
 
     WeakRandom m_weakRandom;
+
+    TemplateRegistry m_templateRegistry;
 
     bool m_evalEnabled;
     String m_evalDisabledErrorMessage;
@@ -339,11 +341,7 @@ protected:
         setGlobalThis(vm, thisValue);
     }
 
-    struct NewGlobalVar {
-        ScopeOffset offset;
-        WatchpointSet* set;
-    };
-    NewGlobalVar addGlobalVar(const Identifier&, ConstantMode);
+    void addGlobalVar(const Identifier&, ConstantMode);
 
 public:
     JS_EXPORT_PRIVATE ~JSGlobalObject();
@@ -375,7 +373,7 @@ public:
         if (!hasProperty(exec, propertyName))
             addGlobalVar(propertyName, IsConstant);
     }
-    void addFunction(ExecState*, const Identifier&, JSValue);
+    void addFunction(ExecState*, const Identifier&);
 
     // The following accessors return pristine values, even if a script 
     // replaces the global object's associated property.
@@ -474,7 +472,6 @@ public:
     Structure* privateNameStructure() const { return m_privateNameStructure.get(); }
     Structure* internalFunctionStructure() const { return m_internalFunctionStructure.get(); }
     Structure* mapStructure() const { return m_mapStructure.get(); }
-    Structure* regExpMatchesArrayStructure() const { return m_regExpMatchesArrayStructure.get(); }
     Structure* regExpStructure() const { return m_regExpStructure.get(); }
     Structure* setStructure() const { return m_setStructure.get(); }
     Structure* stringObjectStructure() const { return m_stringObjectStructure.get(); }
@@ -614,6 +611,8 @@ public:
         return m_rareData->opaqueJSClassData;
     }
 
+    TemplateRegistry& templateRegistry() { return m_templateRegistry; }
+
     double weakRandomNumber() { return m_weakRandom.get(); }
     unsigned weakRandomInteger() { return m_weakRandom.getUint32(); }
 
@@ -674,7 +673,7 @@ inline bool JSGlobalObject::symbolTableHasProperty(PropertyName propertyName)
 
 inline JSArray* constructEmptyArray(ExecState* exec, ArrayAllocationProfile* profile, JSGlobalObject* globalObject, unsigned initialLength = 0)
 {
-    return ArrayAllocationProfile::updateLastAllocationFor(profile, JSArray::create(exec->vm(), initialLength >= MIN_SPARSE_ARRAY_INDEX ? globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithArrayStorage) : globalObject->arrayStructureForProfileDuringAllocation(profile), initialLength));
+    return ArrayAllocationProfile::updateLastAllocationFor(profile, JSArray::create(exec->vm(), initialLength >= MIN_ARRAY_STORAGE_CONSTRUCTION_LENGTH ? globalObject->arrayStructureForIndexingTypeDuringAllocation(ArrayWithArrayStorage) : globalObject->arrayStructureForProfileDuringAllocation(profile), initialLength));
 }
 
 inline JSArray* constructEmptyArray(ExecState* exec, ArrayAllocationProfile* profile, unsigned initialLength = 0)

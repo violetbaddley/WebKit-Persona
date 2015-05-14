@@ -150,6 +150,7 @@
     macro(profiledBytecodes) \
     macro(propertyIsEnumerable) \
     macro(prototype) \
+    macro(raw) \
     macro(reload) \
     macro(replace) \
     macro(resolve) \
@@ -242,10 +243,12 @@
     macro(unscopables)
 
 #define JSC_COMMON_BYTECODE_INTRINSICS_EACH_NAME(macro) \
-    macro(putByValDirect)
+    macro(putByValDirect) \
+    macro(toString)
 
 #define JSC_COMMON_PRIVATE_IDENTIFIERS_EACH_PROPERTY_NAME(macro) \
     JSC_COMMON_BYTECODE_INTRINSICS_EACH_NAME(macro) \
+    macro(symbolIterator) \
     macro(iteratedObject) \
     macro(arrayIteratorNextIndex) \
     macro(arrayIterationKind) \
@@ -270,13 +273,17 @@
     macro(objectGetOwnPropertySymbols) \
     macro(Number) \
     macro(Array) \
+    macro(String) \
     macro(abs) \
     macro(floor) \
     macro(isFinite) \
+    macro(getPrototypeOf) \
+    macro(getOwnPropertyNames) \
     macro(TypeError) \
     macro(undefined) \
     macro(BuiltinLog) \
-    macro(homeObject)
+    macro(homeObject) \
+    macro(getTemplateObject)
 
 namespace JSC {
     

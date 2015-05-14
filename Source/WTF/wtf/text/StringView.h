@@ -58,6 +58,7 @@ public:
 
     StringView(const String&);
     StringView(const StringImpl&);
+    StringView(const StringImpl*);
     StringView(const LChar*, unsigned length);
     StringView(const UChar*, unsigned length);
 
@@ -155,6 +156,12 @@ bool equal(StringView, StringView);
 bool equal(StringView, const LChar*);
 bool equal(StringView, const char*);
 bool equalIgnoringASCIICase(StringView, StringView);
+WTF_EXPORT_STRING_API bool equalIgnoringASCIICase(StringView a, const char* b, unsigned bLength);
+template<unsigned charactersCount>
+bool equalIgnoringASCIICase(StringView a, const char (&b)[charactersCount])
+{
+    return equalIgnoringASCIICase(a, b, charactersCount - 1);
+}
 
 inline bool operator==(StringView a, StringView b) { return equal(a, b); }
 inline bool operator==(StringView a, const LChar* b) { return equal(a, b); }
@@ -269,6 +276,18 @@ inline StringView::StringView(const StringImpl& string)
         initialize(string.characters8(), string.length());
     else
         initialize(string.characters16(), string.length());
+}
+
+inline StringView::StringView(const StringImpl* string)
+{
+    if (!string)
+        return;
+
+    setUnderlyingString(string);
+    if (string->is8Bit())
+        initialize(string->characters8(), string->length());
+    else
+        initialize(string->characters16(), string->length());
 }
 
 inline StringView::StringView(const String& string)

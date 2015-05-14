@@ -314,6 +314,12 @@ public:
             && !hasExitSite(negate, Int52Overflow)
             && negate->canSpeculateInt52(pass);
     }
+
+    bool roundShouldSpeculateInt32(Node* arithRound, PredictionPass pass)
+    {
+        ASSERT(arithRound->op() == ArithRound);
+        return arithRound->canSpeculateInt32(pass) && !hasExitSite(arithRound->origin.semantic, Overflow) && !hasExitSite(arithRound->origin.semantic, NegativeZero);
+    }
     
     static const char *opName(NodeType);
     
@@ -451,8 +457,6 @@ public:
     
     void determineReachability();
     void resetReachability();
-    
-    void mergeRelevantToOSR();
     
     void computeRefCounts();
     
@@ -891,7 +895,7 @@ private:
         if (operandResultType != NodeResultInt32 && immediateValue.isDouble())
             return DontSpeculateInt32;
         
-        if (jsNumber(immediateValue.asNumber()).isInt32() || immediateValue.isBoolean())
+        if (immediateValue.isBoolean() || jsNumber(immediateValue.asNumber()).isInt32())
             return add->canSpeculateInt32(source) ? SpeculateInt32 : DontSpeculateInt32;
         
         double doubleImmediate = immediateValue.asDouble();

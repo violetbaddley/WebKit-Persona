@@ -148,12 +148,9 @@ public:
     virtual FloatSize pixelAlignmentOffset() const override { return m_pixelAlignmentOffset; }
 
     struct CommitState {
-        bool ancestorHasTransformAnimation;
-        int treeDepth;
-        CommitState()
-            : ancestorHasTransformAnimation(false)
-            , treeDepth(0)
-        { }
+        int treeDepth { 0 };
+        bool ancestorHasTransformAnimation { false };
+        bool ancestorsAllowBackingStoreDetachment { true };
     };
     void recursiveCommitChanges(const CommitState&, const TransformState&, float pageScaleFactor = 1, const FloatPoint& positionRelativeToBase = FloatPoint(), bool affectedByPageScale = false);
 
@@ -196,6 +193,9 @@ private:
     WEBCORE_EXPORT virtual bool platformCALayerShouldTemporarilyRetainTileCohorts(PlatformCALayer*) const override;
 
     virtual bool isCommittingChanges() const override { return m_isCommittingChanges; }
+
+    WEBCORE_EXPORT virtual void setAllowsBackingStoreDetachment(bool) override;
+    virtual bool allowsBackingStoreDetachment() const override { return m_allowsBackingStoreDetachment; }
 
     WEBCORE_EXPORT virtual double backingStoreMemoryEstimate() const override;
 
@@ -246,7 +246,7 @@ private:
         return m_runningAnimations.find(animationName) != m_runningAnimations.end();
     }
 
-    void commitLayerChangesBeforeSublayers(CommitState&, float pageScaleFactor, const FloatPoint& positionRelativeToBase, const FloatRect& oldVisibleRect);
+    void commitLayerChangesBeforeSublayers(CommitState&, float pageScaleFactor, const FloatPoint& positionRelativeToBase);
     void commitLayerChangesAfterSublayers(CommitState&);
 
     FloatPoint computePositionRelativeToBase(float& pageScale) const;
@@ -275,12 +275,25 @@ private:
 
     enum ComputeVisibleRectFlag { RespectAnimatingTransforms = 1 << 0 };
     typedef unsigned ComputeVisibleRectFlags;
-    FloatRect computeVisibleRect(TransformState&, ComputeVisibleRectFlags = RespectAnimatingTransforms) const;
+    
+    struct VisibleAndCoverageRects {
+        FloatRect visibleRect;
+        FloatRect coverageRect;
+        
+        VisibleAndCoverageRects(const FloatRect& visRect, const FloatRect& covRect)
+            : visibleRect(visRect)
+            , coverageRect(covRect)
+        {
+        }
+    };
+    
+    VisibleAndCoverageRects computeVisibleAndCoverageRect(TransformState&, bool accumulateTransform, ComputeVisibleRectFlags = RespectAnimatingTransforms) const;
+    bool adjustCoverageRect(VisibleAndCoverageRects&, const FloatRect& oldVisibleRect) const;
 
     const FloatRect& visibleRect() const { return m_visibleRect; }
     const FloatRect& coverageRect() const { return m_coverageRect; }
 
-    void setVisibleAndCoverageRects(const FloatRect& visibleRect, const FloatRect& coverageRect);
+    void setVisibleAndCoverageRects(const VisibleAndCoverageRects&, bool allowBackingStoreDetachment);
     
     static FloatRect adjustTiledLayerVisibleRect(TiledBacking*, const FloatRect& oldVisibleRect, const FloatRect& newVisibleRect, const FloatSize& oldSize, const FloatSize& newSize);
 
@@ -363,7 +376,7 @@ private:
     void updateBackfaceVisibility();
     void updateStructuralLayer();
     void updateDrawsContent();
-    void updateBackingStoreAttachment();
+    void updateCoverage();
     void updateBackgroundColor();
 
     void updateContentsImage();
@@ -378,7 +391,6 @@ private:
     void updateContentsNeedsDisplay();
     void updateAcceleratesDrawing();
     void updateDebugBorder();
-    void updateVisibleRect(const FloatRect& oldVisibleRect);
     void updateTiles();
     void updateContentsScale(float pageScaleFactor);
     void updateCustomAppearance();
@@ -450,17 +462,16 @@ private:
         AcceleratesDrawingChanged =     1LLU << 23,
         ContentsScaleChanged =          1LLU << 24,
         ContentsVisibilityChanged =     1LLU << 25,
-        VisibleRectChanged =            1LLU << 26,
-        CoverageRectChanged =           1LLU << 27,
-        FiltersChanged =                1LLU << 28,
-        BackdropFiltersChanged =        1LLU << 29,
-        TilingAreaChanged =             1LLU << 30,
-        TilesAdded =                    1LLU << 31,
-        DebugIndicatorsChanged =        1LLU << 32,
-        CustomAppearanceChanged =       1LLU << 33,
-        BlendModeChanged =              1LLU << 34,
-        ShapeChanged =                  1LLU << 35,
-        WindRuleChanged =               1LLU << 36,
+        CoverageRectChanged =           1LLU << 26,
+        FiltersChanged =                1LLU << 27,
+        BackdropFiltersChanged =        1LLU << 28,
+        TilingAreaChanged =             1LLU << 29,
+        TilesAdded =                    1LLU << 30,
+        DebugIndicatorsChanged =        1LLU << 31,
+        CustomAppearanceChanged =       1LLU << 32,
+        BlendModeChanged =              1LLU << 33,
+        ShapeChanged =                  1LLU << 34,
+        WindRuleChanged =               1LLU << 35,
     };
     typedef uint64_t LayerChangeFlags;
     enum ScheduleFlushOrNot { ScheduleFlush, DontScheduleFlush };
@@ -492,13 +503,14 @@ private:
     RefPtr<PlatformCALayer> m_visibleTileWashLayer;
 #endif
     FloatRect m_visibleRect;
-    FloatSize m_sizeAtLastVisibleRectUpdate;
+    FloatSize m_sizeAtLastCoverageRectUpdate;
 
     FloatRect m_coverageRect; // Area for which we should maintain backing store, in the coordinate space of this layer.
     
     ContentsLayerPurpose m_contentsLayerPurpose { NoContentsLayer };
     bool m_needsFullRepaint : 1;
     bool m_usingBackdropLayerType : 1;
+    bool m_allowsBackingStoreDetachment : 1;
     bool m_intersectsCoverageRect : 1;
 
     Color m_contentsSolidColor;

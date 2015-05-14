@@ -26,7 +26,7 @@
 #ifndef DFGForAllKills_h
 #define DFGForAllKills_h
 
-#include "BytecodeKills.h"
+#include "DFGCombinedLiveness.h"
 #include "DFGGraph.h"
 #include "DFGOSRAvailabilityAnalysisPhase.h"
 #include "FullBytecodeLiveness.h"
@@ -39,35 +39,6 @@ namespace JSC { namespace DFG {
 // node is killed. A prerequisite to using these utilities is having liveness and OSR availability
 // computed.
 
-template<typename Functor>
-void forAllLiveNodesAtTail(Graph& graph, BasicBlock* block, const Functor& functor)
-{
-    HashSet<Node*> seen;
-    for (Node* node : block->ssa->liveAtTail) {
-        if (seen.add(node).isNewEntry)
-            functor(node);
-    }
-    
-    DFG_ASSERT(graph, block->terminal(), block->terminal()->origin.forExit.isSet());
-    
-    AvailabilityMap& availabilityMap = block->ssa->availabilityAtTail;
-    graph.forAllLocalsLiveInBytecode(
-        block->terminal()->origin.forExit,
-        [&] (VirtualRegister reg) {
-            availabilityMap.closeStartingWithLocal(
-                reg,
-                [&] (Node* node) -> bool {
-                    return seen.contains(node);
-                },
-                [&] (Node* node) -> bool {
-                    if (!seen.add(node).isNewEntry)
-                        return false;
-                    functor(node);
-                    return true;
-                });
-        });
-}
-
 // This tells you those things that die on the boundary between nodeBefore and nodeAfter. It is
 // conservative in the sense that it might resort to telling you some things that are still live at
 // nodeAfter.
@@ -75,6 +46,12 @@ template<typename Functor>
 void forAllKilledOperands(Graph& graph, Node* nodeBefore, Node* nodeAfter, const Functor& functor)
 {
     CodeOrigin before = nodeBefore->origin.forExit;
+
+    if (!nodeAfter) {
+        graph.forAllLiveInBytecode(before, functor);
+        return;
+    }
+    
     CodeOrigin after = nodeAfter->origin.forExit;
     
     VirtualRegister alreadyNoted;
@@ -186,13 +163,12 @@ void forAllKilledNodesAtNodeIndex(
 // the value is either no longer live. This pretends that nodes are dead at the end of the block, so that
 // you can use this to do per-basic-block analyses.
 template<typename Functor>
-void forAllKillsInBlock(Graph& graph, BasicBlock* block, const Functor& functor)
+void forAllKillsInBlock(
+    Graph& graph, const CombinedLiveness& combinedLiveness, BasicBlock* block,
+    const Functor& functor)
 {
-    forAllLiveNodesAtTail(
-        graph, block,
-        [&] (Node* node) {
-            functor(block->size(), node);
-        });
+    for (Node* node : combinedLiveness.liveAtTail[block])
+        functor(block->size(), node);
     
     LocalOSRAvailabilityCalculator localAvailability;
     localAvailability.beginBlock(block);

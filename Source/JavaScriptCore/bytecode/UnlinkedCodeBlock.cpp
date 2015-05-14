@@ -241,7 +241,6 @@ UnlinkedCodeBlock::UnlinkedCodeBlock(VM* vm, Structure* structure, CodeType code
     , m_globalObjectRegister(VirtualRegister())
     , m_needsFullScopeChain(info.needsActivation())
     , m_usesEval(info.usesEval())
-    , m_isNumericCompareFunction(false)
     , m_isStrictMode(info.isStrictMode())
     , m_isConstructor(info.isConstructor())
     , m_hasCapturedVariables(false)
@@ -472,8 +471,6 @@ void UnlinkedProgramCodeBlock::visitChildren(JSCell* cell, SlotVisitor& visitor)
     UnlinkedProgramCodeBlock* thisObject = jsCast<UnlinkedProgramCodeBlock*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, info());
     Base::visitChildren(thisObject, visitor);
-    for (size_t i = 0, end = thisObject->m_functionDeclarations.size(); i != end; i++)
-        visitor.append(&thisObject->m_functionDeclarations[i].second);
 }
 
 UnlinkedCodeBlock::~UnlinkedCodeBlock()

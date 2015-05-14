@@ -58,7 +58,6 @@
 #import <WebCore/AXObjectCache.h>
 #import <WebCore/BackForwardController.h>
 #import <WebCore/DataDetection.h>
-#import <WebCore/DataDetectorsSPI.h>
 #import <WebCore/DictionaryLookup.h>
 #import <WebCore/EventHandler.h>
 #import <WebCore/FocusController.h>
@@ -605,12 +604,14 @@ DictionaryPopupInfo WebPage::dictionaryPopupInfoForSelectionInPDFPlugin(PDFSelec
     CGFloat scaleFactor = pdfPlugin.scaleFactor();
 
     __block CGFloat maxAscender = 0;
+    __block CGFloat maxDescender = 0;
     [nsAttributedString enumerateAttributesInRange:NSMakeRange(0, [nsAttributedString length]) options:0 usingBlock:^(NSDictionary *attributes, NSRange range, BOOL *stop) {
         RetainPtr<NSMutableDictionary> scaledAttributes = adoptNS([attributes mutableCopy]);
         
         NSFont *font = [scaledAttributes objectForKey:NSFontAttributeName];
         if (font) {
             maxAscender = std::max(maxAscender, font.ascender * scaleFactor);
+            maxDescender = std::min(maxDescender, font.descender * scaleFactor);
             font = [fontManager convertFont:font toSize:[font pointSize] * scaleFactor];
             [scaledAttributes setObject:font forKey:NSFontAttributeName];
         }
@@ -618,14 +619,17 @@ DictionaryPopupInfo WebPage::dictionaryPopupInfoForSelectionInPDFPlugin(PDFSelec
         [scaledNSAttributedString addAttributes:scaledAttributes.get() range:range];
     }];
 
-    CGFloat textInset = rangeRect.size.height - maxAscender;
-    rangeRect.origin.y -= textInset;
+    // Based on TextIndicator implementation:
+    // TODO(144307): Come up with a better way to share this information than duplicating these values.
+    CGFloat verticalMargin = 2.5;
+    CGFloat horizontalMargin = 0.5;
+
+    rangeRect.origin.y -= CGCeiling(rangeRect.size.height - maxAscender - std::abs(maxDescender) + verticalMargin * scaleFactor);
+    rangeRect.origin.x += CGFloor(horizontalMargin * scaleFactor);
     
     TextIndicatorData dataForSelection;
     dataForSelection.selectionRectInRootViewCoordinates = rangeRect;
-
-    CGFloat insetAmount = 0.5 * textInset;
-    dataForSelection.textBoundingRectInRootViewCoordinates = NSInsetRect(rangeRect, insetAmount, insetAmount);
+    dataForSelection.textBoundingRectInRootViewCoordinates = rangeRect;
     dataForSelection.contentImageScaleFactor = scaleFactor;
     dataForSelection.presentationTransition = presentationTransition;
     
@@ -1045,7 +1049,7 @@ void WebPage::handleSelectionServiceClick(FrameSelection& selection, const Vecto
     if (!attributedSelection)
         return;
 
-    NSData *selectionData = [attributedSelection RTFDFromRange:NSMakeRange(0, [attributedSelection length]) documentAttributes:nil];
+    NSData *selectionData = [attributedSelection RTFDFromRange:NSMakeRange(0, [attributedSelection length]) documentAttributes:@{ }];
     IPC::DataReference data = IPC::DataReference(reinterpret_cast<const uint8_t*>([selectionData bytes]), [selectionData length]);
     bool isEditable = selection.selection().isContentEditable();
 
@@ -1129,7 +1133,7 @@ void WebPage::performActionMenuHitTestAtLocation(WebCore::FloatPoint locationInV
             continue;
 
         RefPtr<Range> mainResultRange;
-        DDActionContext *actionContext = webOverlay->actionContextForResultAtPoint(locationInContentCoordinates, mainResultRange);
+        DDActionContext *actionContext = webOverlay->actionContextForResultAtPoint(locationInContentCoordinates, mainResultRange, forImmediateAction);
         if (!actionContext || !mainResultRange)
             continue;
 

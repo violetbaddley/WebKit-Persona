@@ -61,7 +61,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -85,7 +85,7 @@
     <UseDebugLibraries>true</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
     <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugSuffix|x64'" Label="Configuration">
     <UseDebugLibraries>true</UseDebugLibraries>
@@ -97,7 +97,7 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -121,7 +121,7 @@
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v120_xp</PlatformToolset>
+    <PlatformToolset>v120</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Production|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -380,8 +380,10 @@
     <ClCompile Include="..\dfg\DFGCapabilities.cpp" />
     <ClCompile Include="..\dfg\DFGCFAPhase.cpp" />
     <ClCompile Include="..\dfg\DFGCFGSimplificationPhase.cpp" />
+    <ClCompile Include="..\dfg\DFGCleanUpPhase.cpp" />
     <ClCompile Include="..\dfg\DFGClobberize.cpp" />
     <ClCompile Include="..\dfg\DFGClobberSet.cpp" />
+    <ClCompile Include="..\dfg\DFGCombinedLiveness.cpp" />
     <ClCompile Include="..\dfg\DFGCommon.cpp" />
     <ClCompile Include="..\dfg\DFGCommonData.cpp" />
     <ClCompile Include="..\dfg\DFGCompilationKey.cpp" />
@@ -446,9 +448,7 @@
     <ClCompile Include="..\dfg\DFGOSRExitPreparation.cpp" />
     <ClCompile Include="..\dfg\DFGObjectAllocationSinkingPhase.cpp" />
     <ClCompile Include="..\dfg\DFGObjectMaterializationData.cpp" />
-    <ClCompile Include="..\dfg\DFGPhantomCanonicalizationPhase.cpp" />
     <ClCompile Include="..\dfg\DFGPhantomInsertionPhase.cpp" />
-    <ClCompile Include="..\dfg\DFGPhantomRemovalPhase.cpp" />
     <ClCompile Include="..\dfg\DFGPhase.cpp" />
     <ClCompile Include="..\dfg\DFGPhiChildren.cpp" />
     <ClCompile Include="..\dfg\DFGPlan.cpp" />
@@ -458,7 +458,6 @@
     <ClCompile Include="..\dfg\DFGPromotedHeapLocation.cpp" />
     <ClCompile Include="..\dfg\DFGPureValue.cpp" />
     <ClCompile Include="..\dfg\DFGPutStackSinkingPhase.cpp" />
-    <ClCompile Include="..\dfg\DFGResurrectionForValidationPhase.cpp" />
     <ClCompile Include="..\dfg\DFGSafepoint.cpp" />
     <ClCompile Include="..\dfg\DFGSpeculativeJIT.cpp" />
     <ClCompile Include="..\dfg\DFGSpeculativeJIT32_64.cpp" />
@@ -772,6 +771,7 @@
     <ClCompile Include="..\runtime\JSStringIterator.cpp" />
     <ClCompile Include="..\runtime\JSStringJoiner.cpp" />
     <ClCompile Include="..\runtime\JSSymbolTableObject.cpp" />
+    <ClCompile Include="..\runtime\JSTemplateRegistryKey.cpp" />
     <ClCompile Include="..\runtime\JSTypedArrayConstructors.cpp" />
     <ClCompile Include="..\runtime\JSTypedArrayPrototypes.cpp" />
     <ClCompile Include="..\runtime\JSTypedArrays.cpp" />
@@ -801,7 +801,6 @@
     <ClCompile Include="..\runtime\Operations.cpp" />
     <ClCompile Include="..\runtime\Options.cpp" />
     <ClCompile Include="..\runtime\PropertyDescriptor.cpp" />
-    <ClCompile Include="..\runtime\PropertyNameArray.cpp" />
     <ClCompile Include="..\runtime\PropertySlot.cpp" />
     <ClCompile Include="..\runtime\PropertyTable.cpp" />
     <ClCompile Include="..\runtime\PrototypeMap.cpp" />
@@ -840,9 +839,11 @@
     <ClCompile Include="..\runtime\SymbolObject.cpp" />
     <ClCompile Include="..\runtime\SymbolPrototype.cpp" />
     <ClCompile Include="..\runtime\SymbolTable.cpp" />
+    <ClCompile Include="..\runtime\TemplateRegistry.cpp" />
     <ClCompile Include="..\runtime\TestRunnerUtils.cpp" />
     <ClCompile Include="..\runtime\TypedArrayController.cpp" />
     <ClCompile Include="..\runtime\TypedArrayType.cpp" />
+    <ClCompile Include="..\runtime\TypeofType.cpp" />
     <ClCompile Include="..\runtime\TypeLocationCache.cpp" />
     <ClCompile Include="..\runtime\TypeProfiler.cpp" />
     <ClCompile Include="..\runtime\TypeProfilerLog.cpp" />
@@ -1062,8 +1063,10 @@
     <ClInclude Include="..\dfg\DFGCCallHelpers.h" />
     <ClInclude Include="..\dfg\DFGCFAPhase.h" />
     <ClInclude Include="..\dfg\DFGCFGSimplificationPhase.h" />
+    <ClInclude Include="..\dfg\DFGCleanUpPhase.h" />
     <ClInclude Include="..\dfg\DFGClobberize.h" />
     <ClInclude Include="..\dfg\DFGClobberSet.h" />
+    <ClInclude Include="..\dfg\DFGCombinedLiveness.h" />
     <ClInclude Include="..\dfg\DFGCommon.h" />
     <ClInclude Include="..\dfg\DFGCommonData.h" />
     <ClInclude Include="..\dfg\DFGCompilationKey.h" />
@@ -1142,9 +1145,7 @@
     <ClInclude Include="..\dfg\DFGOSRExitCompilerCommon.h" />
     <ClInclude Include="..\dfg\DFGOSRExitJumpPlaceholder.h" />
     <ClInclude Include="..\dfg\DFGOSRExitPreparation.h" />
-    <ClInclude Include="..\dfg\DFGPhantomCanonicalizationPhase.h" />
     <ClInclude Include="..\dfg\DFGPhantomInsertionPhase.h" />
-    <ClInclude Include="..\dfg\DFGPhantomRemovalPhase.h" />
     <ClInclude Include="..\dfg\DFGPhase.h" />
     <ClInclude Include="..\dfg\DFGPhiChildren.h" />
     <ClInclude Include="..\dfg\DFGPlan.h" />
@@ -1158,7 +1159,6 @@
     <ClInclude Include="..\dfg\DFGPutStackSinkingPhase.h" />
     <ClInclude Include="..\dfg\DFGRegisterBank.h" />
     <ClInclude Include="..\dfg\DFGRegisterSet.h" />
-    <ClInclude Include="..\dfg\DFGResurrectionForValidationPhase.h" />
     <ClInclude Include="..\dfg\DFGSafeToExecute.h" />
     <ClInclude Include="..\dfg\DFGSafepoint.h" />
     <ClInclude Include="..\dfg\DFGSaneStringGetByValSlowPathGenerator.h" />
@@ -1592,6 +1592,7 @@
     <ClInclude Include="..\runtime\JSStringIterator.h" />
     <ClInclude Include="..\runtime\JSStringJoiner.h" />
     <ClInclude Include="..\runtime\JSSymbolTableObject.h" />
+    <ClInclude Include="..\runtime\JSTemplateRegistryKey.h" />
     <ClInclude Include="..\runtime\JSType.h" />
     <ClInclude Include="..\runtime\JSTypeInfo.h" />
     <ClInclude Include="..\runtime\JSTypedArrayConstructors.h" />
@@ -1685,6 +1686,8 @@
     <ClInclude Include="..\runtime\SymbolObject.h" />
     <ClInclude Include="..\runtime\SymbolPrototype.h" />
     <ClInclude Include="..\runtime\SymbolTable.h" />
+    <ClInclude Include="..\runtime\TemplateRegistry.h" />
+    <ClInclude Include="..\runtime\TemplateRegistryKey.h" />
     <ClInclude Include="..\runtime\TestRunnerUtils.h" />
     <ClInclude Include="..\runtime\Tracing.h" />
     <ClInclude Include="..\runtime\ToNativeFromValue.h" />
@@ -1692,6 +1695,7 @@
     <ClInclude Include="..\runtime\TypedArrayController.h" />
     <ClInclude Include="..\runtime\TypedArrayInlines.h" />
     <ClInclude Include="..\runtime\TypedArrayType.h" />
+    <ClInclude Include="..\runtime\TypeofType.h" />
     <ClInclude Include="..\runtime\TypeLocationCache.h" />
     <ClInclude Include="..\runtime\TypeProfiler.h" />
     <ClInclude Include="..\runtime\TypeProfilerLog.h" />

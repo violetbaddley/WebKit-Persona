@@ -140,7 +140,7 @@ WebInspector.loaded = function()
     this._showingSplitConsoleSetting = new WebInspector.Setting("showing-split-console", false);
     this._splitConsoleHeightSetting = new WebInspector.Setting("split-console-height", 150);
 
-    this._openTabsSetting = new WebInspector.Setting("open-tabs", ["elements", "resources", "timeline", "debugger", "console"]);
+    this._openTabsSetting = new WebInspector.Setting("open-tabs", ["elements", "resources", "timeline", "debugger", "storage", "console"]);
     this._selectedTabIndexSetting = new WebInspector.Setting("selected-tab-index", 0);
 
     this.showShadowDOMSetting = new WebInspector.Setting("show-shadow-dom", false);
@@ -184,8 +184,6 @@ WebInspector.contentLoaded = function()
     document.body.classList.add(WebInspector.Platform.name + "-platform");
     if (WebInspector.Platform.isNightlyBuild)
         document.body.classList.add("nightly-build");
-    if (WebInspector.Platform.isLegacyMacOS)
-        document.body.classList.add("legacy");
     if (WebInspector.Platform.version.name)
         document.body.classList.add(WebInspector.Platform.version.name);
 
@@ -197,6 +195,7 @@ WebInspector.contentLoaded = function()
     this.toolbar.sizeMode = WebInspector.Toolbar.SizeMode.Small;
 
     this.tabBar = new WebInspector.TabBar(document.getElementById("tab-bar"));
+    this.tabBar.addEventListener(WebInspector.TabBar.Event.NewTabItemClicked, this._newTabItemClicked, this);
 
     var contentElement = document.getElementById("content");
     contentElement.setAttribute("role", "main");
@@ -228,6 +227,9 @@ WebInspector.contentLoaded = function()
     this.tabBrowser = new WebInspector.TabBrowser(document.getElementById("tab-browser"), this.tabBar, this.navigationSidebar, this.detailsSidebar);
     this.tabBrowser.addEventListener(WebInspector.TabBrowser.Event.SelectedTabContentViewDidChange, this._tabBrowserSelectedTabContentViewDidChange, this);
 
+    this.tabBar.addEventListener(WebInspector.TabBar.Event.TabBarItemAdded, this._updateNewTabButtonState, this);
+    this.tabBar.addEventListener(WebInspector.TabBar.Event.TabBarItemRemoved, this._updateNewTabButtonState, this);
+
     this._reloadPageKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl, "R", this._reloadPage.bind(this));
     this._reloadPageIgnoringCacheKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl | WebInspector.KeyboardShortcut.Modifier.Shift, "R", this._reloadPageIgnoringCache.bind(this));
 
@@ -250,7 +252,7 @@ WebInspector.contentLoaded = function()
     this.stepIntoAlternateKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.CommandOrControl, WebInspector.KeyboardShortcut.Key.Semicolon, this.debuggerStepInto.bind(this));
     this.stepOutAlternateKeyboardShortcut = new WebInspector.KeyboardShortcut(WebInspector.KeyboardShortcut.Modifier.Shift | WebInspector.KeyboardShortcut.Modifier.CommandOrControl, WebInspector.KeyboardShortcut.Key.Semicolon, this.debuggerStepOut.bind(this));
 
-    this._closeToolbarButton = new WebInspector.ControlToolbarItem("dock-close", WebInspector.UIString("Close"), platformImagePath("Close.svg"), 16, 14);
+    this._closeToolbarButton = new WebInspector.ControlToolbarItem("dock-close", WebInspector.UIString("Close"), "Images/Close.svg", 16, 14);
     this._closeToolbarButton.addEventListener(WebInspector.ButtonNavigationItem.Event.Clicked, this.close, this);
 
     this._undockToolbarButton = new WebInspector.ButtonToolbarItem("undock", WebInspector.UIString("Detach into separate window"), null, "Images/Undock.svg");
@@ -313,7 +315,6 @@ WebInspector.contentLoaded = function()
     this.applicationCacheDetailsSidebarPanel = new WebInspector.ApplicationCacheDetailsSidebarPanel;
     this.scopeChainDetailsSidebarPanel = new WebInspector.ScopeChainDetailsSidebarPanel;
     this.probeDetailsSidebarPanel = new WebInspector.ProbeDetailsSidebarPanel;
-    this.renderingFrameDetailsSidebarPanel = new WebInspector.RenderingFrameDetailsSidebarPanel;
 
     if (window.LayerTreeAgent)
         this.layerTreeDetailsSidebarPanel = new WebInspector.LayerTreeDetailsSidebarPanel;
@@ -323,13 +324,15 @@ WebInspector.contentLoaded = function()
     this.toolbar.element.addEventListener("mousedown", this._toolbarMouseDown.bind(this));
     document.getElementById("docked-resizer").addEventListener("mousedown", this._dockedResizerMouseDown.bind(this));
 
+    this._dockingAvailable = false;
+
     this._updateDockNavigationItems();
     this._updateToolbarHeight();
 
     this._pendingOpenTabTypes = [];
 
     for (var tabType of this._openTabsSetting.value) {
-        if (!this._isTabTypeAllowed(tabType)) {
+        if (!this.isTabTypeAllowed(tabType)) {
             this._pendingOpenTabTypes.push(tabType);
             continue;
         }
@@ -369,11 +372,13 @@ WebInspector.contentLoaded = function()
     this.runBootstrapOperations();
 };
 
-WebInspector._isTabTypeAllowed = function(tabType)
+WebInspector.isTabTypeAllowed = function(tabType)
 {
     switch (tabType) {
     case WebInspector.ElementsTabContentView.Type:
         return !!window.DOMAgent;
+    case WebInspector.StorageTabContentView.Type:
+        return !!window.DOMStorageAgent || !!window.DatabaseAgent || !!window.IndexedDBAgent;
     case WebInspector.TimelineTabContentView.Type:
         return !!window.TimelineAgent;
     }
@@ -384,18 +389,22 @@ WebInspector._isTabTypeAllowed = function(tabType)
 WebInspector._tabContentViewForType = function(tabType)
 {
     switch (tabType) {
-    case WebInspector.ElementsTabContentView.Type:
-        return new WebInspector.ElementsTabContentView;
-    case WebInspector.ResourcesTabContentView.Type:
-        return new WebInspector.ResourcesTabContentView;
-    case WebInspector.TimelineTabContentView.Type:
-        return new WebInspector.TimelineTabContentView;
-    case WebInspector.DebuggerTabContentView.Type:
-        return new WebInspector.DebuggerTabContentView;
     case WebInspector.ConsoleTabContentView.Type:
         return new WebInspector.ConsoleTabContentView;
+    case WebInspector.DebuggerTabContentView.Type:
+        return new WebInspector.DebuggerTabContentView;
+    case WebInspector.ElementsTabContentView.Type:
+        return new WebInspector.ElementsTabContentView;
+    case WebInspector.NewTabContentView.Type:
+        return new WebInspector.NewTabContentView;
+    case WebInspector.ResourcesTabContentView.Type:
+        return new WebInspector.ResourcesTabContentView;
     case WebInspector.SearchTabContentView.Type:
         return new WebInspector.SearchTabContentView;
+    case WebInspector.StorageTabContentView.Type:
+        return new WebInspector.StorageTabContentView;
+    case WebInspector.TimelineTabContentView.Type:
+        return new WebInspector.TimelineTabContentView;
     default:
         console.error("Unknown tab type", tabType);
     }
@@ -409,13 +418,64 @@ WebInspector._rememberOpenTabs = function()
 
     for (var tabBarItem of this.tabBar.tabBarItems) {
         var tabContentView = tabBarItem.representedObject;
-        if (tabContentView instanceof WebInspector.SettingsTabContentView)
+        if (!(tabContentView instanceof WebInspector.TabContentView))
+            continue;
+        if (tabContentView instanceof WebInspector.SettingsTabContentView || tabContentView instanceof WebInspector.NewTabContentView)
             continue;
         console.assert(tabContentView.type, "Tab type can't be null, undefined, or empty string", tabContentView.type, tabContentView);
         openTabs.push(tabContentView.type);
     }
 
     this._openTabsSetting.value = openTabs;
+};
+
+WebInspector._updateNewTabButtonState = function(event)
+{
+    var newTabAllowed = this.isNewTabWithTypeAllowed(WebInspector.ConsoleTabContentView.Type) || this.isNewTabWithTypeAllowed(WebInspector.ElementsTabContentView.Type)
+        || this.isNewTabWithTypeAllowed(WebInspector.ResourcesTabContentView.Type) || this.isNewTabWithTypeAllowed(WebInspector.StorageTabContentView.Type)
+        || this.isNewTabWithTypeAllowed(WebInspector.TimelineTabContentView.Type) || this.isNewTabWithTypeAllowed(WebInspector.DebuggerTabContentView.Type);
+    this.tabBar.newTabItem.disabled = !newTabAllowed;
+};
+
+WebInspector._newTabItemClicked = function(event)
+{
+    var tabContentView = this.tabBrowser.bestTabContentViewForClass(WebInspector.NewTabContentView);
+    if (!tabContentView)
+        tabContentView = new WebInspector.NewTabContentView;
+    this.tabBrowser.showTabForContentView(tabContentView);
+};
+
+WebInspector.isNewTabWithTypeAllowed = function(tabType)
+{
+    if (!this.isTabTypeAllowed(tabType))
+        return false;
+
+    // Only allow one tab per class for now.
+    for (var tabBarItem of this.tabBar.tabBarItems) {
+        var tabContentView = tabBarItem.representedObject;
+        if (!(tabContentView instanceof WebInspector.TabContentView))
+            continue;
+        if (tabContentView.type === tabType)
+            return false;
+    }
+
+    return true;
+};
+
+WebInspector.createNewTab = function(tabType, newTabContentViewToReplace)
+{
+    console.assert(this.isNewTabWithTypeAllowed(tabType));
+
+    var tabContentView = this._tabContentViewForType(tabType);
+
+    if (newTabContentViewToReplace) {
+        var insertionIndex = this.tabBar.tabBarItems.indexOf(newTabContentViewToReplace.tabBarItem);
+        this.tabBrowser.closeTabForContentView(newTabContentViewToReplace, true);
+        this.tabBrowser.showTabForContentView(tabContentView, true, insertionIndex);
+        return;
+    }
+
+    this.tabBrowser.showTabForContentView(tabContentView);
 };
 
 WebInspector.activateExtraDomains = function(domains)
@@ -437,7 +497,7 @@ WebInspector.activateExtraDomains = function(domains)
 
     var stillPendingOpenTabTypes = [];
     for (var tabType of this._pendingOpenTabTypes) {
-        if (!this._isTabTypeAllowed(tabType)) {
+        if (!this.isTabTypeAllowed(tabType)) {
             stillPendingOpenTabTypes.push(tabType);
             continue;
         }
@@ -489,6 +549,13 @@ WebInspector.updateWindowTitle = function()
     // The name "inspectedURLChanged" sounds like the whole URL is required, however this is only
     // used for updating the window title and it can be any string.
     InspectorFrontendHost.inspectedURLChanged(title);
+};
+
+WebInspector.updateDockingAvailability = function(available)
+{
+    this._dockingAvailable = available;
+
+    this._updateDockNavigationItems();
 };
 
 WebInspector.updateDockedState = function(side)
@@ -680,7 +747,7 @@ WebInspector.showElementsTab = function()
     this.tabBrowser.showTabForContentView(tabContentView);
 };
 
-WebInspector.showDebuggerTab = function(breakpointToSelect)
+WebInspector.showDebuggerTab = function(breakpointToSelect, showScopeChainDetailsSidebarPanel)
 {
     var tabContentView = this.tabBrowser.bestTabContentViewForClass(WebInspector.DebuggerTabContentView);
     if (!tabContentView)
@@ -688,6 +755,9 @@ WebInspector.showDebuggerTab = function(breakpointToSelect)
 
     if (breakpointToSelect instanceof WebInspector.Breakpoint)
         tabContentView.revealAndSelectBreakpoint(breakpointToSelect);
+
+    if (showScopeChainDetailsSidebarPanel)
+        tabContentView.showScopeChainDetailsSidebarPanel();
 
     this.tabBrowser.showTabForContentView(tabContentView);
 };
@@ -697,6 +767,14 @@ WebInspector.showResourcesTab = function()
     var tabContentView = this.tabBrowser.bestTabContentViewForClass(WebInspector.ResourcesTabContentView);
     if (!tabContentView)
         tabContentView = new WebInspector.ResourcesTabContentView;
+    this.tabBrowser.showTabForContentView(tabContentView);
+};
+
+WebInspector.showStorageTab = function()
+{
+    var tabContentView = this.tabBrowser.bestTabContentViewForClass(WebInspector.StorageTabContentView);
+    if (!tabContentView)
+        tabContentView = new WebInspector.StorageTabContentView;
     this.tabBrowser.showTabForContentView(tabContentView);
 };
 
@@ -1002,7 +1080,7 @@ WebInspector._captureDidStart = function(event)
 
 WebInspector._debuggerDidPause = function(event)
 {
-    this.showDebuggerTab();
+    this.showDebuggerTab(null, true);
 
     this._dashboardContainer.showDashboardViewForRepresentedObject(this.dashboardManager.dashboards.debugger);
 
@@ -1023,7 +1101,14 @@ WebInspector._frameWasAdded = function(event)
     if (frame.id !== this._frameIdentifierToShowSourceCodeWhenAvailable)
         return;
 
-    this.showSourceCodeForFrame(frame.id);
+    function delayedWork()
+    {
+        this.showSourceCodeForFrame(frame.id);
+    }
+
+    // Delay showing the frame since FrameWasAdded is called before MainFrameChanged.
+    // Calling showSourceCodeForFrame before MainFrameChanged will show the frame then close it.
+    setTimeout(delayedWork.bind(this));
 };
 
 WebInspector._mainFrameDidChange = function(event)
@@ -1040,7 +1125,9 @@ WebInspector._mainResourceDidChange = function(event)
 
     this._inProvisionalLoad = false;
 
-    this._restoreCookieForOpenTabs();
+    // Run cookie restoration after we are sure all of the Tabs and NavigationSidebarPanels
+    // have updated with respect to the main resource change.
+    setTimeout(this._restoreCookieForOpenTabs.bind(this, true));
 
     this._updateDownloadToolbarButton();
 
@@ -1057,11 +1144,13 @@ WebInspector._provisionalLoadStarted = function(event)
     this._inProvisionalLoad = true;
 };
 
-WebInspector._restoreCookieForOpenTabs = function(causedByReload)
+WebInspector._restoreCookieForOpenTabs = function(causedByNavigation)
 {
     for (var tabBarItem of this.tabBar.tabBarItems) {
         var tabContentView = tabBarItem.representedObject;
-        tabContentView.restoreStateFromCookie(causedByReload);
+        if (!(tabContentView instanceof WebInspector.TabContentView))
+            continue;
+        tabContentView.restoreStateFromCookie(causedByNavigation);
     }
 };
 
@@ -1069,6 +1158,8 @@ WebInspector._saveCookieForOpenTabs = function()
 {
     for (var tabBarItem of this.tabBar.tabBarItems) {
         var tabContentView = tabBarItem.representedObject;
+        if (!(tabContentView instanceof WebInspector.TabContentView))
+            continue;
         tabContentView.saveStateToCookie();
     }
 };
@@ -1148,10 +1239,17 @@ WebInspector._dockRight = function(event)
 
 WebInspector._updateDockNavigationItems = function()
 {
-    this._closeToolbarButton.hidden = !this.docked;
-    this._undockToolbarButton.hidden = this._dockSide === "undocked";
-    this._dockBottomToolbarButton.hidden = this._dockSide === "bottom";
-    this._dockRightToolbarButton.hidden = this._dockSide === "right";
+    if (this._dockingAvailable || this.docked) {
+        this._closeToolbarButton.hidden = !this.docked;
+        this._undockToolbarButton.hidden = this._dockSide === "undocked";
+        this._dockBottomToolbarButton.hidden = this._dockSide === "bottom";
+        this._dockRightToolbarButton.hidden = this._dockSide === "right";
+    } else {
+        this._closeToolbarButton.hidden = true;
+        this._undockToolbarButton.hidden = true;
+        this._dockBottomToolbarButton.hidden = true;
+        this._dockRightToolbarButton.hidden = true;
+    }
 };
 
 WebInspector._tabBrowserSizeDidChange = function()
@@ -1173,7 +1271,7 @@ WebInspector._sidebarWidthDidChange = function(event)
 
 WebInspector._updateToolbarHeight = function()
 {
-    if (WebInspector.Platform.isLegacyMacOS)
+    if (WebInspector.Platform.name === "mac" && WebInspector.Platform.version.release < 10)
         InspectorFrontendHost.setToolbarHeight(this.toolbar.element.offsetHeight);
 };
 
@@ -1383,8 +1481,7 @@ WebInspector._moveWindowMouseDown = function(event)
 
 WebInspector._storageWasInspected = function(event)
 {
-    // FIXME: This should show a Storage tab when we have one.
-    this.showResourcesTab();
+    this.showStorageTab();
 };
 
 WebInspector._domNodeWasInspected = function(event)
@@ -1465,8 +1562,12 @@ WebInspector._showConsoleTab = function(event)
 
 WebInspector._focusedContentView = function()
 {
-    if (this.tabBrowser.element.isSelfOrAncestor(this.currentFocusElement))
-        return this.tabBrowser.selectedTabContentView;
+    if (this.tabBrowser.element.isSelfOrAncestor(this.currentFocusElement)) {
+        var tabContentView = this.tabBrowser.selectedTabContentView;
+        if (tabContentView instanceof WebInspector.ContentBrowserTabContentView)
+            return tabContentView.contentBrowser.currentContentView;
+        return tabContentView;
+    }
     if (this.splitContentBrowser.element.isSelfOrAncestor(this.currentFocusElement))
         return  this.splitContentBrowser.currentContentView;
     return null;
@@ -1640,20 +1741,9 @@ WebInspector.createSourceCodeLocationLink = function(sourceCodeLocation, dontFlo
     if (!sourceCodeLocation)
         return null;
 
-    function showSourceCodeLocation(event)
-    {
-        event.stopPropagation();
-        event.preventDefault();
-
-        if (event.metaKey)
-            this.showOriginalUnformattedSourceCodeLocation(sourceCodeLocation);
-        else
-            this.showSourceCodeLocation(sourceCodeLocation);
-    }
-
     var linkElement = document.createElement("a");
     linkElement.className = "go-to-link";
-    linkElement.addEventListener("click", showSourceCodeLocation.bind(this));
+    WebInspector.linkifyElement(linkElement, sourceCodeLocation);
     sourceCodeLocation.populateLiveDisplayLocationTooltip(linkElement);
 
     if (useGoToArrowButton)
@@ -1669,12 +1759,7 @@ WebInspector.createSourceCodeLocationLink = function(sourceCodeLocation, dontFlo
 
 WebInspector.linkifyLocation = function(url, lineNumber, columnNumber, className)
 {
-    var sourceCode = WebInspector.frameResourceManager.resourceForURL(url);
-    if (!sourceCode) {
-        sourceCode = WebInspector.debuggerManager.scriptsForURL(url)[0];
-        if (sourceCode)
-            sourceCode = sourceCode.resource || sourceCode;
-    }
+    var sourceCode = WebInspector.sourceCodeForURL(url);
 
     if (!sourceCode) {
         var anchor = document.createElement("a");
@@ -1693,7 +1778,34 @@ WebInspector.linkifyLocation = function(url, lineNumber, columnNumber, className
     return linkElement;
 };
 
-WebInspector.linkifyURLAsNode = function(url, linkText, classes, tooltipText)
+WebInspector.linkifyElement = function(linkElement, sourceCodeLocation) {
+    console.assert(sourceCodeLocation);
+
+    function showSourceCodeLocation(event)
+    {
+        event.stopPropagation();
+        event.preventDefault();
+
+        if (event.metaKey)
+            this.showOriginalUnformattedSourceCodeLocation(sourceCodeLocation);
+        else
+            this.showSourceCodeLocation(sourceCodeLocation);
+    }
+
+    linkElement.addEventListener("click", showSourceCodeLocation.bind(this));
+};
+
+WebInspector.sourceCodeForURL = function(url) {
+    var sourceCode = WebInspector.frameResourceManager.resourceForURL(url);
+    if (!sourceCode) {
+        sourceCode = WebInspector.debuggerManager.scriptsForURL(url)[0];
+        if (sourceCode)
+            sourceCode = sourceCode.resource || sourceCode;
+    }
+    return sourceCode || null;
+};
+
+WebInspector.linkifyURLAsNode = function(url, linkText, classes)
 {
     if (!linkText)
         linkText = url;
@@ -1703,11 +1815,6 @@ WebInspector.linkifyURLAsNode = function(url, linkText, classes, tooltipText)
     var a = document.createElement("a");
     a.href = url;
     a.className = classes;
-
-    if (tooltipText === undefined)
-        a.title = url;
-    else if (typeof tooltipText !== "string" || tooltipText.length)
-        a.title = tooltipText;
 
     a.textContent = linkText;
     a.style.maxWidth = "100%";

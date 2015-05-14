@@ -361,9 +361,6 @@ public:
     unsigned jumpTarget(int index) const { return m_jumpTargets[index]; }
     unsigned lastJumpTarget() const { return m_jumpTargets.last(); }
 
-    void setIsNumericCompareFunction(bool isNumericCompareFunction) { m_isNumericCompareFunction = isNumericCompareFunction; }
-    bool isNumericCompareFunction() const { return m_isNumericCompareFunction; }
-
     bool isBuiltinFunction() const { return m_isBuiltinFunction; }
 
     ConstructorKind constructorKind() const { return static_cast<ConstructorKind>(m_constructorKind); }
@@ -553,7 +550,6 @@ private:
 
     unsigned m_needsFullScopeChain : 1;
     unsigned m_usesEval : 1;
-    unsigned m_isNumericCompareFunction : 1;
     unsigned m_isStrictMode : 1;
     unsigned m_isConstructor : 1;
     unsigned m_hasCapturedVariables : 1;
@@ -658,21 +654,14 @@ public:
 
     static void destroy(JSCell*);
 
-    void addFunctionDeclaration(VM& vm, const Identifier& name, UnlinkedFunctionExecutable* functionExecutable)
-    {
-        m_functionDeclarations.append(std::make_pair(name, WriteBarrier<UnlinkedFunctionExecutable>(vm, this, functionExecutable)));
-    }
-
     void addVariableDeclaration(const Identifier& name, bool isConstant)
     {
         m_varDeclarations.append(std::make_pair(name, isConstant));
     }
 
     typedef Vector<std::pair<Identifier, bool>> VariableDeclations;
-    typedef Vector<std::pair<Identifier, WriteBarrier<UnlinkedFunctionExecutable>> > FunctionDeclations;
 
     const VariableDeclations& variableDeclarations() const { return m_varDeclarations; }
-    const FunctionDeclations& functionDeclarations() const { return m_functionDeclarations; }
 
     static void visitChildren(JSCell*, SlotVisitor&);
 
@@ -683,7 +672,6 @@ private:
     }
 
     VariableDeclations m_varDeclarations;
-    FunctionDeclations m_functionDeclarations;
 
 public:
     static Structure* createStructure(VM& vm, JSGlobalObject* globalObject, JSValue proto)

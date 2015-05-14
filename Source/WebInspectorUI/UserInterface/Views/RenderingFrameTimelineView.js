@@ -40,15 +40,15 @@ WebInspector.RenderingFrameTimelineView = function(timeline, extraArguments)
     columns.startTime.aligned = "right";
 
     columns.layoutTime.title = WebInspector.UIString("Layout");
-    columns.layoutTime.width = "10%";
+    columns.layoutTime.width = "15%";
     columns.layoutTime.aligned = "right";
 
     columns.scriptTime.title = WebInspector.UIString("Script");
-    columns.scriptTime.width = "10%";
+    columns.scriptTime.width = "15%";
     columns.scriptTime.aligned = "right";
 
     columns.otherTime.title = WebInspector.UIString("Other");
-    columns.otherTime.width = "10%";
+    columns.otherTime.width = "15%";
     columns.otherTime.aligned = "right";
 
     columns.totalTime.title = WebInspector.UIString("Total Time");
@@ -86,18 +86,20 @@ WebInspector.RenderingFrameTimelineView.prototype = {
     {
         WebInspector.ContentView.prototype.shown.call(this);
 
-        WebInspector.renderingFrameDetailsSidebarPanel.renderingFrameTimeline = this.representedObject;
-
         this._dataGrid.shown();
     },
 
     hidden: function()
     {
-        WebInspector.renderingFrameDetailsSidebarPanel.renderingFrameTimeline = null;
-
         this._dataGrid.hidden();
 
         WebInspector.ContentView.prototype.hidden.call(this);
+    },
+
+    closed: function()
+    {
+        console.assert(this.representedObject instanceof WebInspector.Timeline);
+        this.representedObject.removeEventListener(null, null, this);
     },
 
     updateLayout: function()
@@ -154,14 +156,22 @@ WebInspector.RenderingFrameTimelineView.prototype = {
 
     // Protected
 
+    canShowContentViewForTreeElement: function(treeElement)
+    {
+        if (treeElement instanceof WebInspector.ProfileNodeTreeElement)
+            return !!treeElement.profileNode.sourceCodeLocation;
+        return WebInspector.TimelineView.prototype.canShowContentViewForTreeElement(treeElement);
+    },
+
     showContentViewForTreeElement: function(treeElement)
     {
-        if (treeElement instanceof WebInspector.ProfileNodeTreeElement && treeElement.profileNode.sourceCodeLocation) {
-            WebInspector.showOriginalOrFormattedSourceCodeLocation(treeElement.profileNode.sourceCodeLocation);
-            return true;
+        if (treeElement instanceof WebInspector.ProfileNodeTreeElement) {
+            if (treeElement.profileNode.sourceCodeLocation)
+                WebInspector.showOriginalOrFormattedSourceCodeLocation(treeElement.profileNode.sourceCodeLocation);
+            return;
         }
 
-        return WebInspector.TimelineView.prototype.showContentViewForTreeElement.call(this, treeElement);
+        WebInspector.TimelineView.prototype.showContentViewForTreeElement.call(this, treeElement);
     },
 
     treeElementSelected: function(treeElement, selectedByUser)

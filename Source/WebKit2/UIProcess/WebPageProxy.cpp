@@ -140,6 +140,7 @@
 #include "RemoteLayerTreeDrawingAreaProxy.h"
 #include "RemoteLayerTreeScrollingPerformanceData.h"
 #include "ViewSnapshotStore.h"
+#include <WebCore/MachSendRight.h>
 #include <WebCore/RunLoopObserver.h>
 #endif
 
@@ -958,7 +959,7 @@ void WebPageProxy::loadAlternateHTMLString(const String& htmlString, const Strin
 
     m_process->assumeReadAccessToBaseURL(baseURL);
     m_process->assumeReadAccessToBaseURL(unreachableURL);
-    m_process->send(Messages::WebPage::LoadAlternateHTMLString(htmlString, baseURL, unreachableURL, UserData(process().transformObjectsToHandles(userData).get())), m_pageID);
+    m_process->send(Messages::WebPage::LoadAlternateHTMLString(htmlString, baseURL, unreachableURL, m_failingProvisionalLoadURL, UserData(process().transformObjectsToHandles(userData).get())), m_pageID);
     m_process->responsivenessTimer()->start();
 }
 
@@ -2247,6 +2248,22 @@ void WebPageProxy::scaleView(double scale)
     m_process->send(Messages::WebPage::ScaleView(scale), m_pageID);
 }
 
+#if PLATFORM(COCOA)
+void WebPageProxy::scaleViewAndUpdateGeometryFenced(double scale, IntSize viewSize, std::function<void (const MachSendRight&, CallbackBase::Error)> callback)
+{
+    if (!isValid()) {
+        callback(MachSendRight(), CallbackBase::Error::OwnerWasInvalidated);
+        return;
+    }
+
+    m_viewScaleFactor = scale;
+    if (m_drawingArea)
+        m_drawingArea->willSendUpdateGeometry();
+    uint64_t callbackID = m_callbacks.put(WTF::move(callback), m_process->throttler().backgroundActivityToken());
+    m_process->send(Messages::WebPage::ScaleViewAndUpdateGeometryFenced(scale, viewSize, callbackID), m_pageID);
+}
+#endif
+
 void WebPageProxy::setIntrinsicDeviceScaleFactor(float scaleFactor)
 {
     if (m_intrinsicDeviceScaleFactor == scaleFactor)
@@ -2821,7 +2838,24 @@ void WebPageProxy::didReceiveServerRedirectForProvisionalLoadForFrame(uint64_t f
         m_loaderClient->didReceiveServerRedirectForProvisionalLoadForFrame(*this, *frame, navigation.get(), m_process->transformHandlesToObjects(userData.object()).get());
 }
 
-void WebPageProxy::didFailProvisionalLoadForFrame(uint64_t frameID, uint64_t navigationID, const ResourceError& error, const UserData& userData)
+void WebPageProxy::didChangeProvisionalURLForFrame(uint64_t frameID, uint64_t, const String& url)
+{
+    WebFrameProxy* frame = m_process->webFrame(frameID);
+    MESSAGE_CHECK(frame);
+    MESSAGE_CHECK(frame->frameLoadState().state() == FrameLoadState::State::Provisional);
+    MESSAGE_CHECK_URL(url);
+
+    auto transaction = m_pageLoadState.transaction();
+
+    // Internally, we handle this the same way we handle a server redirect. There are no client callbacks
+    // for this, but if this is the main frame, clients may observe a change to the page's URL.
+    if (frame->isMainFrame())
+        m_pageLoadState.didReceiveServerRedirectForProvisionalLoad(transaction, url);
+
+    frame->didReceiveServerRedirectForProvisionalLoad(url);
+}
+
+void WebPageProxy::didFailProvisionalLoadForFrame(uint64_t frameID, uint64_t navigationID, const String& provisionalURL, const ResourceError& error, const UserData& userData)
 {
     WebFrameProxy* frame = m_process->webFrame(frameID);
     MESSAGE_CHECK(frame);
@@ -2839,6 +2873,10 @@ void WebPageProxy::didFailProvisionalLoadForFrame(uint64_t frameID, uint64_t nav
     frame->didFailProvisionalLoad();
 
     m_pageLoadState.commitChanges();
+
+    ASSERT(!m_failingProvisionalLoadURL);
+    m_failingProvisionalLoadURL = provisionalURL;
+
     if (m_navigationClient) {
         if (frame->isMainFrame())
             m_navigationClient->didFailProvisionalNavigationWithError(*this, *frame, navigation.get(), error, m_process->transformHandlesToObjects(userData.object()).get());
@@ -2848,6 +2886,8 @@ void WebPageProxy::didFailProvisionalLoadForFrame(uint64_t frameID, uint64_t nav
         }
     } else
         m_loaderClient->didFailProvisionalLoadWithErrorForFrame(*this, *frame, navigation.get(), error, m_process->transformHandlesToObjects(userData.object()).get());
+
+    m_failingProvisionalLoadURL = { };
 }
 
 void WebPageProxy::clearLoadDependentCallbacks()
@@ -3646,7 +3686,7 @@ void WebPageProxy::pageDidScroll()
 {
     m_uiClient->pageDidScroll(this);
 #if PLATFORM(MAC)
-    m_pageClient.dismissContentRelativeChildWindows();
+    m_pageClient.dismissContentRelativeChildWindows(false);
 #endif
 }
 
@@ -3899,14 +3939,14 @@ void WebPageProxy::didGetImageForFindMatch(const ShareableBitmap::Handle& conten
     m_findMatchesClient.didGetImageForMatchResult(this, WebImage::create(ShareableBitmap::create(contentImageHandle)).get(), matchIndex);
 }
 
-void WebPageProxy::setTextIndicator(const TextIndicatorData& indicatorData, bool fadeOut)
+void WebPageProxy::setTextIndicator(const TextIndicatorData& indicatorData, uint64_t lifetime)
 {
-    m_pageClient.setTextIndicator(TextIndicator::create(indicatorData), fadeOut);
+    m_pageClient.setTextIndicator(TextIndicator::create(indicatorData), static_cast<TextIndicatorLifetime>(lifetime));
 }
 
 void WebPageProxy::clearTextIndicator()
 {
-    m_pageClient.setTextIndicator(nullptr, false);
+    m_pageClient.clearTextIndicator();
 }
 
 void WebPageProxy::setTextIndicatorAnimationProgress(float progress)
@@ -4224,7 +4264,13 @@ void WebPageProxy::didChooseFilesForOpenPanel(const Vector<String>& fileURLs)
     // is gated on a way of passing SandboxExtension::Handles in a Vector.
     for (size_t i = 0; i < fileURLs.size(); ++i) {
         SandboxExtension::Handle sandboxExtensionHandle;
-        SandboxExtension::createHandle(fileURLs[i], SandboxExtension::ReadOnly, sandboxExtensionHandle);
+        bool createdExtension = SandboxExtension::createHandle(fileURLs[i], SandboxExtension::ReadOnly, sandboxExtensionHandle);
+        if (!createdExtension) {
+            // This can legitimately fail if a directory containing the file is deleted after the file was chosen.
+            // We also have reports of cases where this likely fails for some unknown reason, <rdar://problem/10156710>.
+            WTFLogAlways("WebPageProxy::didChooseFilesForOpenPanel: could not create a sandbox extension for '%s'\n", fileURLs[i].utf8().data());
+            continue;
+        }
         m_process->send(Messages::WebPage::ExtendSandboxForFileFromOpenPanel(sandboxExtensionHandle), m_pageID);
     }
 #endif
@@ -4540,7 +4586,7 @@ void WebPageProxy::dataCallback(const IPC::DataReference& dataReference, uint64_
         return;
     }
 
-    callback->performCallbackWithReturnValue(API::Data::create(dataReference.data(), dataReference.size()).get());
+    callback->performCallbackWithReturnValue(API::Data::create(dataReference.data(), dataReference.size()).ptr());
 }
 
 void WebPageProxy::imageCallback(const ShareableBitmap::Handle& bitmapHandle, uint64_t callbackID)
@@ -4631,6 +4677,17 @@ void WebPageProxy::editingRangeCallback(const EditingRange& range, uint64_t call
     callback->performCallbackWithReturnValue(range);
 }
 
+#if PLATFORM(COCOA)
+void WebPageProxy::machSendRightCallback(const MachSendRight& sendRight, uint64_t callbackID)
+{
+    auto callback = m_callbacks.take<MachSendRightCallback>(callbackID);
+    if (!callback)
+        return;
+
+    callback->performCallbackWithReturnValue(sendRight);
+}
+#endif
+
 static bool shouldLogDiagnosticMessage(bool shouldSample)
 {
     if (!shouldSample)
@@ -4681,8 +4738,7 @@ void WebPageProxy::printFinishedCallback(const ResourceError& printError, uint64
         return;
     }
 
-    RefPtr<API::Error> error = API::Error::create(printError);
-    callback->performCallbackWithReturnValue(error.get());
+    callback->performCallbackWithReturnValue(API::Error::create(printError).ptr());
 }
 #endif
 
@@ -4944,6 +5000,10 @@ WebPageCreationParameters WebPageProxy::creationParameters()
     parameters.minimumLayoutSize = m_minimumLayoutSize;
     parameters.autoSizingShouldExpandToViewHeight = m_autoSizingShouldExpandToViewHeight;
     parameters.scrollPinningBehavior = m_scrollPinningBehavior;
+    if (m_scrollbarOverlayStyle)
+        parameters.scrollbarOverlayStyle = m_scrollbarOverlayStyle.value();
+    else
+        parameters.scrollbarOverlayStyle = Nullopt;
     parameters.backgroundExtendsBeyondPage = m_backgroundExtendsBeyondPage;
     parameters.layerHostingMode = m_layerHostingMode;
 #if ENABLE(REMOTE_INSPECTOR)
@@ -5202,7 +5262,7 @@ void WebPageProxy::pageExtendedBackgroundColorDidChange(const Color& backgroundC
 #if ENABLE(NETSCAPE_PLUGIN_API)
 void WebPageProxy::didFailToInitializePlugin(const String& mimeType, const String& frameURLString, const String& pageURLString)
 {
-    m_loaderClient->didFailToInitializePlugin(*this, createPluginInformationDictionary(mimeType, frameURLString, pageURLString).get());
+    m_loaderClient->didFailToInitializePlugin(*this, createPluginInformationDictionary(mimeType, frameURLString, pageURLString).ptr());
 }
 
 void WebPageProxy::didBlockInsecurePluginVersion(const String& mimeType, const String& pluginURLString, const String& frameURLString, const String& pageURLString, bool replacementObscured)
@@ -5356,9 +5416,8 @@ void WebPageProxy::savePDFToFileInDownloadsFolder(const String& suggestedFilenam
     if (!suggestedFilename.endsWith(".pdf", false))
         return;
 
-    RefPtr<API::Data> data = API::Data::create(dataReference.data(), dataReference.size());
-
-    saveDataToFileInDownloadsFolder(suggestedFilename, "application/pdf", originatingURLString, data.get());
+    saveDataToFileInDownloadsFolder(suggestedFilename, "application/pdf", originatingURLString,
+        API::Data::create(dataReference.data(), dataReference.size()).ptr());
 }
 
 void WebPageProxy::setMinimumLayoutSize(const IntSize& minimumLayoutSize)
@@ -5493,6 +5552,24 @@ void WebPageProxy::setScrollPinningBehavior(ScrollPinningBehavior pinning)
 
     if (isValid())
         m_process->send(Messages::WebPage::SetScrollPinningBehavior(pinning), m_pageID);
+}
+
+void WebPageProxy::setOverlayScrollbarStyle(WTF::Optional<WebCore::ScrollbarOverlayStyle> scrollbarStyle)
+{
+    if (!m_scrollbarOverlayStyle && !scrollbarStyle)
+        return;
+
+    if ((m_scrollbarOverlayStyle && scrollbarStyle) && m_scrollbarOverlayStyle.value() == scrollbarStyle.value())
+        return;
+
+    m_scrollbarOverlayStyle = scrollbarStyle;
+
+    WTF::Optional<uint32_t> scrollbarStyleForMessage;
+    if (scrollbarStyle)
+        scrollbarStyleForMessage = static_cast<ScrollbarOverlayStyle>(scrollbarStyle.value());
+
+    if (isValid())
+        m_process->send(Messages::WebPage::SetScrollbarOverlayStyle(scrollbarStyleForMessage), m_pageID);
 }
 
 #if ENABLE(SUBTLE_CRYPTO)
@@ -5794,6 +5871,14 @@ void WebPageProxy::setShouldPlayToPlaybackTarget(uint64_t contextId, bool should
 void WebPageProxy::didChangeBackgroundColor()
 {
     m_pageClient.didChangeBackgroundColor();
+}
+
+void WebPageProxy::clearWheelEventTestTrigger()
+{
+    if (!isValid())
+        return;
+    
+    m_process->send(Messages::WebPage::ClearWheelEventTestTrigger(), m_pageID);
 }
 
 } // namespace WebKit

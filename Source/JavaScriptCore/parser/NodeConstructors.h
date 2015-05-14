@@ -100,6 +100,58 @@ namespace JSC {
     {
     }
 
+#if ENABLE(ES6_TEMPLATE_LITERAL_SYNTAX)
+    inline TemplateExpressionListNode::TemplateExpressionListNode(ExpressionNode* node)
+        : m_node(node)
+    {
+    }
+
+    inline TemplateExpressionListNode::TemplateExpressionListNode(TemplateExpressionListNode* previous, ExpressionNode* node)
+        : m_node(node)
+    {
+        previous->m_next = this;
+    }
+
+    inline TemplateStringNode::TemplateStringNode(const JSTokenLocation& location, const Identifier& cooked, const Identifier& raw)
+        : ExpressionNode(location)
+        , m_cooked(cooked)
+        , m_raw(raw)
+    {
+    }
+
+    inline TemplateStringListNode::TemplateStringListNode(TemplateStringNode* node)
+        : m_node(node)
+    {
+    }
+
+    inline TemplateStringListNode::TemplateStringListNode(TemplateStringListNode* previous, TemplateStringNode* node)
+        : m_node(node)
+    {
+        previous->m_next = this;
+    }
+
+    inline TemplateLiteralNode::TemplateLiteralNode(const JSTokenLocation& location, TemplateStringListNode* templateStrings)
+        : ExpressionNode(location)
+        , m_templateStrings(templateStrings)
+        , m_templateExpressions(nullptr)
+    {
+    }
+
+    inline TemplateLiteralNode::TemplateLiteralNode(const JSTokenLocation& location, TemplateStringListNode* templateStrings, TemplateExpressionListNode* templateExpressions)
+        : ExpressionNode(location)
+        , m_templateStrings(templateStrings)
+        , m_templateExpressions(templateExpressions)
+    {
+    }
+
+    inline TaggedTemplateNode::TaggedTemplateNode(const JSTokenLocation& location, ExpressionNode* tag, TemplateLiteralNode* templateLiteral)
+        : ExpressionNode(location)
+        , m_tag(tag)
+        , m_templateLiteral(templateLiteral)
+    {
+    }
+#endif
+
     inline RegExpNode::RegExpNode(const JSTokenLocation& location, const Identifier& pattern, const Identifier& flags)
         : ExpressionNode(location)
         , m_pattern(pattern)
@@ -296,12 +348,13 @@ namespace JSC {
     {
     }
 
-    inline FunctionCallBracketNode::FunctionCallBracketNode(const JSTokenLocation& location, ExpressionNode* base, ExpressionNode* subscript, ArgumentsNode* args, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd)
+    inline FunctionCallBracketNode::FunctionCallBracketNode(const JSTokenLocation& location, ExpressionNode* base, ExpressionNode* subscript, bool subscriptHasAssignments, ArgumentsNode* args, const JSTextPosition& divot, const JSTextPosition& divotStart, const JSTextPosition& divotEnd)
         : ExpressionNode(location)
         , ThrowableSubExpressionData(divot, divotStart, divotEnd)
         , m_base(base)
         , m_subscript(subscript)
         , m_args(args)
+        , m_subscriptHasAssignments(subscriptHasAssignments)
     {
     }
 

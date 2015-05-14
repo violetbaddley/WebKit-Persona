@@ -121,6 +121,7 @@ public:
     static ParseResult parseValue(MutableStyleProperties*, CSSPropertyID, const String&, bool important, CSSParserMode, StyleSheetContents*);
 
     static bool parseColor(RGBA32& color, const String&, bool strict = false);
+    static bool isValidSystemColorValue(CSSValueID);
     static bool parseSystemColor(RGBA32& color, const String&, Document*);
     static PassRefPtr<CSSValueList> parseFontFaceValue(const AtomicString&);
     PassRefPtr<CSSPrimitiveValue> parseValidPrimitive(CSSValueID ident, ValueWithCalculation&);
@@ -146,7 +147,6 @@ public:
 
     PassRefPtr<CSSValue> parseBackgroundColor();
 
-#if ENABLE(PICTURE_SIZES)
     struct SourceSize {
         std::unique_ptr<MediaQueryExp> expression;
         RefPtr<CSSValue> length;
@@ -156,7 +156,6 @@ public:
     };
     Vector<SourceSize> parseSizesAttribute(StringView);
     SourceSize sourceSize(std::unique_ptr<MediaQueryExp>&&, CSSParserValue&);
-#endif
 
     // FIXME: Maybe these two methods could be combined into one.
     bool parseMaskImage(CSSParserValueList&, RefPtr<CSSValue>&);
@@ -230,6 +229,7 @@ public:
 
     bool parseLegacyPosition(CSSPropertyID, bool important);
     bool parseItemPositionOverflowPosition(CSSPropertyID, bool important);
+    PassRefPtr<CSSValue> parseContentDistributionOverflowPosition();
 
 #if ENABLE(CSS_SHAPES)
     PassRefPtr<CSSValue> parseShapeProperty(CSSPropertyID);
@@ -394,9 +394,7 @@ public:
     RefPtr<StyleRuleBase> m_rule;
     RefPtr<StyleKeyframe> m_keyframe;
     std::unique_ptr<MediaQuery> m_mediaQuery;
-#if ENABLE(PICTURE_SIZES)
     std::unique_ptr<Vector<SourceSize>> m_sourceSizeList;
-#endif
     std::unique_ptr<CSSParserValueList> m_valueList;
     bool m_supportsCondition;
 

@@ -71,7 +71,8 @@ enum class StoreDecision {
     NoDueToNoStoreResponse,
     NoDueToHTTPStatusCode,
     NoDueToNoStoreRequest,
-    NoDueToUnlikelyToReuse
+    NoDueToUnlikelyToReuse,
+    NoDueToStreamingMedia
 };
 
 enum class UseDecision {
@@ -100,6 +101,7 @@ public:
     void remove(const Key&);
 
     void clear();
+    void clear(std::chrono::system_clock::time_point modifiedSince, std::function<void ()>&& completionHandler);
 
     void dumpContentsToFile();
 
@@ -110,6 +112,7 @@ private:
     ~Cache() = delete;
 
     String dumpFilePath() const;
+    void deleteDumpFile();
 
     std::unique_ptr<Storage> m_storage;
     std::unique_ptr<Statistics> m_statistics;

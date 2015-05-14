@@ -44,6 +44,7 @@
 #import <WebCore/AXObjectCache.h>
 #import <WebCore/CFNetworkSPI.h>
 #import <WebCore/FileSystem.h>
+#import <WebCore/FontCache.h>
 #import <WebCore/FontCascade.h>
 #import <WebCore/LocalizedStrings.h>
 #import <WebCore/MemoryCache.h>
@@ -148,6 +149,10 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters&& par
 #endif
 #endif
 
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+    setSharedHTTPCookieStorage(parameters.uiProcessCookieStorageIdentifier);
+#endif
+
     // FIXME: Most of what this function does for cache size gets immediately overridden by setCacheModel().
     // - memory cache size passed from UI process is always ignored;
     // - disk cache size passed from UI process is effectively a minimum size.
@@ -169,6 +174,10 @@ void WebProcess::platformInitializeWebProcess(WebProcessCreationParameters&& par
             diskCapacity:parameters.nsURLCacheDiskCapacity
             diskPath:parameters.diskCacheDirectory]).get()];
     }
+#endif
+
+#if PLATFORM(MAC)
+    WebCore::FontCache::setFontWhitelist(parameters.fontWhitelist);
 #endif
 
     m_compositingRenderServerPort = WTF::move(parameters.acceleratedCompositingPort);

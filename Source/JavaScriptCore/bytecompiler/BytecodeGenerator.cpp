@@ -36,6 +36,7 @@
 #include "JSFunction.h"
 #include "JSLexicalEnvironment.h"
 #include "JSNameScope.h"
+#include "JSTemplateRegistryKey.h"
 #include "LowLevelInterpreter.h"
 #include "JSCInlines.h"
 #include "Options.h"
@@ -77,9 +78,17 @@ ParserError BytecodeGenerator::generate()
 
     {
         RefPtr<RegisterID> temp = newTemporary();
-        for (FunctionBodyNode* functionBody : m_functionsToInitialize) {
+        RefPtr<RegisterID> globalScope = scopeRegister(); // FIXME: With lexical scoping, this won't always be the global object: https://bugs.webkit.org/show_bug.cgi?id=142944 
+        for (auto functionPair : m_functionsToInitialize) {
+            FunctionBodyNode* functionBody = functionPair.first;
+            FunctionVariableType functionType = functionPair.second;
             emitNewFunction(temp.get(), functionBody);
-            initializeVariable(variable(functionBody->ident()), temp.get());
+            if (functionType == NormalFunctionVariable)
+                initializeVariable(variable(functionBody->ident()) , temp.get());
+            else if (functionType == GlobalFunctionVariable)
+                emitPutToScope(globalScope.get(), Variable(functionBody->ident()), temp.get(), ThrowIfNotFound);
+            else
+                RELEASE_ASSERT_NOT_REACHED();
         }
     }
     
@@ -163,8 +172,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, ProgramNode* programNode, UnlinkedP
 
     for (size_t i = 0; i < functionStack.size(); ++i) {
         FunctionBodyNode* function = functionStack[i];
-        UnlinkedFunctionExecutable* unlinkedFunction = makeFunction(function);
-        codeBlock->addFunctionDeclaration(*m_vm, function->ident(), unlinkedFunction);
+        m_functionsToInitialize.append(std::make_pair(function, GlobalFunctionVariable));
     }
 
     for (size_t i = 0; i < varStack.size(); ++i)
@@ -384,7 +392,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
     for (FunctionBodyNode* function : functionNode->functionStack()) {
         const Identifier& ident = function->ident();
         createVariable(ident, varKind(ident.impl()), IsVariable);
-        m_functionsToInitialize.append(function);
+        m_functionsToInitialize.append(std::make_pair(function, NormalFunctionVariable));
     }
     for (auto& entry : functionNode->varStack()) {
         ConstantMode constantMode = modeForIsConstant(entry.second & DeclarationStacks::IsConstant);
@@ -1541,6 +1549,28 @@ RegisterID* BytecodeGenerator::emitDirectPutById(RegisterID* base, const Identif
     return value;
 }
 
+void BytecodeGenerator::emitPutGetterById(RegisterID* base, const Identifier& property, RegisterID* getter)
+{
+    unsigned propertyIndex = addConstant(property);
+    m_staticPropertyAnalyzer.putById(base->index(), propertyIndex);
+
+    emitOpcode(op_put_getter_by_id);
+    instructions().append(base->index());
+    instructions().append(propertyIndex);
+    instructions().append(getter->index());
+}
+
+void BytecodeGenerator::emitPutSetterById(RegisterID* base, const Identifier& property, RegisterID* setter)
+{
+    unsigned propertyIndex = addConstant(property);
+    m_staticPropertyAnalyzer.putById(base->index(), propertyIndex);
+
+    emitOpcode(op_put_setter_by_id);
+    instructions().append(base->index());
+    instructions().append(propertyIndex);
+    instructions().append(setter->index());
+}
+
 void BytecodeGenerator::emitPutGetterSetter(RegisterID* base, const Identifier& property, RegisterID* getter, RegisterID* setter)
 {
     unsigned propertyIndex = addConstant(property);
@@ -1646,9 +1676,11 @@ RegisterID* BytecodeGenerator::emitCreateThis(RegisterID* dst)
     size_t begin = instructions().size();
     m_staticPropertyAnalyzer.createThis(m_thisRegister.index(), begin + 3);
 
+    m_codeBlock->addPropertyAccessInstruction(instructions().size());
     emitOpcode(op_create_this); 
     instructions().append(m_thisRegister.index()); 
     instructions().append(m_thisRegister.index()); 
+    instructions().append(0);
     instructions().append(0);
     return dst;
 }
@@ -1684,6 +1716,16 @@ JSString* BytecodeGenerator::addStringConstant(const Identifier& identifier)
         addConstantValue(stringInMap);
     }
     return stringInMap;
+}
+
+JSTemplateRegistryKey* BytecodeGenerator::addTemplateRegistryKeyConstant(const TemplateRegistryKey& templateRegistryKey)
+{
+    JSTemplateRegistryKey*& templateRegistryKeyInMap = m_templateRegistryKeyMap.add(templateRegistryKey, nullptr).iterator->value;
+    if (!templateRegistryKeyInMap) {
+        templateRegistryKeyInMap = JSTemplateRegistryKey::create(*vm(), templateRegistryKey);
+        addConstantValue(templateRegistryKeyInMap);
+    }
+    return templateRegistryKeyInMap;
 }
 
 RegisterID* BytecodeGenerator::emitNewArray(RegisterID* dst, ElementNode* elements, unsigned length)
@@ -2665,11 +2707,6 @@ RegisterID* BytecodeGenerator::emitThrowExpressionTooDeepException()
     return newTemporary();
 }
 
-void BytecodeGenerator::setIsNumericCompareFunction(bool isNumericCompareFunction)
-{
-    m_codeBlock->setIsNumericCompareFunction(isNumericCompareFunction);
-}
-
 bool BytecodeGenerator::isArgumentNumber(const Identifier& ident, int argumentNumber)
 {
     RegisterID* registerID = variable(ident).local();
@@ -2769,6 +2806,33 @@ void BytecodeGenerator::emitEnumeration(ThrowableExpressionData* node, Expressio
     popIteratorCloseContext();
     emitIteratorClose(iterator.get(), node);
     emitLabel(loopDone.get());
+}
+
+RegisterID* BytecodeGenerator::emitGetTemplateObject(RegisterID* dst, TaggedTemplateNode* taggedTemplate)
+{
+    TemplateRegistryKey::StringVector rawStrings;
+    TemplateRegistryKey::StringVector cookedStrings;
+
+    TemplateStringListNode* templateString = taggedTemplate->templateLiteral()->templateStrings();
+    for (; templateString; templateString = templateString->next()) {
+        rawStrings.append(templateString->value()->raw().impl());
+        cookedStrings.append(templateString->value()->cooked().impl());
+    }
+
+    RefPtr<RegisterID> getTemplateObject = nullptr;
+    Variable var = variable(propertyNames().getTemplateObjectPrivateName);
+    if (RegisterID* local = var.local())
+        getTemplateObject = emitMove(newTemporary(), local);
+    else {
+        getTemplateObject = newTemporary();
+        RefPtr<RegisterID> scope = newTemporary();
+        moveToDestinationIfNeeded(scope.get(), emitResolveScope(scope.get(), var));
+        emitGetFromScope(getTemplateObject.get(), scope.get(), var, ThrowIfNotFound);
+    }
+
+    CallArguments arguments(*this, nullptr);
+    emitLoad(arguments.thisRegister(), JSValue(addTemplateRegistryKeyConstant(TemplateRegistryKey(rawStrings, cookedStrings))));
+    return emitCall(dst, getTemplateObject.get(), NoExpectedFunction, arguments, taggedTemplate->divot(), taggedTemplate->divotStart(), taggedTemplate->divotEnd());
 }
 
 RegisterID* BytecodeGenerator::emitGetEnumerableLength(RegisterID* dst, RegisterID* base)

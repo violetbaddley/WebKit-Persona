@@ -407,25 +407,24 @@ struct Node {
         m_flags = defaultFlags(op);
     }
 
-    void convertToPhantom()
-    {
-        setOpAndDefaultFlags(Phantom);
-    }
-    
-    void convertToCheck()
-    {
-        setOpAndDefaultFlags(Check);
-    }
+    void remove();
 
     void convertToCheckStructure(StructureSet* set)
     {
         setOpAndDefaultFlags(CheckStructure);
         m_opInfo = bitwise_cast<uintptr_t>(set); 
     }
+
+    void convertToCheckStructureImmediate(Node* structure)
+    {
+        ASSERT(op() == CheckStructure);
+        m_op = CheckStructureImmediate;
+        children.setChild1(Edge(structure, CellUse));
+    }
     
     void replaceWith(Node* other)
     {
-        convertToPhantom();
+        remove();
         setReplacement(other);
     }
 
@@ -570,6 +569,7 @@ struct Node {
     
     void convertToPutByOffsetHint();
     void convertToPutStructureHint(Node* structure);
+    void convertToPutClosureVarHint();
     
     void convertToPhantomNewObject()
     {
@@ -586,6 +586,17 @@ struct Node {
     {
         ASSERT(m_op == NewFunction);
         m_op = PhantomNewFunction;
+        m_flags |= NodeMustGenerate;
+        m_opInfo = 0;
+        m_opInfo2 = 0;
+        children = AdjacencyList();
+    }
+
+    void convertToPhantomCreateActivation()
+    {
+        ASSERT(m_op == CreateActivation || m_op == MaterializeCreateActivation);
+        m_op = PhantomCreateActivation;
+        m_flags &= ~NodeHasVarArgs;
         m_flags |= NodeMustGenerate;
         m_opInfo = 0;
         m_opInfo2 = 0;
@@ -861,7 +872,7 @@ struct Node {
     NodeFlags arithNodeFlags()
     {
         NodeFlags result = m_flags & NodeArithFlagsMask;
-        if (op() == ArithMul || op() == ArithDiv || op() == ArithMod || op() == ArithNegate || op() == ArithPow || op() == DoubleAsInt32)
+        if (op() == ArithMul || op() == ArithDiv || op() == ArithMod || op() == ArithNegate || op() == ArithPow || op() == ArithRound || op() == DoubleAsInt32)
             return result;
         return result & ~NodeBytecodeNeedsNegZero;
     }
@@ -1231,6 +1242,7 @@ struct Node {
     bool hasHeapPrediction()
     {
         switch (op()) {
+        case ArithRound:
         case GetDirectPname:
         case GetById:
         case GetByIdFlush:
@@ -1342,6 +1354,7 @@ struct Node {
     {
         switch (op()) {
         case CheckStructure:
+        case CheckStructureImmediate:
             return true;
         default:
             return false;
@@ -1412,13 +1425,31 @@ struct Node {
     
     bool hasObjectMaterializationData()
     {
-        return op() == MaterializeNewObject;
+        switch (op()) {
+        case MaterializeNewObject:
+        case MaterializeCreateActivation:
+            return true;
+
+        default:
+            return false;
+        }
     }
     
     ObjectMaterializationData& objectMaterializationData()
     {
         ASSERT(hasObjectMaterializationData());
         return *reinterpret_cast<ObjectMaterializationData*>(m_opInfo);
+    }
+
+    bool isObjectAllocation()
+    {
+        switch (op()) {
+        case NewObject:
+        case MaterializeNewObject:
+            return true;
+        default:
+            return false;
+        }
     }
     
     bool isPhantomObjectAllocation()
@@ -1431,6 +1462,27 @@ struct Node {
         }
     }
     
+    bool isActivationAllocation()
+    {
+        switch (op()) {
+        case CreateActivation:
+        case MaterializeCreateActivation:
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    bool isPhantomActivationAllocation()
+    {
+        switch (op()) {
+        case PhantomCreateActivation:
+            return true;
+        default:
+            return false;
+        }
+    }
+
     bool isPhantomAllocation()
     {
         switch (op()) {
@@ -1438,6 +1490,7 @@ struct Node {
         case PhantomDirectArguments:
         case PhantomClonedArguments:
         case PhantomNewFunction:
+        case PhantomCreateActivation:
             return true;
         default:
             return false;
@@ -1511,6 +1564,23 @@ struct Node {
     {
         m_opInfo = mode;
     }
+
+    bool hasArithRoundingMode()
+    {
+        return op() == ArithRound;
+    }
+
+    Arith::RoundingMode arithRoundingMode()
+    {
+        ASSERT(hasArithRoundingMode());
+        return static_cast<Arith::RoundingMode>(m_opInfo);
+    }
+
+    void setArithRoundingMode(Arith::RoundingMode mode)
+    {
+        ASSERT(hasArithRoundingMode());
+        m_opInfo = static_cast<uintptr_t>(mode);
+    }
     
     bool hasVirtualRegister()
     {
@@ -1544,21 +1614,6 @@ struct Node {
     bool shouldGenerate()
     {
         return m_refCount;
-    }
-    
-    bool willHaveCodeGenOrOSR()
-    {
-        switch (op()) {
-        case SetLocal:
-        case MovHint:
-        case ZombieHint:
-            return true;
-        case Phantom:
-        case MustGenerate:
-            return child1().useKindUnchecked() != UntypedUse || child2().useKindUnchecked() != UntypedUse || child3().useKindUnchecked() != UntypedUse;
-        default:
-            return shouldGenerate();
-        }
     }
     
     bool isSemanticallySkippable()

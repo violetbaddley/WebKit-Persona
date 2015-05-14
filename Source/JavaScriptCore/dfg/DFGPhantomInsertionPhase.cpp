@@ -81,6 +81,20 @@ public:
 private:
     void handleBlock(BasicBlock* block)
     {
+        // FIXME: For blocks that have low register pressure, it would make the most sense to
+        // simply insert Phantoms at the last point possible since that would obviate the need to
+        // query bytecode liveness:
+        //
+        // - If we MovHint @x into loc42 then put a Phantom on the last MovHinted value in loc42.
+        // - At the end of the block put Phantoms for each MovHinted value.
+        //
+        // This will definitely not work if there are any phantom allocations. For those blocks
+        // where this would be legal, it remains to be seen how profitable it would be even if there
+        // was high register pressure. After all, a Phantom would cause a spill but it wouldn't
+        // cause a fill.
+        //
+        // https://bugs.webkit.org/show_bug.cgi?id=144524
+        
         m_values.fill(nullptr);
 
         Epoch currentEpoch = Epoch::first();
@@ -122,42 +136,35 @@ private:
             
             node->setEpoch(currentEpoch);
 
-            auto killAction = [&] (VirtualRegister reg) {
-                if (verbose)
-                    dataLog("    Killed operand: ", reg, "\n");
-                        
-                Node* killedNode = m_values.operand(reg);
-                if (!killedNode)
-                    return;
-                
-                // We only need to insert a Phantom if the node hasn't been used since the last
-                // exit, and was born before the last exit.
-                if (killedNode->epoch() == currentEpoch)
-                    return;
-                
-                if (verbose) {
-                    dataLog(
-                        "    Inserting Phantom on ", killedNode, " after ",
-                        block->at(lastExitingIndex), "\n");
-                }
-                
-                // We have exact ref counts, so creating a new use means that we have to increment
-                // the ref count.
-                killedNode->postfixRef();
-                
-                m_insertionSet.insertNode(
-                    lastExitingIndex + 1, SpecNone, Phantom, block->at(lastExitingIndex)->origin,
-                    killedNode->defaultEdge());
-            };
-            
-            if (nodeIndex + 1 == block->size()) {
-                // Should a MovHinted value be kept alive? If the value has been SetLocal'd then
-                // the answer is no. But we may have a value that is live here and dead in
-                // successors because we had jettisoned those successors that would have used the
-                // value. Hence, anything live here should be kept alive.
-                m_graph.forAllLiveInBytecode(node->origin.forExit, killAction);
-            } else
-                forAllKilledOperands(m_graph, node, block->at(nodeIndex + 1), killAction);
+            forAllKilledOperands(
+                m_graph, node, block->tryAt(nodeIndex + 1),
+                [&] (VirtualRegister reg) {
+                    if (verbose)
+                        dataLog("    Killed operand: ", reg, "\n");
+                    
+                    Node* killedNode = m_values.operand(reg);
+                    if (!killedNode)
+                        return;
+                    
+                    // We only need to insert a Phantom if the node hasn't been used since the last
+                    // exit, and was born before the last exit.
+                    if (killedNode->epoch() == currentEpoch)
+                        return;
+                    
+                    if (verbose) {
+                        dataLog(
+                            "    Inserting Phantom on ", killedNode, " after ",
+                            block->at(lastExitingIndex), "\n");
+                    }
+                    
+                    // We have exact ref counts, so creating a new use means that we have to
+                    // increment the ref count.
+                    killedNode->postfixRef();
+                    
+                    m_insertionSet.insertNode(
+                        lastExitingIndex + 1, SpecNone, Phantom,
+                        block->at(lastExitingIndex)->origin, killedNode->defaultEdge());
+            });
         }
         
         m_insertionSet.execute(block);
