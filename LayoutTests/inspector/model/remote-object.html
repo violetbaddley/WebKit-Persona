@@ -109,7 +109,10 @@ function test()
         {expression: "document.body"},
         {expression: "div = document.createElement('div'); div.className = 'foo bar'; div"},
         {expression: "span = document.createElement('span'); span.id = 'foo'; span"},
-        {expression: "document.createTextNode('text')"},
+        {expression: "input = document.createElement('input'); input.type = 'password'; input"},
+        {expression: "text = document.createTextNode('text content'); text"},
+        {expression: "comment = document.createComment('comment content'); comment"},
+        {expression: "[document.body, div, span, input, text, comment]"},
 
         // Node Collections (NodeLists / Collections)
         {expression: "document.all", browserOnly: true}, // HTMLAllCollection
@@ -160,7 +163,7 @@ function test()
 
     // Classes
 
-        {expression: "Person = class Person { constructor(){} get fullName(){} methodName(p1, p2){} }; Person"}, // Constructor => class type
+        {expression: "Person = class Person { constructor(name){} get fullName(){} methodName(p1, p2){} }; Person"}, // Constructor => class type
         {expression: "Person.prototype.methodName"}, // Method => just a function type
         {expression: "Alpha = class A { methodA(){} }; Beta = class B extends Alpha { methodB(){} }; Beta"},
         {expression: "[Beta]"},

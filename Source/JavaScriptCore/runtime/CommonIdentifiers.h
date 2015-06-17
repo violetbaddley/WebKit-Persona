@@ -103,6 +103,7 @@
     macro(exec) \
     macro(executionCount) \
     macro(exitKind) \
+    macro(flags) \
     macro(focus) \
     macro(forEach) \
     macro(forward) \
@@ -118,6 +119,7 @@
     macro(id) \
     macro(ignoreCase) \
     macro(index) \
+    macro(indexedDB) \
     macro(inferredName) \
     macro(input) \
     macro(instructionCount) \
@@ -176,6 +178,7 @@
     macro(valueOf) \
     macro(values) \
     macro(webkit) \
+    macro(webkitIndexedDB) \
     macro(window) \
     macro(writable)
 
@@ -324,7 +327,8 @@ namespace JSC {
         JSC_COMMON_PRIVATE_IDENTIFIERS_EACH_WELL_KNOWN_SYMBOL(JSC_IDENTIFIER_DECLARE_PRIVATE_WELL_KNOWN_SYMBOL_GLOBAL)
 #undef JSC_IDENTIFIER_DECLARE_PRIVATE_WELL_KNOWN_SYMBOL_GLOBAL
 
-        bool isPrivateName(StringImpl* uid) const;
+        bool isPrivateName(SymbolImpl& uid) const;
+        bool isPrivateName(UniquedStringImpl& uid) const;
         bool isPrivateName(const Identifier&) const;
 
         const Identifier* getPrivateName(const Identifier&) const;

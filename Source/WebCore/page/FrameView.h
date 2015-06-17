@@ -4,7 +4,7 @@
              (C) 1998, 1999 Torben Weis (weis@kde.org)
              (C) 1999 Lars Knoll (knoll@kde.org)
              (C) 1999 Antti Koivisto (koivisto@kde.org)
-   Copyright (C) 2004-2009, 2014 Apple Inc. All rights reserved.
+   Copyright (C) 2004-2009, 2014-2015 Apple Inc. All rights reserved.
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -43,7 +43,6 @@
 namespace WebCore {
 
 class AXObjectCache;
-class DOMTimer;
 class Element;
 class FloatSize;
 class Frame;
@@ -149,7 +148,7 @@ public:
 #endif
 
     void willRecalcStyle();
-    void updateCompositingLayersAfterStyleChange();
+    bool updateCompositingLayersAfterStyleChange();
     void updateCompositingLayersAfterLayout();
     bool flushCompositingStateForThisFrame(Frame* rootFrameForFlush);
 
@@ -316,9 +315,6 @@ public:
 
     void postLayoutTimerFired();
 
-    void registerThrottledDOMTimer(DOMTimer*);
-    void unregisterThrottledDOMTimer(DOMTimer*);
-
     WEBCORE_EXPORT bool wasScrolledByUser() const;
     WEBCORE_EXPORT void setWasScrolledByUser(bool);
 
@@ -344,6 +340,10 @@ public:
 
     void willPaintContents(GraphicsContext*, const IntRect& dirtyRect, PaintingState&);
     void didPaintContents(GraphicsContext*, const IntRect& dirtyRect, PaintingState&);
+
+#if PLATFORM(IOS)
+    WEBCORE_EXPORT void didReplaceMultipartContent();
+#endif
 
     WEBCORE_EXPORT void setPaintBehavior(PaintBehavior);
     WEBCORE_EXPORT PaintBehavior paintBehavior() const;
@@ -538,7 +538,8 @@ public:
     FloatRect exposedRect() const { return m_exposedRect; }
 
 #if ENABLE(CSS_SCROLL_SNAP)
-    virtual void updateSnapOffsets() override;
+    void updateSnapOffsets() override;
+    bool isScrollSnapInProgress() const override;
 #endif
 
     virtual float adjustScrollStepForFixedContent(float step, ScrollbarOrientation, ScrollGranularity) override;
@@ -599,9 +600,8 @@ private:
     void autoSizeIfEnabled();
 
     void applyRecursivelyWithVisibleRect(const std::function<void (FrameView& frameView, const IntRect& visibleRect)>&);
-    void updateThrottledDOMTimersState(const IntRect& visibleRect);
     void resumeVisibleImageAnimations(const IntRect& visibleRect);
-    void updateScriptedAnimationsThrottlingState(const IntRect& visibleRect);
+    void updateScriptedAnimationsAndTimersThrottlingState(const IntRect& visibleRect);
 
     void updateLayerFlushThrottling();
     WEBCORE_EXPORT void adjustTiledBackingCoverage();
@@ -783,8 +783,6 @@ private:
 
     std::unique_ptr<ScrollableAreaSet> m_scrollableAreas;
     std::unique_ptr<ViewportConstrainedObjectSet> m_viewportConstrainedObjects;
-
-    HashSet<DOMTimer*> m_throttledTimers;
 
     int m_headerHeight;
     int m_footerHeight;

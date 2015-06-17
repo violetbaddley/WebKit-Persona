@@ -32,6 +32,9 @@
 #include "Editor.h"
 #include "FloatRect.h"
 #include "FrameView.h"
+#include "HTMLFormControlsCollection.h"
+#include "HTMLOptionsCollection.h"
+#include "HTMLTableRowsCollection.h"
 #include "InlineTextBox.h"
 #include "InsertionPoint.h"
 #include "JSLazyEventListener.h"
@@ -330,6 +333,11 @@ void ContainerNode::insertBeforeCommon(Node& nextChild, Node& newChild)
 
 void ContainerNode::notifyChildInserted(Node& child, ChildChangeSource source)
 {
+    ChildListMutationScope(*this).childAdded(child);
+
+    NodeVector postInsertionNotificationTargets;
+    ChildNodeInsertionNotifier(*this).notify(child, postInsertionNotificationTargets);
+
     ChildChange change;
     change.type = child.isElementNode() ? ElementInserted : child.isTextNode() ? TextInserted : NonContentsChildChanged;
     change.previousSiblingElement = ElementTraversal::previousSibling(child);
@@ -337,10 +345,15 @@ void ContainerNode::notifyChildInserted(Node& child, ChildChangeSource source)
     change.source = source;
 
     childrenChanged(change);
+
+    for (auto& target : postInsertionNotificationTargets)
+        target->didNotifySubtreeInsertions();
 }
 
 void ContainerNode::notifyChildRemoved(Node& child, Node* previousSibling, Node* nextSibling, ChildChangeSource source)
 {
+    ChildNodeRemovalNotifier(*this).notify(child);
+
     ChildChange change;
     change.type = is<Element>(child) ? ElementRemoved : is<Text>(child) ? TextRemoved : NonContentsChildChanged;
     change.previousSiblingElement = (!previousSibling || is<Element>(*previousSibling)) ? downcast<Element>(previousSibling) : ElementTraversal::previousSibling(*previousSibling);
@@ -370,11 +383,7 @@ void ContainerNode::parserInsertBefore(PassRefPtr<Node> newChild, Node* nextChil
 
     newChild->updateAncestorConnectedSubframeCountForInsertion();
 
-    ChildListMutationScope(*this).childAdded(*newChild);
-
     notifyChildInserted(*newChild, ChildChangeSourceParser);
-
-    ChildNodeInsertionNotifier(*this).notify(*newChild);
 
     newChild->setNeedsStyleRecalc(ReconstructRenderTree);
 }
@@ -560,8 +569,6 @@ bool ContainerNode::removeChild(Node* oldChild, ExceptionCode& ec)
         removeBetween(prev, next, child);
 
         notifyChildRemoved(child, prev, next, ChildChangeSourceAPI);
-
-        ChildNodeRemovalNotifier(*this).notify(child);
     }
 
 
@@ -618,8 +625,6 @@ void ContainerNode::parserRemoveChild(Node& oldChild)
     removeBetween(prev, next, oldChild);
 
     notifyChildRemoved(oldChild, prev, next, ChildChangeSourceParser);
-
-    ChildNodeRemovalNotifier(*this).notify(oldChild);
 }
 
 // this differs from other remove functions because it forcibly removes all the children,
@@ -643,23 +648,18 @@ void ContainerNode::removeChildren()
     // and remove... e.g. stop loading frames, fire unload events.
     willRemoveChildren(*this);
 
-    NodeVector removedChildren;
     {
         WidgetHierarchyUpdatesSuspensionScope suspendWidgetHierarchyUpdates;
         {
             NoEventDispatchAssertion assertNoEventDispatch;
-            removedChildren.reserveInitialCapacity(countChildNodes());
             while (RefPtr<Node> n = m_firstChild) {
-                removedChildren.append(*m_firstChild);
                 removeBetween(0, m_firstChild->nextSibling(), *m_firstChild);
+                ChildNodeRemovalNotifier(*this).notify(*n);
             }
         }
 
         ChildChange change = { AllChildrenRemoved, nullptr, nullptr, ChildChangeSourceAPI };
         childrenChanged(change);
-        
-        for (auto& removedChild : removedChildren)
-            ChildNodeRemovalNotifier(*this).notify(removedChild);
     }
 
     if (document().svgExtensions()) {
@@ -749,11 +749,7 @@ void ContainerNode::parserAppendChild(PassRefPtr<Node> newChild)
 
     newChild->updateAncestorConnectedSubframeCountForInsertion();
 
-    ChildListMutationScope(*this).childAdded(*newChild);
-
     notifyChildInserted(*newChild, ChildChangeSourceParser);
-
-    ChildNodeInsertionNotifier(*this).notify(*newChild);
 
     newChild->setNeedsStyleRecalc(ReconstructRenderTree);
 }
@@ -845,11 +841,7 @@ void ContainerNode::updateTreeAfterInsertion(Node& child)
 {
     ASSERT(child.refCount());
 
-    ChildListMutationScope(*this).childAdded(child);
-
     notifyChildInserted(child, ChildChangeSourceAPI);
-
-    ChildNodeInsertionNotifier(*this).notify(child);
 
     child.setNeedsStyleRecalc(ReconstructRenderTree);
 
@@ -912,26 +904,46 @@ RefPtr<RadioNodeList> ContainerNode::radioNodeList(const AtomicString& name)
     return ensureRareData().ensureNodeLists().addCacheWithAtomicName<RadioNodeList>(*this, name);
 }
 
+Ref<HTMLCollection> ContainerNode::children()
+{
+    return ensureCachedHTMLCollection(NodeChildren);
+}
+
 Element* ContainerNode::firstElementChild() const
 {
-    ASSERT(is<Document>(*this) || is<DocumentFragment>(*this) || is<Element>(*this));
-
     return ElementTraversal::firstChild(*this);
 }
 
 Element* ContainerNode::lastElementChild() const
 {
-    ASSERT(is<Document>(*this) || is<DocumentFragment>(*this) || is<Element>(*this));
-
     return ElementTraversal::lastChild(*this);
 }
 
 unsigned ContainerNode::childElementCount() const
 {
-    ASSERT(is<Document>(*this) || is<DocumentFragment>(*this) || is<Element>(*this));
-
     auto children = childrenOfType<Element>(*this);
     return std::distance(children.begin(), children.end());
+}
+
+Ref<HTMLCollection> ContainerNode::ensureCachedHTMLCollection(CollectionType type)
+{
+    if (HTMLCollection* collection = cachedHTMLCollection(type))
+        return *collection;
+
+    if (type == TableRows)
+        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTableRowsCollection>(downcast<HTMLTableElement>(*this), type);
+    else if (type == SelectOptions)
+        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLOptionsCollection>(downcast<HTMLSelectElement>(*this), type);
+    else if (type == FormControls) {
+        ASSERT(hasTagName(HTMLNames::formTag) || hasTagName(HTMLNames::fieldsetTag));
+        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLFormControlsCollection>(*this, type);
+    }
+    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLCollection>(*this, type);
+}
+
+HTMLCollection* ContainerNode::cachedHTMLCollection(CollectionType type)
+{
+    return hasRareData() && rareData()->nodeLists() ? rareData()->nodeLists()->cachedCollection<HTMLCollection>(type) : nullptr;
 }
 
 } // namespace WebCore

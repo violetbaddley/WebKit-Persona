@@ -59,7 +59,7 @@
 #endif
 #include <wtf/CurrentTime.h>
 #include <wtf/SHA1.h>
-#include <wtf/gobject/GRefPtr.h>
+#include <wtf/glib/GRefPtr.h>
 #include <wtf/text/Base64.h>
 #include <wtf/text/CString.h>
 
@@ -82,7 +82,9 @@ public:
     WebCoreSynchronousLoader(ResourceError& error, ResourceResponse& response, SoupSession* session, Vector<char>& data, StoredCredentials storedCredentials)
         : m_error(error)
         , m_response(response)
+#if !SOUP_CHECK_VERSION(2, 49, 91)
         , m_session(session)
+#endif
         , m_data(data)
         , m_finished(false)
         , m_storedCredentials(storedCredentials)
@@ -97,6 +99,8 @@ public:
 
 #if !SOUP_CHECK_VERSION(2, 49, 91)
         adjustMaxConnections(1);
+#else
+        UNUSED_PARAM(session);
 #endif
     }
 
@@ -186,7 +190,9 @@ public:
 private:
     ResourceError& m_error;
     ResourceResponse& m_response;
+#if !SOUP_CHECK_VERSION(2, 49, 91)
     SoupSession* m_session;
+#endif
     Vector<char>& m_data;
     bool m_finished;
     GRefPtr<GMainLoop> m_mainLoop;
@@ -1025,6 +1031,21 @@ bool ResourceHandle::start()
         sendPendingRequest();
 
     return true;
+}
+
+RefPtr<ResourceHandle> ResourceHandle::releaseForDownload(ResourceHandleClient* downloadClient)
+{
+    // We don't adopt the ref, as it will be released by cleanupSoupRequestOperation, which should always run.
+    RefPtr<ResourceHandle> newHandle = new ResourceHandle(d->m_context.get(), firstRequest(), nullptr, d->m_defersLoading, d->m_shouldContentSniff);
+    std::swap(d, newHandle->d);
+
+    g_signal_handlers_disconnect_matched(newHandle->d->m_soupMessage.get(), G_SIGNAL_MATCH_DATA, 0, 0, nullptr, nullptr, this);
+    g_object_set_data(G_OBJECT(newHandle->d->m_soupMessage.get()), "handle", newHandle.get());
+
+    newHandle->d->m_client = downloadClient;
+    continueAfterDidReceiveResponse(newHandle.get());
+
+    return newHandle;
 }
 
 void ResourceHandle::sendPendingRequest()

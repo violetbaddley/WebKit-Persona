@@ -457,10 +457,10 @@ bool DocumentLoader::isPostOrRedirectAfterPost(const ResourceRequest& newRequest
 
 void DocumentLoader::handleSubstituteDataLoadNow()
 {
-    URL url = m_substituteData.responseURL();
-    if (url.isEmpty())
-        url = m_request.url();
-    ResourceResponse response(url, m_substituteData.mimeType(), m_substituteData.content()->size(), m_substituteData.textEncoding());
+    ResourceResponse response = m_substituteData.response();
+    if (response.url().isEmpty())
+        response = ResourceResponse(m_request.url(), m_substituteData.mimeType(), m_substituteData.content()->size(), m_substituteData.textEncoding());
+
     responseReceived(0, response);
 }
 
@@ -606,7 +606,7 @@ void DocumentLoader::responseReceived(CachedResource* resource, const ResourceRe
     auto it = commonHeaders.find(HTTPHeaderName::XFrameOptions);
     if (it != commonHeaders.end()) {
         String content = it->value;
-        ASSERT(m_mainResource);
+        ASSERT(m_identifierForLoadWithoutResourceLoader || m_mainResource);
         unsigned long identifier = m_identifierForLoadWithoutResourceLoader ? m_identifierForLoadWithoutResourceLoader : m_mainResource->identifier();
         ASSERT(identifier);
         if (frameLoader()->shouldInterruptLoadForXFrameOptions(content, response.url(), identifier)) {
@@ -762,6 +762,9 @@ void DocumentLoader::commitLoad(const char* data, int length)
         return;
 #endif
     frameLoader->client().committedLoad(this, data, length);
+
+    if (isMultipartReplacingLoad())
+        frameLoader->client().didReplaceMultipartContent();
 }
 
 ResourceError DocumentLoader::interruptedForPolicyChangeError() const
@@ -870,6 +873,8 @@ void DocumentLoader::setupForReplace()
 {
     if (!mainResourceData())
         return;
+
+    frameLoader()->client().willReplaceMultipartContent();
     
     maybeFinishLoadingMultipartContent();
     maybeCreateArchive();
@@ -1114,25 +1119,9 @@ void DocumentLoader::substituteResourceDeliveryTimerFired()
         RefPtr<ResourceLoader> loader = it->key;
         SubstituteResource* resource = it->value.get();
         
-        if (resource) {
-            SharedBuffer* data = resource->data();
-        
-            loader->didReceiveResponse(resource->response());
-
-            // Calling ResourceLoader::didReceiveResponse can end up cancelling the load,
-            // so we need to check if the loader has reached its terminal state.
-            if (loader->reachedTerminalState())
-                return;
-
-            loader->didReceiveData(data->data(), data->size(), data->size(), DataPayloadWholeResource);
-
-            // Calling ResourceLoader::didReceiveData can end up cancelling the load,
-            // so we need to check if the loader has reached its terminal state.
-            if (loader->reachedTerminalState())
-                return;
-
-            loader->didFinishLoading(0);
-        } else {
+        if (resource)
+            resource->deliver(*loader);
+        else {
             // A null resource means that we should fail the load.
             // FIXME: Maybe we should use another error here - something like "not in cache".
             loader->didFail(loader->cannotShowURLError());
@@ -1160,8 +1149,7 @@ void DocumentLoader::cancelPendingSubstituteLoad(ResourceLoader* loader)
 bool DocumentLoader::scheduleArchiveLoad(ResourceLoader* loader, const ResourceRequest& request)
 {
     if (ArchiveResource* resource = archiveResourceForURL(request.url())) {
-        m_pendingSubstituteResources.set(loader, resource);
-        deliverSubstituteResourcesAfterDelay();
+        scheduleSubstituteResourceLoad(*loader, *resource);
         return true;
     }
 
@@ -1183,6 +1171,12 @@ bool DocumentLoader::scheduleArchiveLoad(ResourceLoader* loader, const ResourceR
     }
 }
 #endif // ENABLE(WEB_ARCHIVE)
+
+void DocumentLoader::scheduleSubstituteResourceLoad(ResourceLoader& loader, SubstituteResource& resource)
+{
+    m_pendingSubstituteResources.set(&loader, &resource);
+    deliverSubstituteResourcesAfterDelay();
+}
 
 void DocumentLoader::addResponse(const ResourceResponse& r)
 {
@@ -1234,7 +1228,7 @@ const URL& DocumentLoader::responseURL() const
 
 URL DocumentLoader::documentURL() const
 {
-    URL url = substituteData().responseURL();
+    URL url = substituteData().response().url();
 #if ENABLE(WEB_ARCHIVE)
     if (url.isEmpty() && m_archive && m_archive->type() == Archive::WebArchive)
         url = m_archive->mainResource()->url();
@@ -1297,6 +1291,7 @@ void DocumentLoader::stopLoadingPlugIns()
 void DocumentLoader::stopLoadingSubresources()
 {
     cancelAll(m_subresourceLoaders);
+    ASSERT(m_subresourceLoaders.isEmpty());
 }
 
 void DocumentLoader::addSubresourceLoader(ResourceLoader* loader)
@@ -1311,6 +1306,9 @@ void DocumentLoader::addSubresourceLoader(ResourceLoader* loader)
     ASSERT(loader->identifier());
     ASSERT(!m_subresourceLoaders.contains(loader->identifier()));
     ASSERT(!mainResourceLoader() || mainResourceLoader() != loader);
+
+    // A page in the PageCache should not be able to start loads.
+    ASSERT_WITH_SECURITY_IMPLICATION(!document() || !document()->inPageCache());
 
     m_subresourceLoaders.add(loader->identifier(), loader);
 }
@@ -1549,6 +1547,19 @@ void DocumentLoader::handledOnloadEvents()
     applicationCacheHost()->stopDeferringEvents();
 }
 
+void DocumentLoader::setTriggeringAction(const NavigationAction& action)
+{
+    m_triggeringAction = action.copyWithShouldOpenExternalURLsPolicy(m_frame ? shouldOpenExternalURLsPolicyToPropagate() : m_shouldOpenExternalURLsPolicy);
+}
+
+ShouldOpenExternalURLsPolicy DocumentLoader::shouldOpenExternalURLsPolicyToPropagate() const
+{
+    if (!m_frame || !m_frame->isMainFrame())
+        return ShouldOpenExternalURLsPolicy::ShouldNotAllow;
+
+    return m_shouldOpenExternalURLsPolicy;
+}
+
 #if ENABLE(CONTENT_EXTENSIONS)
 void DocumentLoader::addPendingContentExtensionSheet(const String& identifier, StyleSheetContents& sheet)
 {
@@ -1609,7 +1620,8 @@ void DocumentLoader::contentFilterDidDecide()
     URL blockedURL;
     blockedURL.setProtocol(ContentFilter::urlScheme());
     blockedURL.setHost(ASCIILiteral("blocked-page"));
-    SubstituteData substituteData { contentFilter->replacementData(), ASCIILiteral("text/html"), ASCIILiteral("UTF-8"), documentURL() };
+    ResourceResponse response(URL(), ASCIILiteral("text/html"), contentFilter->replacementData()->size(), ASCIILiteral("UTF-8"));
+    SubstituteData substituteData { contentFilter->replacementData(), documentURL(), response, SubstituteData::SessionHistoryVisibility::Hidden };
     frame()->navigationScheduler().scheduleSubstituteDataLoad(blockedURL, substituteData);
 }
 #endif

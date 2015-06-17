@@ -389,6 +389,7 @@
     <ClCompile Include="..\dfg\DFGCompilationKey.cpp" />
     <ClCompile Include="..\dfg\DFGCompilationMode.cpp" />
     <ClCompile Include="..\dfg\DFGConstantFoldingPhase.cpp" />
+    <ClCompile Include="..\dfg\DFGConstantHoistingPhase.cpp" />
     <ClCompile Include="..\dfg\DFGCPSRethreadingPhase.cpp" />
     <ClCompile Include="..\dfg\DFGCriticalEdgeBreakingPhase.cpp" />
     <ClCompile Include="..\dfg\DFGCSEPhase.cpp" />
@@ -423,6 +424,7 @@
     <ClCompile Include="..\dfg\DFGJITFinalizer.cpp" />
     <ClCompile Include="..\dfg\DFGJumpReplacement.cpp" />
     <ClCompile Include="..\dfg\DFGLazyJSValue.cpp" />
+    <ClCompile Include="..\dfg\DFGLazyNode.cpp" />
     <ClCompile Include="..\dfg\DFGLICMPhase.cpp" />
     <ClCompile Include="..\dfg\DFGLivenessAnalysisPhase.cpp" />
     <ClCompile Include="..\dfg\DFGLongLivedState.cpp" />
@@ -467,7 +469,7 @@
     <ClCompile Include="..\dfg\DFGSSALoweringPhase.cpp" />
     <ClCompile Include="..\dfg\DFGStackLayoutPhase.cpp" />
     <ClCompile Include="..\dfg\DFGStaticExecutionCountEstimationPhase.cpp" />
-    <ClCompile Include="..\dfg\DFGStoreBarrierElisionPhase.cpp" />
+    <ClCompile Include="..\dfg\DFGStoreBarrierInsertionPhase.cpp" />
     <ClCompile Include="..\dfg\DFGStrengthReductionPhase.cpp" />
     <ClCompile Include="..\dfg\DFGStructureAbstractValue.cpp" />
     <ClCompile Include="..\dfg\DFGStructureRegistrationPhase.cpp" />
@@ -676,7 +678,6 @@
     <ClCompile Include="..\runtime\ArrayBufferNeuteringWatchpoint.cpp" />
     <ClCompile Include="..\runtime\ArrayBufferView.cpp" />
     <ClCompile Include="..\runtime\ArrayConstructor.cpp" />
-    <ClCompile Include="..\runtime\ArrayIteratorConstructor.cpp" />
     <ClCompile Include="..\runtime\ArrayIteratorPrototype.cpp" />
     <ClCompile Include="..\runtime\ArrayPrototype.cpp" />
     <ClCompile Include="..\runtime\BasicBlockLocation.cpp" />
@@ -711,6 +712,7 @@
     <ClCompile Include="..\runtime\ErrorHandlingScope.cpp" />
     <ClCompile Include="..\runtime\ErrorInstance.cpp" />
     <ClCompile Include="..\runtime\ErrorPrototype.cpp" />
+    <ClCompile Include="..\runtime\Exception.cpp" />
     <ClCompile Include="..\runtime\ExceptionFuzz.cpp" />
     <ClCompile Include="..\runtime\ExceptionHelpers.cpp" />
     <ClCompile Include="..\runtime\Executable.cpp" />
@@ -727,6 +729,7 @@
     <ClCompile Include="..\runtime\IntendedStructureChain.cpp" />
     <ClCompile Include="..\runtime\InternalFunction.cpp" />
     <ClCompile Include="..\runtime\IteratorOperations.cpp" />
+    <ClCompile Include="..\runtime\IteratorPrototype.cpp" />
     <ClCompile Include="..\runtime\JSAPIValueWrapper.cpp" />
     <ClCompile Include="..\runtime\JSLexicalEnvironment.cpp" />
     <ClCompile Include="..\runtime\JSArray.cpp" />
@@ -783,7 +786,6 @@
     <ClCompile Include="..\runtime\LiteralParser.cpp" />
     <ClCompile Include="..\runtime\Lookup.cpp" />
     <ClCompile Include="..\runtime\MapConstructor.cpp" />
-    <ClCompile Include="..\runtime\MapIteratorConstructor.cpp" />
     <ClCompile Include="..\runtime\MapIteratorPrototype.cpp" />
     <ClCompile Include="..\runtime\MapPrototype.cpp" />
     <ClCompile Include="..\runtime\MathCommon.cpp" />
@@ -814,7 +816,6 @@
     <ClCompile Include="..\runtime\RuntimeType.cpp" />
     <ClCompile Include="..\runtime\SamplingCounter.cpp" />
     <ClCompile Include="..\runtime\SetConstructor.cpp" />
-    <ClCompile Include="..\runtime\SetIteratorConstructor.cpp" />
     <ClCompile Include="..\runtime\SetIteratorPrototype.cpp" />
     <ClCompile Include="..\runtime\SetPrototype.cpp" />
     <ClCompile Include="..\runtime\ScopeOffset.cpp" />
@@ -826,7 +827,6 @@
     <ClCompile Include="..\runtime\StrictEvalActivation.cpp" />
     <ClCompile Include="..\runtime\StringConstructor.cpp" />
     <ClCompile Include="..\runtime\StringObject.cpp" />
-    <ClCompile Include="..\runtime\StringIteratorConstructor.cpp" />
     <ClCompile Include="..\runtime\StringIteratorPrototype.cpp" />
     <ClCompile Include="..\runtime\StringPrototype.cpp" />
     <ClCompile Include="..\runtime\StringRecursionChecker.cpp" />
@@ -900,7 +900,6 @@
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\ObjectConstructor.lut.h" />
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\RegExpConstructor.lut.h" />
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\RegExpJitTables.h" />
-    <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\RegExpObject.lut.h" />
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\RegExpPrototype.lut.h" />
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\StringConstructor.lut.h" />
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\SymbolPrototype.lut.h" />
@@ -1072,6 +1071,7 @@
     <ClInclude Include="..\dfg\DFGCompilationKey.h" />
     <ClInclude Include="..\dfg\DFGCompilationMode.h" />
     <ClInclude Include="..\dfg\DFGConstantFoldingPhase.h" />
+    <ClInclude Include="..\dfg\DFGConstantHoistingPhase.h" />
     <ClInclude Include="..\dfg\DFGCPSRethreadingPhase.h" />
     <ClInclude Include="..\dfg\DFGCriticalEdgeBreakingPhase.h" />
     <ClInclude Include="..\dfg\DFGCSEPhase.h" />
@@ -1115,6 +1115,7 @@
     <ClInclude Include="..\dfg\DFGJITFinalizer.h" />
     <ClInclude Include="..\dfg\DFGJumpReplacement.h" />
     <ClInclude Include="..\dfg\DFGLazyJSValue.h" />
+    <ClInclude Include="..\dfg\DFGLazyNode.h" />
     <ClInclude Include="..\dfg\DFGLICMPhase.h" />
     <ClInclude Include="..\dfg\DFGLivenessAnalysisPhase.h" />
     <ClInclude Include="..\dfg\DFGLongLivedState.h" />
@@ -1173,7 +1174,7 @@
     <ClInclude Include="..\dfg\DFGSSALoweringPhase.h" />
     <ClInclude Include="..\dfg\DFGStackLayoutPhase.h" />
     <ClInclude Include="..\dfg\DFGStaticExecutionCountEstimationPhase.h" />
-    <ClInclude Include="..\dfg\DFGStoreBarrierElisionPhase.h" />
+    <ClInclude Include="..\dfg\DFGStoreBarrierInsertionPhase.h" />
     <ClInclude Include="..\dfg\DFGStrengthReductionPhase.h" />
     <ClInclude Include="..\dfg\DFGStructureAbstractValue.h" />
     <ClInclude Include="..\dfg\DFGStructureClobberState.h" />
@@ -1457,7 +1458,6 @@
     <ClInclude Include="..\runtime\ArrayBufferView.h" />
     <ClInclude Include="..\runtime\ArrayConstructor.h" />
     <ClInclude Include="..\runtime\ArrayConventions.h" />
-    <ClInclude Include="..\runtime\ArrayIteratorConstructor.h" />
     <ClInclude Include="..\runtime\ArrayIteratorPrototype.h" />
     <ClInclude Include="..\runtime\ArrayPrototype.h" />
     <ClInclude Include="..\runtime\ArrayStorage.h" />
@@ -1501,6 +1501,7 @@
     <ClInclude Include="..\runtime\ErrorHandlingScope.h" />
     <ClInclude Include="..\runtime\ErrorInstance.h" />
     <ClInclude Include="..\runtime\ErrorPrototype.h" />
+    <ClInclude Include="..\runtime\Exception.h" />
     <ClInclude Include="..\runtime\ExceptionFuzz.h" />
     <ClInclude Include="..\runtime\ExceptionHelpers.h" />
     <ClInclude Include="..\runtime\Executable.h" />
@@ -1531,6 +1532,7 @@
     <ClInclude Include="..\runtime\Intrinsic.h" />
     <ClInclude Include="..\runtime\IterationStatus.h" />
     <ClInclude Include="..\runtime\IteratorOperations.h" />
+    <ClInclude Include="..\runtime\IteratorPrototype.h" />
     <ClInclude Include="..\runtime\JSAPIValueWrapper.h" />
     <ClInclude Include="..\runtime\JSLexicalEnvironment.h" />
     <ClInclude Include="..\runtime\JSArray.h" />
@@ -1612,7 +1614,6 @@
     <ClInclude Include="..\runtime\MapConstructor.h" />
     <ClInclude Include="..\runtime\MapData.h" />
     <ClInclude Include="..\runtime\MapDataInlines.h" />
-    <ClInclude Include="..\runtime\MapIteratorConstructor.h" />
     <ClInclude Include="..\runtime\MapIteratorPrototype.h" />
     <ClInclude Include="..\runtime\MapPrototype.h" />
     <ClInclude Include="..\runtime\MatchResult.h" />
@@ -1660,7 +1661,6 @@
     <ClInclude Include="..\runtime\ScopedArguments.h" />
     <ClInclude Include="..\runtime\ScopedArgumentsTable.h" />
     <ClInclude Include="..\runtime\SetConstructor.h" />
-    <ClInclude Include="..\runtime\SetIteratorConstructor.h" />
     <ClInclude Include="..\runtime\SetIteratorPrototype.h" />
     <ClInclude Include="..\runtime\SetPrototype.h" />
     <ClInclude Include="..\runtime\SimpleTypedArrayController.h" />
@@ -1669,7 +1669,6 @@
     <ClInclude Include="..\runtime\StackAlignment.h" />
     <ClInclude Include="..\runtime\StrictEvalActivation.h" />
     <ClInclude Include="..\runtime\StringConstructor.h" />
-    <ClInclude Include="..\runtime\StringIteratorConstructor.h" />
     <ClInclude Include="..\runtime\StringIteratorPrototype.h" />
     <ClInclude Include="..\runtime\StringObject.h" />
     <ClInclude Include="..\runtime\StringPrototype.h" />

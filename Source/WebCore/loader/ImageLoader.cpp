@@ -84,7 +84,7 @@ static ImageEventSender& errorEventSender()
 static inline bool pageIsBeingDismissed(Document& document)
 {
     Frame* frame = document.frame();
-    return frame && frame->loader().pageDismissalEventBeingDispatched() != FrameLoader::NoDismissal;
+    return frame && frame->loader().pageDismissalEventBeingDispatched() != Page::DismissalType::None;
 }
 
 ImageLoader::ImageLoader(Element& element)
@@ -285,10 +285,7 @@ void ImageLoader::notifyFinished(CachedResource* resource)
     if (!m_hasPendingLoadEvent)
         return;
 
-    if (element().fastHasAttribute(HTMLNames::crossoriginAttr)
-        && !element().document().securityOrigin()->canRequest(image()->response().url())
-        && !resource->passesAccessControlCheck(element().document().securityOrigin())) {
-
+    if (element().fastHasAttribute(HTMLNames::crossoriginAttr) && !resource->passesSameOriginPolicyCheck(*element().document().securityOrigin())) {
         clearImageWithoutConsideringPendingLoadEvent();
 
         m_hasPendingErrorEvent = true;

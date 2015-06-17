@@ -229,22 +229,26 @@ static PlatformCAAnimation::ValueFunctionType getValueFunctionNameForTransformOp
     }
 }
 
-static String propertyIdToString(AnimatedPropertyID property)
+static ASCIILiteral propertyIdToString(AnimatedPropertyID property)
 {
     switch (property) {
     case AnimatedPropertyTransform:
-        return "transform";
+        return ASCIILiteral("transform");
     case AnimatedPropertyOpacity:
-        return "opacity";
+        return ASCIILiteral("opacity");
     case AnimatedPropertyBackgroundColor:
-        return "backgroundColor";
+        return ASCIILiteral("backgroundColor");
     case AnimatedPropertyWebkitFilter:
-        return "filters";
+        return ASCIILiteral("filters");
+#if ENABLE(FILTERS_LEVEL_2)
+    case AnimatedPropertyWebkitBackdropFilter:
+        return ASCIILiteral("backdropFilters");
+#endif
     case AnimatedPropertyInvalid:
         ASSERT_NOT_REACHED();
     }
     ASSERT_NOT_REACHED();
-    return "";
+    return ASCIILiteral("");
 }
 
 static String animationIdentifier(const String& animationName, AnimatedPropertyID property, int index, int subIndex)
@@ -354,7 +358,7 @@ GraphicsLayerCA::GraphicsLayerCA(Type layerType, GraphicsLayerClient& client)
     , m_needsFullRepaint(false)
     , m_usingBackdropLayerType(false)
     , m_allowsBackingStoreDetachment(true)
-    , m_intersectsCoverageRect(true)
+    , m_intersectsCoverageRect(false)
 {
 }
 
@@ -741,6 +745,15 @@ bool GraphicsLayerCA::setBackdropFilters(const FilterOperations& filterOperation
     return canCompositeFilters;
 }
 
+void GraphicsLayerCA::setBackdropFiltersRect(const FloatRect& backdropFiltersRect)
+{
+    if (backdropFiltersRect == m_backdropFiltersRect)
+        return;
+
+    GraphicsLayer::setBackdropFiltersRect(backdropFiltersRect);
+    noteLayerPropertyChanged(BackdropFiltersRectChanged);
+}
+
 #if ENABLE(CSS_COMPOSITING)
 void GraphicsLayerCA::setBlendMode(BlendMode blendMode)
 {
@@ -885,6 +898,12 @@ bool GraphicsLayerCA::addAnimation(const KeyframeValueList& valueList, const Flo
         if (supportsAcceleratedFilterAnimations())
             createdAnimations = createFilterAnimationsFromKeyframes(valueList, anim, animationName, timeOffset);
     }
+#if ENABLE(FILTERS_LEVEL_2)
+    else if (valueList.property() == AnimatedPropertyWebkitBackdropFilter) {
+        if (supportsAcceleratedFilterAnimations())
+            createdAnimations = createFilterAnimationsFromKeyframes(valueList, anim, animationName, timeOffset);
+    }
+#endif
     else
         createdAnimations = createAnimationFromKeyframes(valueList, anim, animationName, timeOffset);
 
@@ -1236,7 +1255,7 @@ bool GraphicsLayerCA::adjustCoverageRect(VisibleAndCoverageRects& rects, const F
     // ways of computing coverage.
     switch (type()) {
     case Type::PageTiledBacking:
-        coverageRect = tiledBacking()->computeTileCoverageRect(size(), oldVisibleRect, rects.visibleRect);
+        coverageRect = tiledBacking()->computeTileCoverageRect(size(), oldVisibleRect, rects.visibleRect, pageScaleFactor() * deviceScaleFactor());
         break;
     case Type::Normal:
         if (m_layer->layerType() == PlatformCALayer::LayerTypeTiledBackingLayer)
@@ -1260,10 +1279,22 @@ void GraphicsLayerCA::setVisibleAndCoverageRects(const VisibleAndCoverageRects& 
     if (!visibleRectChanged && !coverageRectChanged)
         return;
 
+    // FIXME: we need to take reflections into account when determining whether this layer intersects the coverage rect.
+    bool intersectsCoverageRect = !allowBackingStoreDetachment || rects.coverageRect.intersects(FloatRect(m_boundsOrigin, size()));
+    if (intersectsCoverageRect != m_intersectsCoverageRect) {
+        m_uncommittedChanges |= CoverageRectChanged;
+        m_intersectsCoverageRect = intersectsCoverageRect;
+
+        if (GraphicsLayerCA* maskLayer = downcast<GraphicsLayerCA>(m_maskLayer)) {
+            maskLayer->m_uncommittedChanges |= CoverageRectChanged;
+            maskLayer->m_intersectsCoverageRect = intersectsCoverageRect;
+        }
+    }
+
     if (visibleRectChanged) {
         m_uncommittedChanges |= CoverageRectChanged;
         m_visibleRect = rects.visibleRect;
-        
+
         if (GraphicsLayerCA* maskLayer = downcast<GraphicsLayerCA>(m_maskLayer)) {
             // FIXME: this assumes that the mask layer has the same geometry as this layer (which is currently always true).
             maskLayer->m_uncommittedChanges |= CoverageRectChanged;
@@ -1274,9 +1305,6 @@ void GraphicsLayerCA::setVisibleAndCoverageRects(const VisibleAndCoverageRects& 
     if (coverageRectChanged) {
         m_uncommittedChanges |= CoverageRectChanged;
         m_coverageRect = rects.coverageRect;
-
-        // FIXME: we need to take reflections into account when determining whether this layer intersects the coverage rect.
-        m_intersectsCoverageRect = !allowBackingStoreDetachment || m_coverageRect.intersects(FloatRect(m_boundsOrigin, size()));
 
         if (GraphicsLayerCA* maskLayer = downcast<GraphicsLayerCA>(m_maskLayer)) {
             maskLayer->m_uncommittedChanges |= CoverageRectChanged;
@@ -1504,6 +1532,9 @@ void GraphicsLayerCA::commitLayerChangesBeforeSublayers(CommitState& commitState
     if (m_uncommittedChanges & BackdropFiltersChanged)
         updateBackdropFilters();
 
+    if (m_uncommittedChanges & BackdropFiltersRectChanged)
+        updateBackdropFiltersRect();
+
 #if ENABLE(CSS_COMPOSITING)
     if (m_uncommittedChanges & BlendModeChanged)
         updateBlendMode();
@@ -1711,12 +1742,6 @@ void GraphicsLayerCA::updateGeometry(float pageScaleFactor, const FloatPoint& po
     m_layer->setBounds(adjustedBounds);
     m_layer->setAnchorPoint(scaledAnchorPoint);
 
-    if (m_backdropLayer) {
-        m_backdropLayer->setPosition(adjustedPosition);
-        m_backdropLayer->setBounds(adjustedBounds);
-        m_backdropLayer->setAnchorPoint(scaledAnchorPoint);
-    }
-
     if (LayerMap* layerCloneMap = m_layerClones.get()) {
         for (auto& clone : *layerCloneMap) {
             PlatformCALayer* cloneLayer = clone.value.get();
@@ -1851,12 +1876,19 @@ void GraphicsLayerCA::updateBackdropFilters()
 
     if (!m_backdropLayer) {
         m_backdropLayer = createPlatformCALayer(PlatformCALayer::LayerTypeBackdropLayer, this);
-        m_backdropLayer->setPosition(m_layer->position());
-        m_backdropLayer->setBounds(m_layer->bounds());
-        m_backdropLayer->setAnchorPoint(m_layer->anchorPoint());
+        m_backdropLayer->setAnchorPoint(FloatPoint3D());
         m_backdropLayer->setMasksToBounds(true);
     }
     m_backdropLayer->setFilters(m_backdropFilters);
+}
+
+void GraphicsLayerCA::updateBackdropFiltersRect()
+{
+    if (!m_backdropLayer)
+        return;
+    FloatRect contentBounds(0, 0, m_backdropFiltersRect.width(), m_backdropFiltersRect.height());
+    m_backdropLayer->setBounds(contentBounds);
+    m_backdropLayer->setPosition(m_backdropFiltersRect.location());
 }
 
 #if ENABLE(CSS_COMPOSITING)
@@ -2028,13 +2060,13 @@ static void setLayerDebugBorder(PlatformCALayer& layer, Color borderColor, float
     layer.setBorderWidth(borderColor.isValid() ? borderWidth : 0);
 }
 
-static float contentsLayerBorderWidth = 4;
+static const float contentsLayerBorderWidth = 4;
 static Color contentsLayerDebugBorderColor(bool showingBorders)
 {
     return showingBorders ? Color(0, 0, 128, 180) : Color();
 }
 
-static float cloneLayerBorderWidth = 2;
+static const float cloneLayerBorderWidth = 2;
 static Color cloneLayerDebugBorderColor(bool showingBorders)
 {
     return showingBorders ? Color(255, 122, 251) : Color();
@@ -2245,7 +2277,7 @@ void GraphicsLayerCA::updateContentsRects()
         return;
 
     FloatPoint contentOrigin;
-    FloatRect contentBounds(0, 0, m_contentsRect.width(), m_contentsRect.height());
+    const FloatRect contentBounds(0, 0, m_contentsRect.width(), m_contentsRect.height());
 
     FloatPoint clippingOrigin(m_contentsClippingRect.rect().location());
     FloatRect clippingBounds(FloatPoint(), m_contentsClippingRect.rect().size());
@@ -2458,7 +2490,6 @@ void GraphicsLayerCA::updateAnimations()
                 Vector<LayerPropertyAnimation> animations;
                 animations.append(pendingAnimation);
                 m_runningAnimations.add(pendingAnimation.m_name, animations);
-
             } else {
                 Vector<LayerPropertyAnimation>& animations = it->value;
                 animations.append(pendingAnimation);
@@ -2734,7 +2765,11 @@ bool GraphicsLayerCA::appendToUncommittedAnimations(const KeyframeValueList& val
 
 bool GraphicsLayerCA::createFilterAnimationsFromKeyframes(const KeyframeValueList& valueList, const Animation* animation, const String& animationName, double timeOffset)
 {
+#if ENABLE(FILTERS_LEVEL_2)
+    ASSERT(valueList.property() == AnimatedPropertyWebkitFilter || valueList.property() == AnimatedPropertyWebkitBackdropFilter);
+#else
     ASSERT(valueList.property() == AnimatedPropertyWebkitFilter);
+#endif
 
     int listIndex = validateFilterOperations(valueList);
     if (listIndex < 0)
@@ -3126,7 +3161,17 @@ PlatformCALayer* GraphicsLayerCA::layerForSuperlayer() const
 
 PlatformCALayer* GraphicsLayerCA::animatedLayer(AnimatedPropertyID property) const
 {
-    return (property == AnimatedPropertyBackgroundColor) ? m_contentsLayer.get() : primaryLayer();
+    switch (property) {
+    case AnimatedPropertyBackgroundColor:
+        return m_contentsLayer.get();
+#if ENABLE(FILTERS_LEVEL_2)
+    case AnimatedPropertyWebkitBackdropFilter:
+        // FIXME: Should be just m_backdropLayer.get(). Also, add an ASSERT(m_backdropLayer) here when https://bugs.webkit.org/show_bug.cgi?id=145322 is fixed.
+        return m_backdropLayer ? m_backdropLayer.get() : primaryLayer();
+#endif
+    default:
+        return primaryLayer();
+    }
 }
 
 GraphicsLayerCA::LayerMap* GraphicsLayerCA::animatedLayerClones(AnimatedPropertyID property) const

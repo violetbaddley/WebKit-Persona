@@ -196,9 +196,6 @@ public:
 #endif
 #endif
 
-#if PLATFORM(GTK)
-    virtual void getEditorCommandsForKeyEvent(const NativeWebKeyboardEvent&, const AtomicString&, Vector<WTF::String>&) = 0;
-#endif
     virtual WebCore::FloatRect convertToDeviceSpace(const WebCore::FloatRect&) = 0;
     virtual WebCore::FloatRect convertToUserSpace(const WebCore::FloatRect&) = 0;
     virtual WebCore::IntPoint screenToRootView(const WebCore::IntPoint&) = 0;
@@ -319,7 +316,7 @@ public:
     virtual void didChangeBackgroundColor() = 0;
 
 #if PLATFORM(MAC)
-    virtual void didPerformActionMenuHitTest(const WebHitTestResult::Data&, bool forImmediateAction, bool contentPreventsDefault, API::Object*) = 0;
+    virtual void didPerformImmediateActionHitTest(const WebHitTestResult::Data&, bool contentPreventsDefault, API::Object*) = 0;
 #endif
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS)

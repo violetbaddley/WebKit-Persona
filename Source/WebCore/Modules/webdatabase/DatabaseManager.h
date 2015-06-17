@@ -65,7 +65,7 @@ public:
 
     // This gets a DatabaseContext for the specified ScriptExecutionContext.
     // If one doesn't already exist, it will create a new one.
-    PassRefPtr<DatabaseContext> databaseContextFor(ScriptExecutionContext*);
+    RefPtr<DatabaseContext> databaseContextFor(ScriptExecutionContext*);
 
     // These 2 methods are for DatabaseContext (un)registration, and should only
     // be called by the DatabaseContext constructor and destructor.
@@ -82,7 +82,7 @@ public:
 
     static ExceptionCode exceptionCodeForDatabaseError(DatabaseError);
 
-    PassRefPtr<Database> openDatabase(ScriptExecutionContext*, const String& name, const String& expectedVersion, const String& displayName, unsigned long estimatedSize, PassRefPtr<DatabaseCallback>, DatabaseError&);
+    RefPtr<Database> openDatabase(ScriptExecutionContext*, const String& name, const String& expectedVersion, const String& displayName, unsigned long estimatedSize, PassRefPtr<DatabaseCallback>, DatabaseError&);
 
     WEBCORE_EXPORT bool hasOpenDatabases(ScriptExecutionContext*);
 
@@ -105,8 +105,6 @@ public:
     WEBCORE_EXPORT void deleteAllDatabases();
     WEBCORE_EXPORT bool deleteOrigin(SecurityOrigin*);
     WEBCORE_EXPORT bool deleteDatabase(SecurityOrigin*, const String& name);
-
-    WEBCORE_EXPORT void setPauseAllDatabases(bool);
 
     void interruptAllDatabasesForContext(ScriptExecutionContext*);
 
@@ -131,7 +129,7 @@ private:
 
     // This gets a DatabaseContext for the specified ScriptExecutionContext if
     // it already exist previously. Otherwise, it returns 0.
-    PassRefPtr<DatabaseContext> existingDatabaseContextFor(ScriptExecutionContext*);
+    RefPtr<DatabaseContext> existingDatabaseContextFor(ScriptExecutionContext*);
 
     PassRefPtr<DatabaseBackendBase> openDatabaseBackend(ScriptExecutionContext*, const String& name, const String& expectedVersion, const String& displayName, unsigned long estimatedSize, bool setVersionInNewDatabase, DatabaseError&, String& errorMessage);
 

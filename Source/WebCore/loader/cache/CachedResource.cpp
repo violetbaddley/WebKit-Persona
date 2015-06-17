@@ -214,6 +214,12 @@ void CachedResource::load(CachedResourceLoader& cachedResourceLoader, const Reso
         return;
     }
 
+    // Prevent 'pagehide' event handlers from starting new loads as we are in the PageCache.
+    if (cachedResourceLoader.frame()->page() && cachedResourceLoader.frame()->page()->dismissalEventBeingDispatched() == Page::DismissalType::PageHide) {
+        failBeforeStarting();
+        return;
+    }
+
     FrameLoader& frameLoader = cachedResourceLoader.frame()->loader();
     if (options.securityCheck() == DoSecurityCheck && (frameLoader.state() == FrameStateProvisional || !frameLoader.activeDocumentLoader() || frameLoader.activeDocumentLoader()->isStopping())) {
         failBeforeStarting();
@@ -333,10 +339,17 @@ void CachedResource::finish()
         m_status = Cached;
 }
 
-bool CachedResource::passesAccessControlCheck(SecurityOrigin* securityOrigin)
+bool CachedResource::passesAccessControlCheck(SecurityOrigin& securityOrigin)
 {
     String errorDescription;
-    return WebCore::passesAccessControlCheck(m_response, resourceRequest().allowCookies() ? AllowStoredCredentials : DoNotAllowStoredCredentials, securityOrigin, errorDescription);
+    return WebCore::passesAccessControlCheck(response(), resourceRequest().allowCookies() ? AllowStoredCredentials : DoNotAllowStoredCredentials, &securityOrigin, errorDescription);
+}
+
+bool CachedResource::passesSameOriginPolicyCheck(SecurityOrigin& securityOrigin)
+{
+    if (securityOrigin.canRequest(responseForSameOriginPolicyChecks().url()))
+        return true;
+    return passesAccessControlCheck(securityOrigin);
 }
 
 bool CachedResource::isExpired() const
@@ -362,12 +375,22 @@ std::chrono::microseconds CachedResource::freshnessLifetime(const ResourceRespon
     return computeFreshnessLifetimeForHTTPFamily(response, m_responseTimestamp);
 }
 
-void CachedResource::redirectReceived(ResourceRequest&, const ResourceResponse& response)
+void CachedResource::redirectReceived(ResourceRequest& request, const ResourceResponse& response)
 {
     m_requestedFromNetworkingLayer = true;
     if (response.isNull())
         return;
+
+    // Redirect to data: URL uses the last HTTP response for SOP.
+    if (response.isHTTP() && request.url().protocolIsData())
+        m_redirectResponseForSameOriginPolicyChecks = response;
+
     updateRedirectChainStatus(m_redirectChainCacheStatus, response);
+}
+
+const ResourceResponse& CachedResource::responseForSameOriginPolicyChecks() const
+{
+    return m_redirectResponseForSameOriginPolicyChecks.isNull() ? m_response : m_redirectResponseForSameOriginPolicyChecks;
 }
 
 void CachedResource::responseReceived(const ResourceResponse& response)
@@ -756,7 +779,7 @@ void CachedResource::Callback::timerFired()
     m_resource.didAddClient(&m_client);
 }
 
-#if USE(FOUNDATION)
+#if USE(FOUNDATION) || USE(SOUP)
 
 void CachedResource::tryReplaceEncodedData(SharedBuffer& newBuffer)
 {

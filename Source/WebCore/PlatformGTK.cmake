@@ -45,21 +45,22 @@ list(APPEND WebCore_SOURCES
     accessibility/atk/WebKitAccessibleUtil.cpp
     accessibility/atk/WebKitAccessibleWrapperAtk.cpp
 
-    editing/atk/FrameSelectionAtk.cpp
     editing/SmartReplace.cpp
+
+    editing/atk/FrameSelectionAtk.cpp
 
     loader/soup/CachedRawResourceSoup.cpp
     loader/soup/SubresourceLoaderSoup.cpp
 
     platform/PlatformStrategies.cpp
 
-    platform/audio/gtk/AudioBusGtk.cpp
-
     platform/audio/gstreamer/AudioDestinationGStreamer.cpp
     platform/audio/gstreamer/AudioFileReaderGStreamer.cpp
     platform/audio/gstreamer/AudioSourceProviderGStreamer.cpp
     platform/audio/gstreamer/FFTFrameGStreamer.cpp
     platform/audio/gstreamer/WebKitWebAudioSourceGStreamer.cpp
+
+    platform/audio/gtk/AudioBusGtk.cpp
 
     platform/geoclue/GeolocationProviderGeoclue1.cpp
     platform/geoclue/GeolocationProviderGeoclue2.cpp
@@ -142,6 +143,9 @@ list(APPEND WebCore_SOURCES
 
     platform/image-decoders/ImageDecoder.cpp
 
+    platform/image-decoders/bmp/BMPImageDecoder.cpp
+    platform/image-decoders/bmp/BMPImageReader.cpp
+
     platform/image-decoders/cairo/ImageDecoderCairo.cpp
 
     platform/image-decoders/gif/GIFImageDecoder.cpp
@@ -150,9 +154,6 @@ list(APPEND WebCore_SOURCES
     platform/image-decoders/ico/ICOImageDecoder.cpp
 
     platform/image-decoders/jpeg/JPEGImageDecoder.cpp
-
-    platform/image-decoders/bmp/BMPImageDecoder.cpp
-    platform/image-decoders/bmp/BMPImageReader.cpp
 
     platform/image-decoders/png/PNGImageDecoder.cpp
 
@@ -163,6 +164,8 @@ list(APPEND WebCore_SOURCES
 
     platform/mediastream/openwebrtc/OpenWebRTCUtilities.cpp
     platform/mediastream/openwebrtc/RealtimeMediaSourceCenterOwr.cpp
+
+    platform/network/gtk/CredentialBackingStore.cpp
 
     platform/network/soup/AuthenticationChallengeSoup.cpp
     platform/network/soup/CertificateInfo.cpp
@@ -180,6 +183,7 @@ list(APPEND WebCore_SOURCES
     platform/network/soup/SocketStreamHandleSoup.cpp
     platform/network/soup/SoupNetworkSession.cpp
     platform/network/soup/SynchronousLoaderClientSoup.cpp
+    platform/network/soup/WebKitSoupRequestGeneric.cpp
 
     platform/soup/SharedBufferSoup.cpp
     platform/soup/URLSoup.cpp
@@ -190,8 +194,6 @@ list(APPEND WebCore_SOURCES
 
     platform/text/gtk/HyphenationLibHyphen.cpp
     platform/text/gtk/TextBreakIteratorInternalICUGtk.cpp
-
-    platform/network/gtk/CredentialBackingStore.cpp
 )
 
 list(APPEND WebCorePlatformGTK_SOURCES
@@ -219,7 +221,6 @@ list(APPEND WebCorePlatformGTK_SOURCES
     platform/gtk/GRefPtrGtk.cpp
     platform/gtk/GtkUtilities.cpp
     platform/gtk/GtkVersioning.c
-    platform/gtk/KeyBindingTranslator.cpp
     platform/gtk/LocalizedStringsGtk.cpp
     platform/gtk/PasteboardGtk.cpp
     platform/gtk/PasteboardHelper.cpp
@@ -287,7 +288,7 @@ list(APPEND WebCore_LIBRARIES
     ${ZLIB_LIBRARIES}
 )
 
-list(APPEND WebCore_INCLUDE_DIRECTORIES
+list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
     ${ATK_INCLUDE_DIRS}
     ${CAIRO_INCLUDE_DIRS}
     ${ENCHANT_INCLUDE_DIRS}
@@ -309,6 +310,9 @@ list(APPEND WebCore_INCLUDE_DIRECTORIES
 if (ENABLE_VIDEO OR ENABLE_WEB_AUDIO)
     list(APPEND WebCore_INCLUDE_DIRECTORIES
         ${WEBCORE_DIR}/platform/graphics/gstreamer
+    )
+
+    list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
         ${GSTREAMER_INCLUDE_DIRS}
         ${GSTREAMER_BASE_INCLUDE_DIRS}
         ${GSTREAMER_APP_INCLUDE_DIRS}
@@ -327,7 +331,7 @@ if (ENABLE_VIDEO OR ENABLE_WEB_AUDIO)
 endif ()
 
 if (ENABLE_VIDEO)
-    list(APPEND WebCore_INCLUDE_DIRECTORIES
+    list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
         ${GSTREAMER_TAG_INCLUDE_DIRS}
         ${GSTREAMER_VIDEO_INCLUDE_DIRS}
     )
@@ -337,7 +341,7 @@ if (ENABLE_VIDEO)
     )
 
     if (USE_GSTREAMER_MPEGTS)
-        list(APPEND WebCore_INCLUDE_DIRECTORIES
+        list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
             ${GSTREAMER_MPEGTS_INCLUDE_DIRS}
         )
 
@@ -347,7 +351,7 @@ if (ENABLE_VIDEO)
     endif ()
 
     if (USE_GSTREAMER_GL)
-        list(APPEND WebCore_INCLUDE_DIRECTORIES
+        list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
             ${GSTREAMER_GL_INCLUDE_DIRS}
         )
 
@@ -358,7 +362,7 @@ if (ENABLE_VIDEO)
 endif ()
 
 if (ENABLE_WEB_AUDIO)
-    list(APPEND WebCore_INCLUDE_DIRECTORIES
+    list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
         ${WEBCORE_DIR}/platform/audio/gstreamer
         ${GSTREAMER_AUDIO_INCLUDE_DIRS}
         ${GSTREAMER_FFT_INCLUDE_DIRS}
@@ -369,7 +373,7 @@ if (ENABLE_WEB_AUDIO)
 endif ()
 
 if (ENABLE_MEDIA_STREAM)
-    list(APPEND WebCore_INCLUDE_DIRECTORIES
+    list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
         ${OPENWEBRTC_INCLUDE_DIRS}
     )
     list(APPEND WebCore_LIBRARIES
@@ -398,29 +402,26 @@ if (ENABLE_THREADED_COMPOSITOR)
         "${WEBCORE_DIR}/platform/graphics/texmap/threadedcompositor"
     )
     list(APPEND WebCore_SOURCES
-        page/scrolling/coordinatedgraphics/ScrollingCoordinatorCoordinatedGraphics.cpp
-        page/scrolling/coordinatedgraphics/ScrollingStateNodeCoordinatedGraphics.cpp
-        page/scrolling/coordinatedgraphics/ScrollingStateScrollingNodeCoordinatedGraphics.cpp
         page/scrolling/ScrollingStateStickyNode.cpp
         page/scrolling/ScrollingThread.cpp
         page/scrolling/ScrollingTreeNode.cpp
         page/scrolling/ScrollingTreeScrollingNode.cpp
+
+        page/scrolling/coordinatedgraphics/ScrollingCoordinatorCoordinatedGraphics.cpp
+        page/scrolling/coordinatedgraphics/ScrollingStateNodeCoordinatedGraphics.cpp
+        page/scrolling/coordinatedgraphics/ScrollingStateScrollingNodeCoordinatedGraphics.cpp
+
         platform/graphics/texmap/coordinated/AreaAllocator.cpp
         platform/graphics/texmap/coordinated/CompositingCoordinator.cpp
         platform/graphics/texmap/coordinated/CoordinatedGraphicsLayer.cpp
         platform/graphics/texmap/coordinated/CoordinatedImageBacking.cpp
         platform/graphics/texmap/coordinated/CoordinatedSurface.cpp
-        platform/graphics/texmap/coordinated/CoordinatedTile.cpp
+        platform/graphics/texmap/coordinated/Tile.cpp
         platform/graphics/texmap/coordinated/TiledBackingStore.cpp
         platform/graphics/texmap/coordinated/UpdateAtlas.cpp
     )
 endif ()
 
-if (USE_EGL)
-    list(APPEND WebCore_LIBRARIES
-        ${EGL_LIBRARY}
-    )
-endif ()
 
 if (USE_OPENGL_ES_2)
     list(APPEND WebCore_SOURCES
@@ -449,13 +450,13 @@ if (ENABLE_PLUGIN_PROCESS_GTK2)
         APPEND
         PROPERTY COMPILE_DEFINITIONS GTK_API_VERSION_2=1
     )
-    set_property(
-        TARGET WebCorePlatformGTK2
-        APPEND
-        PROPERTY INCLUDE_DIRECTORIES
-            ${WebCore_INCLUDE_DIRECTORIES}
-            ${GTK2_INCLUDE_DIRS}
-            ${GDK2_INCLUDE_DIRS}
+    target_include_directories(WebCorePlatformGTK2 PRIVATE
+        ${WebCore_INCLUDE_DIRECTORIES}
+        ${GTK2_INCLUDE_DIRS}
+        ${GDK2_INCLUDE_DIRS}
+    )
+    target_include_directories(WebCorePlatformGTK2 SYSTEM PRIVATE
+        ${WebCore_SYSTEM_INCLUDE_DIRECTORIES}
     )
     target_link_libraries(WebCorePlatformGTK2
          ${WebCore_LIBRARIES}
@@ -482,7 +483,7 @@ if (ENABLE_WAYLAND_TARGET)
         ${DERIVED_SOURCES_WEBCORE_DIR}/WebKitGtkWaylandClientProtocol.c
     )
 
-    list(APPEND WebCore_INCLUDE_DIRECTORIES
+    list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
         ${WAYLAND_INCLUDE_DIRS}
     )
     list(APPEND WebCore_LIBRARIES
@@ -493,13 +494,13 @@ endif ()
 add_library(WebCorePlatformGTK ${WebCore_LIBRARY_TYPE} ${WebCorePlatformGTK_SOURCES})
 add_dependencies(WebCorePlatformGTK WebCore)
 WEBKIT_SET_EXTRA_COMPILER_FLAGS(WebCorePlatformGTK)
-set_property(
-    TARGET WebCorePlatformGTK
-    APPEND
-    PROPERTY INCLUDE_DIRECTORIES
-        ${WebCore_INCLUDE_DIRECTORIES}
-        ${GTK_INCLUDE_DIRS}
-        ${GDK_INCLUDE_DIRS}
+target_include_directories(WebCorePlatformGTK PRIVATE
+    ${WebCore_INCLUDE_DIRECTORIES}
+)
+target_include_directories(WebCorePlatformGTK SYSTEM PRIVATE
+    ${WebCore_SYSTEM_INCLUDE_DIRECTORIES}
+    ${GTK_INCLUDE_DIRS}
+    ${GDK_INCLUDE_DIRS}
 )
 target_link_libraries(WebCorePlatformGTK
     ${WebCore_LIBRARIES}
@@ -512,6 +513,10 @@ include_directories(
     "${WEBCORE_DIR}/bindings/gobject/"
     "${DERIVED_SOURCES_DIR}"
     "${DERIVED_SOURCES_GOBJECT_DOM_BINDINGS_DIR}"
+)
+
+include_directories(SYSTEM
+    ${WebCore_SYSTEM_INCLUDE_DIRECTORIES}
 )
 
 list(APPEND GObjectDOMBindings_SOURCES
@@ -697,8 +702,8 @@ list(APPEND GObjectDOMBindingsUnstable_IDL_FILES
     page/Screen.idl
     page/UserMessageHandler.idl
     page/UserMessageHandlersNamespace.idl
-    page/WebKitPoint.idl
     page/WebKitNamespace.idl
+    page/WebKitPoint.idl
 
     plugins/DOMMimeType.idl
     plugins/DOMMimeTypeArray.idl
@@ -887,25 +892,26 @@ if (ENABLE_SUBTLE_CRYPTO)
         crypto/CryptoKey.cpp
         crypto/CryptoKeyPair.cpp
         crypto/SubtleCrypto.cpp
+
         crypto/algorithms/CryptoAlgorithmAES_CBC.cpp
         crypto/algorithms/CryptoAlgorithmAES_KW.cpp
         crypto/algorithms/CryptoAlgorithmHMAC.cpp
         crypto/algorithms/CryptoAlgorithmRSAES_PKCS1_v1_5.cpp
-        crypto/algorithms/CryptoAlgorithmRSA_OAEP.cpp
         crypto/algorithms/CryptoAlgorithmRSASSA_PKCS1_v1_5.cpp
+        crypto/algorithms/CryptoAlgorithmRSA_OAEP.cpp
         crypto/algorithms/CryptoAlgorithmSHA1.cpp
         crypto/algorithms/CryptoAlgorithmSHA224.cpp
         crypto/algorithms/CryptoAlgorithmSHA256.cpp
         crypto/algorithms/CryptoAlgorithmSHA384.cpp
         crypto/algorithms/CryptoAlgorithmSHA512.cpp
 
-        crypto/gnutls/CryptoAlgorithmRegistryGnuTLS.cpp
         crypto/gnutls/CryptoAlgorithmAES_CBCGnuTLS.cpp
         crypto/gnutls/CryptoAlgorithmAES_KWGnuTLS.cpp
         crypto/gnutls/CryptoAlgorithmHMACGnuTLS.cpp
         crypto/gnutls/CryptoAlgorithmRSAES_PKCS1_v1_5GnuTLS.cpp
-        crypto/gnutls/CryptoAlgorithmRSA_OAEPGnuTLS.cpp
         crypto/gnutls/CryptoAlgorithmRSASSA_PKCS1_v1_5GnuTLS.cpp
+        crypto/gnutls/CryptoAlgorithmRSA_OAEPGnuTLS.cpp
+        crypto/gnutls/CryptoAlgorithmRegistryGnuTLS.cpp
         crypto/gnutls/CryptoDigestGnuTLS.cpp
         crypto/gnutls/CryptoKeyRSAGnuTLS.cpp
         crypto/gnutls/SerializedCryptoKeyWrapGnuTLS.cpp
@@ -917,7 +923,7 @@ if (ENABLE_SUBTLE_CRYPTO)
         crypto/keys/CryptoKeySerializationRaw.cpp
     )
 
-    list(APPEND WebCore_INCLUDE_DIRECTORIES
+    list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES
         ${GNUTLS_INCLUDE_DIRS}
     )
     list(APPEND WebCore_LIBRARIES

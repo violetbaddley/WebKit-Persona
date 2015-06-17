@@ -67,16 +67,16 @@ void MediaSource::setRegistry(URLRegistry* registry)
     s_registry = registry;
 }
 
-PassRefPtr<MediaSource> MediaSource::create(ScriptExecutionContext& context)
+Ref<MediaSource> MediaSource::create(ScriptExecutionContext& context)
 {
-    RefPtr<MediaSource> mediaSource(adoptRef(new MediaSource(context)));
+    Ref<MediaSource> mediaSource(adoptRef(*new MediaSource(context)));
     mediaSource->suspendIfNeeded();
-    return mediaSource.release();
+    return mediaSource;
 }
 
 MediaSource::MediaSource(ScriptExecutionContext& context)
     : ActiveDOMObject(&context)
-    , m_mediaElement(0)
+    , m_mediaElement(nullptr)
     , m_duration(MediaTime::invalidTime())
     , m_pendingSeekTime(MediaTime::invalidTime())
     , m_readyState(closedKeyword())
@@ -395,7 +395,7 @@ void MediaSource::setReadyState(const AtomicString& state)
 
     if (state == closedKeyword()) {
         m_private.clear();
-        m_mediaElement = 0;
+        m_mediaElement = nullptr;
         m_duration = MediaTime::invalidTime();
     }
 
@@ -605,7 +605,7 @@ void MediaSource::removeSourceBuffer(SourceBuffer* buffer, ExceptionCode& ec)
             AudioTrack* track = audioTracks->lastItem();
 
             // 5.3.1 Set the sourceBuffer attribute on the AudioTrack object to null.
-            track->setSourceBuffer(0);
+            track->setSourceBuffer(nullptr);
 
             // 5.3.2 If the enabled attribute on the AudioTrack object is true, then set the removed enabled
             // audio track flag to true.
@@ -645,7 +645,7 @@ void MediaSource::removeSourceBuffer(SourceBuffer* buffer, ExceptionCode& ec)
             VideoTrack* track = videoTracks->lastItem();
 
             // 7.3.1 Set the sourceBuffer attribute on the VideoTrack object to null.
-            track->setSourceBuffer(0);
+            track->setSourceBuffer(nullptr);
 
             // 7.3.2 If the selected attribute on the VideoTrack object is true, then set the removed selected
             // video track flag to true.
@@ -685,7 +685,7 @@ void MediaSource::removeSourceBuffer(SourceBuffer* buffer, ExceptionCode& ec)
             TextTrack* track = textTracks->lastItem();
 
             // 9.3.1 Set the sourceBuffer attribute on the TextTrack object to null.
-            track->setSourceBuffer(0);
+            track->setSourceBuffer(nullptr);
 
             // 9.3.2 If the mode attribute on the TextTrack object is set to "showing" or "hidden", then
             // set the removed enabled text track flag to true.
@@ -836,8 +836,8 @@ void MediaSource::onReadyStateChange(const AtomicString& oldState, const AtomicS
     m_activeSourceBuffers->clear();
 
     // Clear SourceBuffer references to this object.
-    for (unsigned long i = 0, length =  m_sourceBuffers->length(); i < length; ++i)
-        m_sourceBuffers->item(i)->removedFromMediaSource();
+    for (auto& buffer : *m_sourceBuffers)
+        buffer->removedFromMediaSource();
     m_sourceBuffers->clear();
     
     scheduleEvent(eventNames().sourcecloseEvent);

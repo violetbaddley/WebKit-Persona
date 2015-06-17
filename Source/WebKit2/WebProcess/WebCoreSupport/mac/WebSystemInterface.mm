@@ -191,7 +191,6 @@ void InitWebCoreSystemInterface(void)
         INIT(GetScreenScaleFactor);
         INIT(IsGB18030ComplianceRequired);
         INIT(IsOptimizedFullscreenSupported);
-        INIT(GetMediaUIImageData);
 #endif
 
 #if ENABLE(PUBLIC_SUFFIX_LIST)
@@ -201,7 +200,7 @@ void InitWebCoreSystemInterface(void)
 #if ENABLE(CACHE_PARTITIONING)
         INIT(CachePartitionKey);
 #endif
-        
+
         INIT(ExernalDeviceTypeForPlayer);
         INIT(ExernalDeviceDisplayNameForPlayer);
 

@@ -1282,15 +1282,30 @@ PassRefPtr<CSSValueList> CSSParser::parseFontFaceValue(const AtomicString& strin
 {
     if (string.isEmpty())
         return nullptr;
-    RefPtr<MutableStyleProperties> dummyStyle = MutableStyleProperties::create();
 
-    if (parseValue(dummyStyle.get(), CSSPropertyFontFamily, string, false, CSSQuirksMode, nullptr) == ParseResult::Error)
-        return nullptr;
+    Ref<CSSValueList> valueList = CSSValueList::createCommaSeparated();
 
-    RefPtr<CSSValue> fontFamily = dummyStyle->getPropertyCSSValue(CSSPropertyFontFamily);
-    if (!fontFamily->isValueList())
-        return nullptr; // FIXME: "initial" and "inherit" should be parsed as font names in the face attribute.
-    return static_pointer_cast<CSSValueList>(fontFamily.release());
+    Vector<String> familyNames;
+    string.string().split(',', true, familyNames);
+
+    for (auto& familyName : familyNames) {
+        String stripped = stripLeadingAndTrailingHTMLSpaces(familyName);
+        if (stripped.isEmpty())
+            return nullptr;
+
+        RefPtr<CSSValue> value;
+        for (auto propertyID : { CSSValueSerif, CSSValueSansSerif, CSSValueCursive, CSSValueFantasy, CSSValueMonospace, CSSValueWebkitBody }) {
+            if (equalIgnoringCase(stripped, getValueName(propertyID))) {
+                value = cssValuePool().createIdentifierValue(propertyID);
+                break;
+            }
+        }
+        if (!value)
+            value = cssValuePool().createFontFamilyValue(stripped);
+        valueList->append(value.releaseNonNull());
+    }
+
+    return WTF::move(valueList);
 }
 
 CSSParser::ParseResult CSSParser::parseValue(MutableStyleProperties* declaration, CSSPropertyID propertyID, const String& string, bool important, CSSParserMode cssParserMode, StyleSheetContents* contextStyleSheet)
@@ -2482,17 +2497,17 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
             validPrimitive = validateUnit(valueWithCalculation, FPositiveInteger);
             if (!validPrimitive)
                 return false;
-            RefPtr<CSSPrimitiveValue> parsedValue1 = createPrimitiveNumericValue(valueWithCalculation);
-            RefPtr<CSSPrimitiveValue> parsedValue2;
+            RefPtr<CSSPrimitiveValue> height = createPrimitiveNumericValue(valueWithCalculation);
+            RefPtr<CSSPrimitiveValue> position;
             if (num == 2) {
                 ValueWithCalculation nextValueWithCalculation(*m_valueList->next());
                 validPrimitive = validateUnit(nextValueWithCalculation, FPositiveInteger);
                 if (!validPrimitive)
                     return false;
-                parsedValue2 = createPrimitiveNumericValue(nextValueWithCalculation);
+                position = createPrimitiveNumericValue(nextValueWithCalculation);
             } else
-                parsedValue2 = parsedValue1;
-            addProperty(propId, createPrimitiveValuePair(parsedValue1.release(), parsedValue2.release()), important);
+                position = height;
+            addProperty(propId, createPrimitiveValuePair(position.release(), height.release()), important);
             return true;
         }
         break;
@@ -5585,8 +5600,11 @@ bool CSSParser::parseGridLineNames(CSSParserValueList& inputList, CSSValueList& 
 
     // Need to ensure the identList is at the heading index, since the parserList might have been rewound.
     identList.setCurrentIndex(0);
-
-    RefPtr<CSSGridLineNamesValue> lineNames = previousNamedAreaTrailingLineNames ? previousNamedAreaTrailingLineNames : CSSGridLineNamesValue::create();
+    RefPtr<CSSGridLineNamesValue> lineNames;
+    if (previousNamedAreaTrailingLineNames)
+        lineNames = previousNamedAreaTrailingLineNames;
+    else
+        lineNames = CSSGridLineNamesValue::create();
     while (CSSParserValue* identValue = identList.current()) {
         ASSERT(identValue->unit == CSSPrimitiveValue::CSS_IDENT);
         lineNames->append(createPrimitiveStringValue(*identValue));
@@ -5832,16 +5850,16 @@ bool CSSParser::parseDashboardRegions(CSSPropertyID propId, bool important)
         return valid;
     }
 
-    RefPtr<DashboardRegion> firstRegion = DashboardRegion::create();
+    auto firstRegion = DashboardRegion::create();
     DashboardRegion* region = nullptr;
 
     while (value) {
         if (!region) {
-            region = firstRegion.get();
+            region = firstRegion.ptr();
         } else {
-            RefPtr<DashboardRegion> nextRegion = DashboardRegion::create();
-            region->m_next = nextRegion;
-            region = nextRegion.get();
+            auto nextRegion = DashboardRegion::create();
+            region->m_next = nextRegion.copyRef();
+            region = nextRegion.ptr();
         }
 
         if (value->unit != CSSParserValue::Function) {
@@ -5935,7 +5953,7 @@ bool CSSParser::parseDashboardRegions(CSSPropertyID propId, bool important)
     }
 
     if (valid)
-        addProperty(propId, cssValuePool().createValue(firstRegion.release()), important);
+        addProperty(propId, cssValuePool().createValue(RefPtr<DashboardRegion>(WTF::move(firstRegion))), important);
 
     return valid;
 }
@@ -5943,6 +5961,36 @@ bool CSSParser::parseDashboardRegions(CSSPropertyID propId, bool important)
 #endif /* ENABLE(DASHBOARD_SUPPORT) */
 
 #if ENABLE(CSS_GRID_LAYOUT)
+static Vector<String> parseGridTemplateAreasColumnNames(const String& gridRowNames)
+{
+    ASSERT(!gridRowNames.isEmpty());
+    Vector<String> columnNames;
+    // Using StringImpl to avoid checks and indirection in every call to String::operator[].
+    StringImpl& text = *gridRowNames.impl();
+    unsigned length = text.length();
+    unsigned index = 0;
+    while (index < length) {
+        if (text[index] != ' ' && text[index] != '.') {
+            unsigned gridAreaStart = index;
+            while (index < length && text[index] != ' ' && text[index] != '.')
+                index++;
+            columnNames.append(text.substring(gridAreaStart, index - gridAreaStart));
+            continue;
+        }
+
+        if (text[index] == '.') {
+            while (index < length && text[index] == '.')
+                index++;
+            columnNames.append(".");
+            continue;
+        }
+
+        index++;
+    }
+
+    return columnNames;
+}
+
 bool CSSParser::parseGridTemplateAreasRow(NamedGridAreaMap& gridAreaMap, const unsigned rowCount, unsigned& columnCount)
 {
     CSSParserValue* currentValue = m_valueList->current();
@@ -5953,9 +6001,7 @@ bool CSSParser::parseGridTemplateAreasRow(NamedGridAreaMap& gridAreaMap, const u
     if (gridRowNames.containsOnlyWhitespace())
         return false;
 
-    Vector<String> columnNames;
-    gridRowNames.split(' ', columnNames);
-
+    Vector<String> columnNames = parseGridTemplateAreasColumnNames(gridRowNames);
     if (!columnCount) {
         columnCount = columnNames.size();
         ASSERT(columnCount);
@@ -6093,7 +6139,7 @@ bool CSSParser::parseClipShape(CSSPropertyID propId, bool important)
     // rect(t, r, b, l) || rect(t r b l)
     if (args->size() != 4 && args->size() != 7)
         return false;
-    RefPtr<Rect> rect = Rect::create();
+    auto rect = Rect::create();
     bool valid = true;
     int i = 0;
     CSSParserValue* argument = args->current();
@@ -6123,7 +6169,7 @@ bool CSSParser::parseClipShape(CSSPropertyID propId, bool important)
         i++;
     }
     if (valid) {
-        addProperty(propId, cssValuePool().createValue(rect.release()), important);
+        addProperty(propId, cssValuePool().createValue(WTF::move(rect)), important);
         m_valueList->next();
         return true;
     }
@@ -6523,7 +6569,7 @@ PassRefPtr<CSSPrimitiveValue> CSSParser::parseBasicShape()
         return nullptr;
 
     m_valueList->next();
-    return cssValuePool().createValue(shape.release());
+    return cssValuePool().createValue(shape.releaseNonNull());
 }
 
 // [ 'font-style' || 'font-variant' || 'font-weight' ]? 'font-size' [ / 'line-height' ]? 'font-family'
@@ -6613,6 +6659,7 @@ void CSSParser::parseSystemFont(bool important)
     if (!fontDescription.isAbsoluteSize())
         return;
 
+    // We must set font's constituent properties, even for system fonts, so the cascade functions correctly.
     ShorthandScope scope(this, CSSPropertyFont);
     addProperty(CSSPropertyFontStyle, cssValuePool().createIdentifierValue(fontDescription.italic() == FontItalicOn ? CSSValueItalic : CSSValueNormal), important);
     addProperty(CSSPropertyFontWeight, cssValuePool().createValue(fontDescription.weight()), important);
@@ -8090,14 +8137,14 @@ public:
             m_left = m_right;
 
         // Now build a rect value to hold all four of our primitive values.
-        RefPtr<Quad> quad = Quad::create();
+        auto quad = Quad::create();
         quad->setTop(m_top);
         quad->setRight(m_right);
         quad->setBottom(m_bottom);
         quad->setLeft(m_left);
 
         // Make our new border image value now.
-        return CSSBorderImageSliceValue::create(cssValuePool().createValue(quad.release()), m_fill);
+        return CSSBorderImageSliceValue::create(cssValuePool().createValue(WTF::move(quad)), m_fill);
     }
 
 private:
@@ -8208,14 +8255,14 @@ public:
             m_left = m_right;
 
         // Now build a quad value to hold all four of our primitive values.
-        RefPtr<Quad> quad = Quad::create();
+        auto quad = Quad::create();
         quad->setTop(m_top);
         quad->setRight(m_right);
         quad->setBottom(m_bottom);
         quad->setLeft(m_left);
 
         // Make our new value now.
-        return cssValuePool().createValue(quad.release());
+        return cssValuePool().createValue(WTF::move(quad));
     }
 
 private:

@@ -36,7 +36,7 @@
 #include <glib/gi18n-lib.h>
 #include <gtk/gtk.h>
 #include <wtf/MathExtras.h>
-#include <wtf/gobject/GUniquePtr.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/WTFString.h>
 
@@ -454,6 +454,11 @@ String AXFooterRoleDescriptionText()
 String AXSearchFieldCancelButtonText()
 {
     return String::fromUTF8(_("cancel"));
+}
+
+String AXAutoFillButtonText()
+{
+    return String::fromUTF8(_("autofill"));
 }
 
 String AXButtonActionVerb()

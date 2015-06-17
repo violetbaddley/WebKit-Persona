@@ -1,3 +1,843 @@
+2015-06-16  Mark Lam  <mark.lam@apple.com>
+
+        Use NakedPtr<Exception>& to return exception results.
+        https://bugs.webkit.org/show_bug.cgi?id=145870
+
+        Reviewed by Anders Carlsson and Filip Pizlo.
+
+        Introducing the NakedPtr class.
+
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/NakedPtr.h: Added.
+        (WTF::NakedPtr::NakedPtr):
+        (WTF::NakedPtr::get):
+        (WTF::NakedPtr::clear):
+        (WTF::NakedPtr::operator*):
+        (WTF::NakedPtr::operator->):
+        (WTF::NakedPtr::operator T*):
+        (WTF::NakedPtr::operator!):
+        (WTF::NakedPtr::operator bool):
+        (WTF::=):
+        (WTF::NakedPtr<T>::swap):
+        (WTF::swap):
+
+2015-06-12  Zan Dobersek  <zdobersek@igalia.com>
+
+        [GLib] Move files under Source/WTF/wtf/gobject to Source/WTF/wtf/glib
+        https://bugs.webkit.org/show_bug.cgi?id=145799
+
+        Reviewed by Carlos Garcia Campos.
+
+        Move the GLib-specific files to the Source/WTF/wtf/glib/ directory.
+        'gobject' wasn't the most appropriate name for the directory since
+        GObject is a submodule of GLib, but a lot of the code there didn't
+        have much to do with GObject specifically.
+
+        Build rules for the moved files are also updated.
+
+        * WTF.vcxproj/WTF.vcxproj:
+        * WTF.vcxproj/WTF.vcxproj.filters:
+        * wtf/Platform.h:
+        * wtf/PlatformEfl.cmake:
+        * wtf/PlatformGTK.cmake:
+        * wtf/RunLoop.h:
+        * wtf/WorkQueue.h:
+        * wtf/glib/GLibUtilities.cpp: Renamed from Source/WTF/wtf/gobject/GlibUtilities.cpp.
+        (getCurrentExecutablePath):
+        * wtf/glib/GLibUtilities.h: Renamed from Source/WTF/wtf/gobject/GlibUtilities.h.
+        * wtf/glib/GMainLoopSource.cpp: Renamed from Source/WTF/wtf/gobject/GMainLoopSource.cpp.
+        (WTF::GMainLoopSource::create):
+        (WTF::GMainLoopSource::GMainLoopSource):
+        (WTF::GMainLoopSource::~GMainLoopSource):
+        (WTF::GMainLoopSource::isScheduled):
+        (WTF::GMainLoopSource::isActive):
+        (WTF::GMainLoopSource::cancel):
+        (WTF::GMainLoopSource::scheduleIdleSource):
+        (WTF::GMainLoopSource::schedule):
+        (WTF::GMainLoopSource::scheduleTimeoutSource):
+        (WTF::GMainLoopSource::scheduleAfterDelay):
+        (WTF::createMicrosecondsTimeoutSource):
+        (WTF::GMainLoopSource::scheduleAndDeleteOnDestroy):
+        (WTF::GMainLoopSource::scheduleAfterDelayAndDeleteOnDestroy):
+        (WTF::GMainLoopSource::prepareVoidCallback):
+        (WTF::GMainLoopSource::finishVoidCallback):
+        (WTF::GMainLoopSource::voidCallback):
+        (WTF::GMainLoopSource::prepareBoolCallback):
+        (WTF::GMainLoopSource::finishBoolCallback):
+        (WTF::GMainLoopSource::boolCallback):
+        (WTF::GMainLoopSource::socketCallback):
+        (WTF::GMainLoopSource::voidSourceCallback):
+        (WTF::GMainLoopSource::boolSourceCallback):
+        (WTF::GMainLoopSource::socketSourceCallback):
+        (WTF::GMainLoopSource::Context::destroySource):
+        * wtf/glib/GMainLoopSource.h: Renamed from Source/WTF/wtf/gobject/GMainLoopSource.h.
+        (WTF::GMainLoopSource::Context::operator=):
+        * wtf/glib/GMutexLocker.h: Renamed from Source/WTF/wtf/gobject/GMutexLocker.h.
+        (WTF::MutexWrapper<GMutex>::lock):
+        (WTF::MutexWrapper<GMutex>::unlock):
+        (WTF::MutexWrapper<GRecMutex>::lock):
+        (WTF::MutexWrapper<GRecMutex>::unlock):
+        (WTF::GMutexLocker::GMutexLocker):
+        (WTF::GMutexLocker::~GMutexLocker):
+        (WTF::GMutexLocker::lock):
+        (WTF::GMutexLocker::unlock):
+        * wtf/glib/GRefPtr.cpp: Renamed from Source/WTF/wtf/gobject/GRefPtr.cpp.
+        (WTF::refGPtr):
+        (WTF::derefGPtr):
+        * wtf/glib/GRefPtr.h: Renamed from Source/WTF/wtf/gobject/GRefPtr.h.
+        (WTF::GRefPtr::GRefPtr):
+        (WTF::GRefPtr::~GRefPtr):
+        (WTF::GRefPtr::clear):
+        (WTF::GRefPtr::outPtr):
+        (WTF::GRefPtr::isHashTableDeletedValue):
+        (WTF::GRefPtr::get):
+        (WTF::GRefPtr::operator*):
+        (WTF::GRefPtr::operator->):
+        (WTF::GRefPtr::operator!):
+        (WTF::GRefPtr::operator UnspecifiedBoolType):
+        (WTF::GRefPtr::hashTableDeletedValue):
+        (WTF::=):
+        (WTF::GRefPtr<T>::swap):
+        (WTF::swap):
+        (WTF::operator==):
+        (WTF::operator!=):
+        (WTF::static_pointer_cast):
+        (WTF::const_pointer_cast):
+        (WTF::adoptGRef):
+        (WTF::refGPtr):
+        (WTF::derefGPtr):
+        * wtf/glib/GThreadSafeMainLoopSource.cpp: Renamed from Source/WTF/wtf/gobject/GThreadSafeMainLoopSource.cpp.
+        (WTF::GThreadSafeMainLoopSource::GThreadSafeMainLoopSource):
+        (WTF::GThreadSafeMainLoopSource::~GThreadSafeMainLoopSource):
+        (WTF::GThreadSafeMainLoopSource::cancel):
+        (WTF::GThreadSafeMainLoopSource::schedule):
+        (WTF::GThreadSafeMainLoopSource::scheduleAfterDelay):
+        (WTF::GThreadSafeMainLoopSource::prepareVoidCallback):
+        (WTF::GThreadSafeMainLoopSource::finishVoidCallback):
+        (WTF::GThreadSafeMainLoopSource::voidCallback):
+        (WTF::GThreadSafeMainLoopSource::prepareBoolCallback):
+        (WTF::GThreadSafeMainLoopSource::finishBoolCallback):
+        (WTF::GThreadSafeMainLoopSource::boolCallback):
+        * wtf/glib/GThreadSafeMainLoopSource.h: Renamed from Source/WTF/wtf/gobject/GThreadSafeMainLoopSource.h.
+        * wtf/glib/GTypedefs.h: Renamed from Source/WTF/wtf/gobject/GTypedefs.h.
+        * wtf/glib/GUniquePtr.h: Renamed from Source/WTF/wtf/gobject/GUniquePtr.h.
+        (WTF::GPtrDeleter::operator()):
+        (WTF::GUniqueOutPtr::GUniqueOutPtr):
+        (WTF::GUniqueOutPtr::~GUniqueOutPtr):
+        (WTF::GUniqueOutPtr::outPtr):
+        (WTF::GUniqueOutPtr::release):
+        (WTF::GUniqueOutPtr::operator*):
+        (WTF::GUniqueOutPtr::operator->):
+        (WTF::GUniqueOutPtr::get):
+        (WTF::GUniqueOutPtr::operator!):
+        (WTF::GUniqueOutPtr::operator UnspecifiedBoolType):
+        (WTF::GUniqueOutPtr::reset):
+        * wtf/glib/MainThreadGLib.cpp:
+        * wtf/gobject/GMainLoopSource.cpp:
+        (WTF::GMainLoopSource::create): Deleted.
+        (WTF::GMainLoopSource::GMainLoopSource): Deleted.
+        (WTF::GMainLoopSource::~GMainLoopSource): Deleted.
+        (WTF::GMainLoopSource::isScheduled): Deleted.
+        (WTF::GMainLoopSource::isActive): Deleted.
+        (WTF::GMainLoopSource::cancel): Deleted.
+        (WTF::GMainLoopSource::scheduleIdleSource): Deleted.
+        (WTF::GMainLoopSource::schedule): Deleted.
+        (WTF::GMainLoopSource::scheduleTimeoutSource): Deleted.
+        (WTF::GMainLoopSource::scheduleAfterDelay): Deleted.
+        (WTF::createMicrosecondsTimeoutSource): Deleted.
+        (WTF::GMainLoopSource::scheduleAndDeleteOnDestroy): Deleted.
+        (WTF::GMainLoopSource::scheduleAfterDelayAndDeleteOnDestroy): Deleted.
+        (WTF::GMainLoopSource::prepareVoidCallback): Deleted.
+        (WTF::GMainLoopSource::finishVoidCallback): Deleted.
+        (WTF::GMainLoopSource::voidCallback): Deleted.
+        (WTF::GMainLoopSource::prepareBoolCallback): Deleted.
+        (WTF::GMainLoopSource::finishBoolCallback): Deleted.
+        (WTF::GMainLoopSource::boolCallback): Deleted.
+        (WTF::GMainLoopSource::socketCallback): Deleted.
+        (WTF::GMainLoopSource::voidSourceCallback): Deleted.
+        (WTF::GMainLoopSource::boolSourceCallback): Deleted.
+        (WTF::GMainLoopSource::socketSourceCallback): Deleted.
+        (WTF::GMainLoopSource::Context::destroySource): Deleted.
+        * wtf/gobject/GMainLoopSource.h:
+        (WTF::GMainLoopSource::Context::operator=): Deleted.
+        * wtf/gobject/GMutexLocker.h:
+        (WTF::MutexWrapper<GMutex>::lock): Deleted.
+        (WTF::MutexWrapper<GMutex>::unlock): Deleted.
+        (WTF::MutexWrapper<GRecMutex>::lock): Deleted.
+        (WTF::MutexWrapper<GRecMutex>::unlock): Deleted.
+        (WTF::GMutexLocker::GMutexLocker): Deleted.
+        (WTF::GMutexLocker::~GMutexLocker): Deleted.
+        (WTF::GMutexLocker::lock): Deleted.
+        (WTF::GMutexLocker::unlock): Deleted.
+        * wtf/gobject/GRefPtr.cpp:
+        (WTF::refGPtr): Deleted.
+        (WTF::derefGPtr): Deleted.
+        * wtf/gobject/GRefPtr.h:
+        (WTF::GRefPtr::GRefPtr): Deleted.
+        (WTF::GRefPtr::~GRefPtr): Deleted.
+        (WTF::GRefPtr::clear): Deleted.
+        (WTF::GRefPtr::outPtr): Deleted.
+        (WTF::GRefPtr::isHashTableDeletedValue): Deleted.
+        (WTF::GRefPtr::get): Deleted.
+        (WTF::GRefPtr::operator*): Deleted.
+        (WTF::GRefPtr::operator->): Deleted.
+        (WTF::GRefPtr::operator!): Deleted.
+        (WTF::GRefPtr::operator UnspecifiedBoolType): Deleted.
+        (WTF::GRefPtr::hashTableDeletedValue): Deleted.
+        (WTF::=): Deleted.
+        (WTF::GRefPtr<T>::swap): Deleted.
+        (WTF::swap): Deleted.
+        (WTF::operator==): Deleted.
+        (WTF::operator!=): Deleted.
+        (WTF::static_pointer_cast): Deleted.
+        (WTF::const_pointer_cast): Deleted.
+        (WTF::adoptGRef): Deleted.
+        (WTF::refGPtr): Deleted.
+        (WTF::derefGPtr): Deleted.
+        * wtf/gobject/GThreadSafeMainLoopSource.cpp:
+        (WTF::GThreadSafeMainLoopSource::GThreadSafeMainLoopSource): Deleted.
+        (WTF::GThreadSafeMainLoopSource::~GThreadSafeMainLoopSource): Deleted.
+        (WTF::GThreadSafeMainLoopSource::cancel): Deleted.
+        (WTF::GThreadSafeMainLoopSource::schedule): Deleted.
+        (WTF::GThreadSafeMainLoopSource::scheduleAfterDelay): Deleted.
+        (WTF::GThreadSafeMainLoopSource::prepareVoidCallback): Deleted.
+        (WTF::GThreadSafeMainLoopSource::finishVoidCallback): Deleted.
+        (WTF::GThreadSafeMainLoopSource::voidCallback): Deleted.
+        (WTF::GThreadSafeMainLoopSource::prepareBoolCallback): Deleted.
+        (WTF::GThreadSafeMainLoopSource::finishBoolCallback): Deleted.
+        (WTF::GThreadSafeMainLoopSource::boolCallback): Deleted.
+        * wtf/gobject/GUniquePtr.h:
+        (WTF::GPtrDeleter::operator()): Deleted.
+        (WTF::GUniqueOutPtr::GUniqueOutPtr): Deleted.
+        (WTF::GUniqueOutPtr::~GUniqueOutPtr): Deleted.
+        (WTF::GUniqueOutPtr::outPtr): Deleted.
+        (WTF::GUniqueOutPtr::release): Deleted.
+        (WTF::GUniqueOutPtr::operator*): Deleted.
+        (WTF::GUniqueOutPtr::operator->): Deleted.
+        (WTF::GUniqueOutPtr::get): Deleted.
+        (WTF::GUniqueOutPtr::operator!): Deleted.
+        (WTF::GUniqueOutPtr::operator UnspecifiedBoolType): Deleted.
+        (WTF::GUniqueOutPtr::reset): Deleted.
+        * wtf/gobject/GlibUtilities.cpp:
+        (getCurrentExecutablePath): Deleted.
+
+2015-06-10  Basile Clement  <basile_clement@apple.com>
+
+        Unreviewed, fix an typo in unused template code.
+
+        * wtf/TinyPtrSet.h:
+        (WTF::TinyPtrSet::iterator::operator*): s/at(index)/at(m_index)/
+
+2015-06-09  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [cmake] Fix the style issues in cmake project files
+        https://bugs.webkit.org/show_bug.cgi?id=145755
+
+        Reviewed by Darin Adler.
+
+        * wtf/CMakeLists.txt:
+
+2015-06-08  Alexey Proskuryakov  <ap@apple.com>
+
+        Build fix.
+
+        * wtf/TinyPtrSet.h: (WTF::TinyPtrSet::isEmpty): s/poointer/pointer/
+
+2015-06-07  Filip Pizlo  <fpizlo@apple.com>
+
+        The tiny set magic in StructureSet should be available in WTF
+        https://bugs.webkit.org/show_bug.cgi?id=145722
+
+        Reviewed by Geoffrey Garen.
+        
+        As the management of structure sets evolved in JSC, the StructureSet data structure grew
+        increasingly smart. It's got some smart stuff for managing small sets of pointers. I
+        wanted to take the generic logic out of JSC and put it into a reusable templatized class
+        in WTF.
+        
+        * WTF.vcxproj/WTF.vcxproj:
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/CMakeLists.txt:
+        * wtf/TinyPtrSet.h: Added.
+        (WTF::TinyPtrSet::TinyPtrSet):
+        (WTF::TinyPtrSet::operator=):
+        (WTF::TinyPtrSet::~TinyPtrSet):
+        (WTF::TinyPtrSet::clear):
+        (WTF::TinyPtrSet::onlyEntry):
+        (WTF::TinyPtrSet::isEmpty):
+        (WTF::TinyPtrSet::add):
+        (WTF::TinyPtrSet::remove):
+        (WTF::TinyPtrSet::contains):
+        (WTF::TinyPtrSet::merge):
+        (WTF::TinyPtrSet::forEach):
+        (WTF::TinyPtrSet::genericFilter):
+        (WTF::TinyPtrSet::filter):
+        (WTF::TinyPtrSet::exclude):
+        (WTF::TinyPtrSet::isSubsetOf):
+        (WTF::TinyPtrSet::isSupersetOf):
+        (WTF::TinyPtrSet::overlaps):
+        (WTF::TinyPtrSet::size):
+        (WTF::TinyPtrSet::at):
+        (WTF::TinyPtrSet::operator[]):
+        (WTF::TinyPtrSet::last):
+        (WTF::TinyPtrSet::iterator::iterator):
+        (WTF::TinyPtrSet::iterator::operator*):
+        (WTF::TinyPtrSet::iterator::operator++):
+        (WTF::TinyPtrSet::iterator::operator==):
+        (WTF::TinyPtrSet::iterator::operator!=):
+        (WTF::TinyPtrSet::begin):
+        (WTF::TinyPtrSet::end):
+        (WTF::TinyPtrSet::operator==):
+        (WTF::TinyPtrSet::addOutOfLine):
+        (WTF::TinyPtrSet::containsOutOfLine):
+        (WTF::TinyPtrSet::copyFrom):
+        (WTF::TinyPtrSet::copyFromOutOfLine):
+        (WTF::TinyPtrSet::OutOfLineList::create):
+        (WTF::TinyPtrSet::OutOfLineList::destroy):
+        (WTF::TinyPtrSet::OutOfLineList::list):
+        (WTF::TinyPtrSet::OutOfLineList::OutOfLineList):
+        (WTF::TinyPtrSet::deleteListIfNecessary):
+        (WTF::TinyPtrSet::isThin):
+        (WTF::TinyPtrSet::pointer):
+        (WTF::TinyPtrSet::singleEntry):
+        (WTF::TinyPtrSet::list):
+        (WTF::TinyPtrSet::set):
+        (WTF::TinyPtrSet::setEmpty):
+        (WTF::TinyPtrSet::getReservedFlag):
+        (WTF::TinyPtrSet::setReservedFlag):
+
+2015-06-08  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [SOUP] Performs DNS prefetch when a proxy is configured (information leak)
+        https://bugs.webkit.org/show_bug.cgi?id=145542
+
+        Reviewed by Alexey Proskuryakov.
+
+        Add template specialization for GUniquePtr<char*>. This smart pointer will free its data
+        with g_strfreev() (as opposed to g_free(), which is used for GUniquePtr<char>).
+
+        * wtf/gobject/GUniquePtr.h:
+
+2015-06-05  Chris Dumez  <cdumez@apple.com>
+
+        [WK2][iOS] Limit the number of vnodes used by the WebContent processes
+        https://bugs.webkit.org/show_bug.cgi?id=145672
+        <rdar://problem/21126637>
+
+        Reviewed by Antti Koivisto.
+
+        * wtf/RefCounter.h:
+        (WTF::RefCounter::value):
+
+        Expose the actual refcount instead of a boolean value.
+
+2015-06-05  Alex Christensen  <achristensen@webkit.org>
+
+        [Web Timing] Use new SPI to enable data collection.
+        https://bugs.webkit.org/show_bug.cgi?id=145650
+        rdar://problem/21203358
+
+        Reviewed by Chris Dumez.
+
+        * wtf/Platform.h:
+        Added HAVE_TIMINGDATAOPTIONS for platform and version dependent feature.
+
+2015-06-05  Xabier Rodriguez Calvar  <calvaris@igalia.com> and Youenn Fablet <youenn.fablet@crf.canon.fr>
+
+        [Streams API] ReadableStream should store callbacks as a Deque
+        https://bugs.webkit.org/show_bug.cgi?id=145641
+
+        Reviewed by Darin Adler.
+
+        * wtf/Deque.h:
+        (WTF::Deque::append): Adding not templated append method, forwarding to templated append method.
+
+2015-06-02  Xabier Rodriguez Calvar  <calvaris@igalia.com> and Youenn Fablet <youenn.fablet@crf.canon.fr>
+
+        [Streams API] Delegate ReadableStreamReader reference counting to ReadableStream
+        https://bugs.webkit.org/show_bug.cgi?id=144907
+
+        Reviewed by Darin Adler.
+
+        * wtf/Vector.h:
+        (WTF::Vector::append): Adding not templated append method, forwarding to ValueType templated append method.
+
+2015-06-02  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Heap-use-after-free read of size 4 in JavaScriptCore: WTF::StringImpl::isSymbol() (StringImpl.h:496)
+        https://bugs.webkit.org/show_bug.cgi?id=145532
+
+        Reviewed by Geoffrey Garen.
+
+        Return `RefPtr<AtomicStringImpl>` instead of `AtomicStringImpl*`.
+
+        * wtf/text/AtomicStringImpl.cpp:
+        (WTF::AtomicStringImpl::lookUpSlowCase):
+        (WTF::AtomicStringImpl::lookUpInternal):
+        * wtf/text/AtomicStringImpl.h:
+        (WTF::AtomicStringImpl::lookUp):
+
+2015-06-01  Anders Carlsson  <andersca@apple.com>
+
+        Use xpc_connection_set_oneshot_instance where possible
+        https://bugs.webkit.org/show_bug.cgi?id=145535
+        rdar://problem/21109994
+
+        Reviewed by Sam Weinig.
+
+        Add SPI declaration.
+
+        * wtf/spi/darwin/XPCSPI.h:
+
+2015-05-29  Anders Carlsson  <andersca@apple.com>
+
+        Missing #import of Platform.h in several WTF headers
+        https://bugs.webkit.org/show_bug.cgi?id=145475
+        rdar://problem/21161818
+
+        Reviewed by Darin Adler.
+
+        Add Platform.h #includes.
+
+        * wtf/Assertions.h:
+        * wtf/RetainPtr.h:
+
+2015-05-29  Commit Queue  <commit-queue@webkit.org>
+
+        Unreviewed, rolling out r184949.
+        https://bugs.webkit.org/show_bug.cgi?id=145458
+
+        Ends up generating worse code for HashTable move constructors
+        (Requested by zdobersek on #webkit).
+
+        Reverted changeset:
+
+        "Clean up HashTable constructors"
+        https://bugs.webkit.org/show_bug.cgi?id=145369
+        http://trac.webkit.org/changeset/184949
+
+2015-05-28  Gyuyoung Kim  <gyuyoung.kim@webkit.org>
+
+        Purge PassRefPtr in StringConcatenate.h
+        https://bugs.webkit.org/show_bug.cgi?id=145376
+
+        Reviewed by Darin Adler.
+
+        Replace PassRefPtr with RefPtr. Additionally use nullptr instead of 0.
+
+        * wtf/text/StringConcatenate.h:
+        (WTF::tryMakeString):
+        (WTF::makeString):
+
+2015-05-28  Zan Dobersek  <zdobersek@igalia.com>
+
+        Clean up HashTable constructors
+        https://bugs.webkit.org/show_bug.cgi?id=145369
+
+        Reviewed by Andreas Kling.
+
+        Use nullptr to initialize pointer member variables in the HashTable
+        default constructor. Copy and move constructors can use constructor
+        delegation instead of replicating all member initializations. Move
+        constructor should simply call HashTable::swap() instead of replicating
+        all the swap operations.
+
+        * wtf/HashTable.h:
+        (WTF::KeyTraits>::HashTable):
+
+2015-05-27  Alexey Proskuryakov  <ap@apple.com>
+
+        [Mac] Fix clang static analyzer build
+        https://bugs.webkit.org/show_bug.cgi?id=145426
+        rdar://problem/20947408
+
+        Reviewed by Dan Bernstein.
+
+        * wtf/spi/darwin/XPCSPI.h: Correct declarations of xpc_retain and xpc_release.
+
+2015-05-27  Dean Jackson  <dino@apple.com>
+
+        img.currentSrc problem in strict mode with old picturefill
+        https://bugs.webkit.org/show_bug.cgi?id=144095
+        <rdar://problem/21087013>
+
+        Reviewed by Simon Fraser.
+
+        Add a PICTURE_SIZES flag.
+
+        * wtf/FeatureDefines.h:
+
+2015-05-26  Andreas Kling  <akling@apple.com>
+
+        StringView should have find(StringView, start).
+        <https://webkit.org/b/145351>
+
+        Reviewed by Darin Adler.
+
+        Move the class agnostic guts of StringImpl's find() implementation from StringImpl
+        to StringCommon.h and templatize the code into a findCommon() helper.
+
+        StringImpl::find() and StringView::find() now both call findCommon().
+
+        * wtf/text/StringCommon.h:
+        (WTF::findInner):
+        (WTF::find):
+        (WTF::findCommon):
+        * wtf/text/StringImpl.cpp:
+        (WTF::StringImpl::find):
+        (WTF::findInner): Deleted.
+        * wtf/text/StringImpl.h:
+        (WTF::find): Deleted.
+        * wtf/text/StringView.cpp:
+        (WTF::StringView::find):
+        * wtf/text/StringView.h:
+
+
+2015-05-26  Dan Bernstein  <mitz@apple.com>
+
+        <rdar://problem/21104551> Update build settings
+
+        Reviewed by Anders Carlsson.
+
+        * Configurations/DebugRelease.xcconfig:
+
+2015-05-23  Dan Bernstein  <mitz@apple.com>
+
+        Remove unused definitions of WEBKIT_VERSION_MIN_REQUIRED
+        https://bugs.webkit.org/show_bug.cgi?id=145345
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/Base.xcconfig: Also changed to use $(inherited).
+
+2015-05-23  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Introduce UniquedStringImpl and SymbolImpl to separate symbolic strings from AtomicStringImpl
+        https://bugs.webkit.org/show_bug.cgi?id=144848
+
+        Reviewed by Darin Adler.
+
+        he current AtomicStringImpl accidentally means the symbol OR atomic StringImpl.
+        t's not correct to its name and it's error prone.
+
+        In this patch, we'll introduce/changes classes into WTF.
+
+        1. UniquedStringImpl
+        It's derived class from StringImpl. And it represents symbol || atomic StringImpl.
+
+        2. SymbolImpl
+        It's derived class from UniquedStringImpl. Only symbol strings can become this.
+        It ensures the given StringImpl is symbol in compile time.
+
+        3. AtomicStringImpl
+        It's derived class from UniquedStringImpl. Only atomic (non-normal && non-symbol) strings can become this.
+        It ensures the given StringImpl is atomic in compile time.
+
+        And, in this time, I just accept UniqueStringImpl in AtomicString. As the result,
+        1. Now AtomicStringImpl issue is fixed. Its SymbolImpl is separated and UniquedStringImpl is introduced.
+        2. But AtomicString still have both symbol and atomic strings.
+        This should be solved in the separated patch.
+
+        * WTF.vcxproj/WTF.vcxproj:
+        * WTF.vcxproj/WTF.vcxproj.filters:
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/CMakeLists.txt:
+        * wtf/PrintStream.cpp:
+        * wtf/PrintStream.h:
+        (WTF::printInternal):
+        * wtf/text/AtomicString.h:
+        (WTF::AtomicString::AtomicString):
+        * wtf/text/AtomicStringImpl.h:
+        * wtf/text/StringImpl.cpp:
+        (WTF::StringImpl::~StringImpl):
+        (WTF::StringImpl::createSymbol):
+        (WTF::StringImpl::createSymbolEmpty):
+        * wtf/text/StringImpl.h:
+        * wtf/text/SymbolImpl.h: Copied from Source/JavaScriptCore/runtime/PrivateName.h.
+        * wtf/text/SymbolRegistry.cpp:
+        (WTF::SymbolRegistry::symbolForKey):
+        (WTF::SymbolRegistry::keyForSymbol):
+        (WTF::SymbolRegistry::remove):
+        * wtf/text/SymbolRegistry.h:
+        * wtf/text/UniquedStringImpl.h: Copied from Source/JavaScriptCore/runtime/PrivateName.h.
+
+2015-05-20  Zan Dobersek  <zdobersek@igalia.com>
+
+        [GTK] Move MainThreadGtk, RunLoopGtk, WorkQueueGtk under Source/WTF/wtf/glib/
+        https://bugs.webkit.org/show_bug.cgi?id=145117
+
+        Reviewed by Csaba Osztrogonác.
+
+        Move the MainThreadGtk, RunLoopGtk and WorkQueueGtk implementation files from
+        Source/WTF/wtf/gtk/ to Source/WTF/wtf/glib/. These implementations are not
+        GTK-specific and only depend on GLib, so they are renamed as well.
+
+        There are other such implementations under Source/WTF/wtf/gobject/ (GObject
+        is just a subset of GLib) that will be moved under the new directory in
+        future patches.
+
+        * wtf/PlatformGTK.cmake:
+        * wtf/glib/MainThreadGLib.cpp: Renamed from Source/WTF/wtf/gtk/MainThreadGtk.cpp.
+        (WTF::initializeMainThreadPlatform):
+        (WTF::scheduleDispatchFunctionsOnMainThread):
+        * wtf/glib/RunLoopGLib.cpp: Renamed from Source/WTF/wtf/gtk/RunLoopGtk.cpp.
+        (WTF::RunLoop::RunLoop):
+        (WTF::RunLoop::~RunLoop):
+        (WTF::RunLoop::run):
+        (WTF::RunLoop::stop):
+        (WTF::RunLoop::wakeUp):
+        (WTF::RunLoop::TimerBase::TimerBase):
+        (WTF::RunLoop::TimerBase::~TimerBase):
+        (WTF::RunLoop::TimerBase::start):
+        (WTF::RunLoop::TimerBase::stop):
+        (WTF::RunLoop::TimerBase::isActive):
+        * wtf/glib/WorkQueueGLib.cpp: Renamed from Source/WTF/wtf/gtk/WorkQueueGtk.cpp.
+        (WTF::WorkQueue::platformInitialize):
+        (WTF::WorkQueue::platformInvalidate):
+        (WTF::WorkQueue::registerSocketEventHandler):
+        (WTF::WorkQueue::unregisterSocketEventHandler):
+        (WTF::WorkQueue::dispatch):
+        (WTF::WorkQueue::dispatchAfter):
+
+2015-05-19  Andreas Kling  <akling@apple.com>
+
+        Give StringView a utf8() API.
+        <https://webkit.org/b/145201>
+
+        Reviewed by Anders Carlsson
+
+        Added an LChar version of StringImpl::utf8ForCharacters() and use that to give
+        StringView a utf8() API just like String has.
+
+        * wtf/text/StringImpl.cpp:
+        (WTF::StringImpl::utf8ForCharacters):
+        * wtf/text/StringImpl.h:
+        * wtf/text/StringView.cpp:
+        (WTF::StringView::utf8):
+        * wtf/text/StringView.h:
+
+2015-05-19  Yusuke Suzuki  <utatane.tea@gmail.com>
+
+        Move AtomicStringImpl table related operations from AtomicString to AtomicStringImpl
+        https://bugs.webkit.org/show_bug.cgi?id=145109
+
+        Reviewed by Darin Adler.
+
+        Now AtomicStringImpl table operations are located in AtomicString.
+        But they should be under AtomicStringImpl.
+        This patch simply moves these operations to AtomicStringImpl.
+
+        And this patch renames static AtomicString::find to static AtomicStringImpl::lookUp
+        because it conflicts with AtomicStringImpl's member function name.
+
+        * WTF.vcxproj/WTF.vcxproj:
+        * WTF.vcxproj/WTF.vcxproj.filters:
+        * WTF.vcxproj/copy-files.cmd:
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/CMakeLists.txt:
+        * wtf/PlatformMac.cmake:
+        * wtf/PlatformWin.cmake:
+        * wtf/text/AtomicString.cpp:
+        (WTF::AtomicString::lower):
+        (WTF::AtomicString::convertToASCIILowercase):
+        (WTF::AtomicString::fromUTF8Internal):
+        (WTF::AtomicStringTableLocker::AtomicStringTableLocker): Deleted.
+        (WTF::stringTable): Deleted.
+        (WTF::addToStringTable): Deleted.
+        (WTF::CStringTranslator::hash): Deleted.
+        (WTF::CStringTranslator::equal): Deleted.
+        (WTF::CStringTranslator::translate): Deleted.
+        (WTF::AtomicString::add): Deleted.
+        (WTF::UCharBufferTranslator::hash): Deleted.
+        (WTF::UCharBufferTranslator::equal): Deleted.
+        (WTF::UCharBufferTranslator::translate): Deleted.
+        (WTF::HashAndCharactersTranslator::hash): Deleted.
+        (WTF::HashAndCharactersTranslator::equal): Deleted.
+        (WTF::HashAndCharactersTranslator::translate): Deleted.
+        (WTF::HashAndUTF8CharactersTranslator::hash): Deleted.
+        (WTF::HashAndUTF8CharactersTranslator::equal): Deleted.
+        (WTF::HashAndUTF8CharactersTranslator::translate): Deleted.
+        (WTF::SubstringTranslator::translate): Deleted.
+        (WTF::SubstringTranslator8::hash): Deleted.
+        (WTF::SubstringTranslator8::equal): Deleted.
+        (WTF::SubstringTranslator16::hash): Deleted.
+        (WTF::SubstringTranslator16::equal): Deleted.
+        (WTF::LCharBufferTranslator::hash): Deleted.
+        (WTF::LCharBufferTranslator::equal): Deleted.
+        (WTF::LCharBufferTranslator::translate): Deleted.
+        (WTF::CharBufferFromLiteralDataTranslator::hash): Deleted.
+        (WTF::CharBufferFromLiteralDataTranslator::equal): Deleted.
+        (WTF::CharBufferFromLiteralDataTranslator::translate): Deleted.
+        (WTF::AtomicString::addFromLiteralData): Deleted.
+        (WTF::AtomicString::addSlowCase): Deleted.
+        (WTF::AtomicString::remove): Deleted.
+        (WTF::AtomicString::findSlowCase): Deleted.
+        (WTF::AtomicString::findInternal): Deleted.
+        (WTF::AtomicString::isInAtomicStringTable): Deleted.
+        * wtf/text/AtomicString.h:
+        (WTF::AtomicString::AtomicString):
+        (WTF::AtomicString::fromUTF8):
+        (WTF::AtomicString::find): Deleted.
+        (WTF::AtomicString::add): Deleted.
+        (WTF::AtomicString::addWithStringTableProvider): Deleted.
+        * wtf/text/AtomicStringImpl.cpp: Copied from Source/WTF/wtf/text/AtomicString.cpp.
+        (WTF::AtomicStringTableLocker::AtomicStringTableLocker):
+        (WTF::stringTable):
+        (WTF::addToStringTable):
+        (WTF::CStringTranslator::hash):
+        (WTF::CStringTranslator::equal):
+        (WTF::CStringTranslator::translate):
+        (WTF::AtomicStringImpl::add):
+        (WTF::UCharBufferTranslator::hash):
+        (WTF::UCharBufferTranslator::equal):
+        (WTF::UCharBufferTranslator::translate):
+        (WTF::HashAndCharactersTranslator::hash):
+        (WTF::HashAndCharactersTranslator::equal):
+        (WTF::HashAndCharactersTranslator::translate):
+        (WTF::HashAndUTF8CharactersTranslator::hash):
+        (WTF::HashAndUTF8CharactersTranslator::equal):
+        (WTF::HashAndUTF8CharactersTranslator::translate):
+        (WTF::SubstringTranslator::translate):
+        (WTF::SubstringTranslator8::hash):
+        (WTF::SubstringTranslator8::equal):
+        (WTF::SubstringTranslator16::hash):
+        (WTF::SubstringTranslator16::equal):
+        (WTF::LCharBufferTranslator::hash):
+        (WTF::LCharBufferTranslator::equal):
+        (WTF::LCharBufferTranslator::translate):
+        (WTF::CharBufferFromLiteralDataTranslator::hash):
+        (WTF::CharBufferFromLiteralDataTranslator::equal):
+        (WTF::CharBufferFromLiteralDataTranslator::translate):
+        (WTF::AtomicStringImpl::addLiteral):
+        (WTF::AtomicStringImpl::addSlowCase):
+        (WTF::AtomicStringImpl::remove):
+        (WTF::AtomicStringImpl::lookUpSlowCase):
+        (WTF::AtomicStringImpl::addUTF8):
+        (WTF::AtomicStringImpl::lookUpInternal):
+        (WTF::AtomicStringImpl::isInAtomicStringTable):
+        * wtf/text/AtomicStringImpl.h:
+        (WTF::AtomicStringImpl::lookUp):
+        (WTF::AtomicStringImpl::add):
+        (WTF::AtomicStringImpl::addWithStringTableProvider):
+        (WTF::AtomicStringImpl::AtomicStringImpl): Deleted.
+        * wtf/text/StringImpl.cpp:
+        (WTF::StringImpl::~StringImpl):
+        * wtf/text/StringImpl.h:
+        * wtf/text/WTFString.h:
+        (WTF::String::String):
+        * wtf/text/cf/AtomicStringCF.cpp:
+        (WTF::AtomicString::add): Deleted.
+        * wtf/text/cf/AtomicStringImplCF.cpp: Renamed from Source/WTF/wtf/text/cf/AtomicStringCF.cpp.
+        (WTF::AtomicStringImpl::add):
+
+2015-05-19  Ting-Wei Lan  <lantw44@gmail.com>
+
+        [SOUP] Use st_birthtime to get creation time of files on systems support it
+        https://bugs.webkit.org/show_bug.cgi?id=144989
+
+        Reviewed by Carlos Garcia Campos.
+
+        Define HAVE(STAT_BIRTHTIME) as 1 on operating systems supporting
+        getting creation time of files using st_birthtime in stat.
+
+        * wtf/Platform.h:
+
+2015-05-19  Chris Dumez  <cdumez@apple.com>
+
+        Mark static variables as const when possible
+        https://bugs.webkit.org/show_bug.cgi?id=145161
+
+        Reviewed by Andreas Kling.
+
+        * wtf/dtoa.cpp:
+        (WTF::pow5mult):
+
+2015-05-19  Gyuyoung Kim  <gyuyoung.kim@webkit.org>
+
+        [EFL] Remove unnecessary PLATFORM(EFL) macro in EFL specific files
+        https://bugs.webkit.org/show_bug.cgi?id=145160
+
+        Reviewed by Csaba Osztrogonác.
+
+        * wtf/efl/EflTypedefs.h: Remove PLATFORM(EFL).
+        * wtf/efl/UniquePtrEfl.h: ditto.
+
+2015-05-18  Michael Catanzaro  <mcatanzaro@igalia.com>
+
+        [CMake] Ignore warnings in system headers
+        https://bugs.webkit.org/show_bug.cgi?id=144747
+
+        Reviewed by Darin Adler.
+
+        Separate include directories into WebKit project includes and system includes. Suppress all
+        warnings from headers in system include directories using the SYSTEM argument to
+        the include_directories command.
+
+        * wtf/CMakeLists.txt:
+        * wtf/PlatformEfl.cmake:
+        * wtf/PlatformGTK.cmake:
+
+2015-05-18  Myles C. Maxfield  <mmaxfield@apple.com>
+
+        Addressing post-review comments on r184353
+        https://bugs.webkit.org/show_bug.cgi?id=145146
+
+        Reviewed by Benjamin Poulain.
+
+        Create an overload for equalIgnoringASCIICase() for AtomicString and string literals.
+
+        * wtf/text/AtomicString.h:
+        (WTF::equalIgnoringASCIICase):
+
+2015-05-18  Skachkov Alexandr  <gskachkov@gmail.com>
+
+        [ES6] Arrow function syntax. Feature flag for arrow function
+        https://bugs.webkit.org/show_bug.cgi?id=145108
+
+        Reviewed by Ryosuke Niwa.
+
+        Added feature flag ENABLE_ES6_ARROWFUNCTION_SYNTAX for arrow function
+
+        * wtf/FeatureDefines.h:
+
+2015-05-17  Benjamin Poulain  <benjamin@webkit.org>
+
+        Do not use fastMallocGoodSize anywhere
+        https://bugs.webkit.org/show_bug.cgi?id=145103
+
+        Reviewed by Michael Saboff.
+
+        It is silly we see fastMallocGoodSize in profiles, it does absolutely nothing.
+
+        This patch keeps fastMallocGoodSize() around for older code linking
+        with newer WebKit, but remove any use of it inside WebKit.
+
+        * wtf/FastMalloc.cpp:
+        (WTF::fastMallocGoodSize):
+        * wtf/FastMalloc.h:
+        * wtf/Vector.h:
+        (WTF::VectorBufferBase::allocateBuffer):
+        (WTF::VectorBufferBase::tryAllocateBuffer):
+        (WTF::VectorBufferBase::reallocateBuffer):
+
+2015-05-15  Dan Bernstein  <mitz@apple.com>
+
+        Build fix for some versions of clang.
+
+        * wtf/SaturatedArithmetic.h:
+        (signedAddOverflows):
+        (signedSubtractOverflows):
+
+2015-05-14  Dan Bernstein  <mitz@apple.com>
+
+        Reverted r177753, now that <rdar://problem/19347133> is fixed.
+
+        Rubber-stamped by Benjamin Poulain.
+
+        * wtf/SaturatedArithmetic.h:
+        (signedAddOverflows):
+        (signedSubtractOverflows):
+
 2015-05-14  Myles C. Maxfield  <mmaxfield@apple.com>
 
         Add String literal overloads to equalIgnoringASCIICase()

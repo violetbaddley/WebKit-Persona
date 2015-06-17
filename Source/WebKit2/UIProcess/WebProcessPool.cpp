@@ -38,7 +38,6 @@
 #include "StatisticsData.h"
 #include "TextChecker.h"
 #include "WKContextPrivate.h"
-#include "WebApplicationCacheManagerProxy.h"
 #include "WebCertificateInfo.h"
 #include "WebContextSupplement.h"
 #include "WebCookieManagerProxy.h"
@@ -46,19 +45,16 @@
 #include "WebDatabaseManagerProxy.h"
 #include "WebGeolocationManagerProxy.h"
 #include "WebIconDatabase.h"
-#include "WebKeyValueStorageManager.h"
 #include "WebKit2Initialize.h"
 #include "WebMediaCacheManagerProxy.h"
 #include "WebMemorySampler.h"
 #include "WebNotificationManagerProxy.h"
 #include "WebPageGroup.h"
-#include "WebPluginSiteDataManager.h"
 #include "WebPreferences.h"
 #include "WebProcessCreationParameters.h"
 #include "WebProcessMessages.h"
 #include "WebProcessPoolMessages.h"
 #include "WebProcessProxy.h"
-#include "WebResourceCacheManagerProxy.h"
 #include "WebsiteDataStore.h"
 #include <WebCore/ApplicationCacheStorage.h>
 #include <WebCore/Language.h>
@@ -79,7 +75,6 @@
 #if ENABLE(DATABASE_PROCESS)
 #include "DatabaseProcessCreationParameters.h"
 #include "DatabaseProcessMessages.h"
-#include "WebOriginDataManagerProxy.h"
 #endif
 
 #if ENABLE(NETWORK_PROCESS)
@@ -130,11 +125,15 @@ const Vector<WebProcessPool*>& WebProcessPool::allProcessPools()
     return processPools();
 }
 
-static WebsiteDataStore::Configuration websiteDataStoreConfiguration(API::ProcessPoolConfiguration& processPoolConfiguration)
+static WebsiteDataStore::Configuration legacyWebsiteDataStoreConfiguration(API::ProcessPoolConfiguration& processPoolConfiguration)
 {
     WebsiteDataStore::Configuration configuration;
 
     configuration.localStorageDirectory = processPoolConfiguration.localStorageDirectory();
+    configuration.webSQLDatabaseDirectory = processPoolConfiguration.webSQLDatabaseDirectory();
+    configuration.applicationCacheDirectory = WebProcessPool::legacyPlatformDefaultApplicationCacheDirectory();
+    configuration.mediaKeysStorageDirectory = WebProcessPool::legacyPlatformDefaultMediaKeysStorageDirectory();
+    configuration.networkCacheDirectory = WebProcessPool::legacyPlatformDefaultNetworkCacheDirectory();
 
     return configuration;
 }
@@ -158,13 +157,14 @@ WebProcessPool::WebProcessPool(API::ProcessPoolConfiguration& configuration)
     , m_diskCacheSizeOverride(m_configuration->diskCacheSizeOverride())
     , m_memorySamplerEnabled(false)
     , m_memorySamplerInterval(1400.0)
-    , m_websiteDataStore(m_configuration->shouldHaveLegacyDataStore() ? API::WebsiteDataStore::create(websiteDataStoreConfiguration(m_configuration)) : nullptr)
+    , m_websiteDataStore(m_configuration->shouldHaveLegacyDataStore() ? API::WebsiteDataStore::create(legacyWebsiteDataStoreConfiguration(m_configuration)) : nullptr)
 #if USE(SOUP)
     , m_initialHTTPCookieAcceptPolicy(HTTPCookieAcceptPolicyOnlyFromMainDocumentDomain)
 #endif
-    , m_webSQLDatabaseDirectory(configuration.webSQLDatabaseDirectory())
+    , m_applicationCacheDirectory(configuration.applicationCacheDirectory())
     , m_indexedDBDatabaseDirectory(configuration.indexedDBDatabaseDirectory())
     , m_mediaKeysStorageDirectory(configuration.mediaKeysStorageDirectory())
+    , m_webSQLDatabaseDirectory(configuration.webSQLDatabaseDirectory())
     , m_shouldUseTestingNetworkSession(false)
     , m_processTerminationEnabled(true)
 #if ENABLE(NETWORK_PROCESS)
@@ -189,26 +189,17 @@ WebProcessPool::WebProcessPool(API::ProcessPoolConfiguration& configuration)
 
     // NOTE: These sub-objects must be initialized after m_messageReceiverMap..
     m_iconDatabase = WebIconDatabase::create(this);
-#if ENABLE(NETSCAPE_PLUGIN_API)
-    m_pluginSiteDataManager = WebPluginSiteDataManager::create(this);
-#endif // ENABLE(NETSCAPE_PLUGIN_API)
 
-    addSupplement<WebApplicationCacheManagerProxy>();
     addSupplement<WebCookieManagerProxy>();
     addSupplement<WebGeolocationManagerProxy>();
-    addSupplement<WebKeyValueStorageManager>();
     addSupplement<WebMediaCacheManagerProxy>();
     addSupplement<WebNotificationManagerProxy>();
-    addSupplement<WebResourceCacheManagerProxy>();
     addSupplement<WebDatabaseManagerProxy>();
 #if USE(SOUP)
     addSupplement<WebSoupCustomProtocolRequestManager>();
 #endif
 #if ENABLE(BATTERY_STATUS)
     addSupplement<WebBatteryManagerProxy>();
-#endif
-#if ENABLE(DATABASE_PROCESS)
-    addSupplement<WebOriginDataManagerProxy>();
 #endif
 
     processPools().append(this);
@@ -256,11 +247,6 @@ WebProcessPool::~WebProcessPool()
     WebIconDatabase* rawIconDatabase = m_iconDatabase.release().leakRef();
     rawIconDatabase->derefWhenAppropriate();
 
-#if ENABLE(NETSCAPE_PLUGIN_API)
-    m_pluginSiteDataManager->invalidate();
-    m_pluginSiteDataManager->clearProcessPool();
-#endif
-
     invalidateCallbackMap(m_dictionaryCallbacks, CallbackBase::Error::OwnerWasInvalidated);
 
     platformInvalidateContext();
@@ -271,6 +257,11 @@ WebProcessPool::~WebProcessPool()
 
 #ifndef NDEBUG
     processPoolCounter.decrement();
+#endif
+
+#if ENABLE(NETWORK_PROCESS)
+    if (m_networkProcess)
+        m_networkProcess->shutDownProcess();
 #endif
 }
 
@@ -407,7 +398,7 @@ NetworkProcessProxy& WebProcessPool::ensureNetworkProcess()
     parameters.diskCacheSizeOverride = m_diskCacheSizeOverride;
     parameters.canHandleHTTPSServerTrustEvaluation = m_canHandleHTTPSServerTrustEvaluation;
 
-    parameters.diskCacheDirectory = stringByResolvingSymlinksInPath(diskCacheDirectory());
+    parameters.diskCacheDirectory = m_configuration->diskCacheDirectory();
     if (!parameters.diskCacheDirectory.isEmpty())
         SandboxExtension::createHandleForReadWriteDirectory(parameters.diskCacheDirectory, parameters.diskCacheDirectoryExtensionHandle);
 
@@ -601,17 +592,13 @@ WebProcessProxy& WebProcessPool::createNewWebProcess()
     if (!parameters.injectedBundlePath.isEmpty())
         SandboxExtension::createHandle(parameters.injectedBundlePath, SandboxExtension::ReadOnly, parameters.injectedBundlePathExtensionHandle);
 
-    parameters.applicationCacheDirectory = applicationCacheDirectory();
+    parameters.applicationCacheDirectory = m_applicationCacheDirectory;
     if (!parameters.applicationCacheDirectory.isEmpty())
         SandboxExtension::createHandleForReadWriteDirectory(parameters.applicationCacheDirectory, parameters.applicationCacheDirectoryExtensionHandle);
 
     parameters.webSQLDatabaseDirectory = m_webSQLDatabaseDirectory;
     if (!parameters.webSQLDatabaseDirectory.isEmpty())
         SandboxExtension::createHandleForReadWriteDirectory(parameters.webSQLDatabaseDirectory, parameters.webSQLDatabaseDirectoryExtensionHandle);
-
-    parameters.diskCacheDirectory = diskCacheDirectory();
-    if (!parameters.diskCacheDirectory.isEmpty())
-        SandboxExtension::createHandleForReadWriteDirectory(parameters.diskCacheDirectory, parameters.diskCacheDirectoryExtensionHandle);
 
 #if ENABLE(SECCOMP_FILTERS)
     parameters.cookieStorageDirectory = this->cookieStorageDirectory();
@@ -1160,14 +1147,6 @@ void WebProcessPool::stopMemorySampler()
     sendToAllProcesses(Messages::WebProcess::StopMemorySampler());
 }
 
-String WebProcessPool::applicationCacheDirectory() const
-{
-    if (!m_overrideApplicationCacheDirectory.isEmpty())
-        return m_overrideApplicationCacheDirectory;
-
-    return platformDefaultApplicationCacheDirectory();
-}
-
 void WebProcessPool::setIconDatabasePath(const String& path)
 {
     m_overrideIconDatabasePath = path;
@@ -1183,14 +1162,6 @@ String WebProcessPool::iconDatabasePath() const
         return m_overrideIconDatabasePath;
 
     return platformDefaultIconDatabasePath();
-}
-
-String WebProcessPool::diskCacheDirectory() const
-{
-    if (!m_overrideDiskCacheDirectory.isEmpty())
-        return m_overrideDiskCacheDirectory;
-
-    return platformDefaultDiskCacheDirectory();
 }
 
 #if ENABLE(SECCOMP_FILTERS)

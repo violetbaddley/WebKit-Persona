@@ -37,6 +37,7 @@ fast/text/international/bidi-AN-after-empty-run.html [ Skip ]
 fast/text/international/bidi-CS-after-AN.html [ Skip ]
 fast/text/international/bidi-neutral-run.html [ Skip ]
 fast/text/international/bidi-neutral-directionality-paragraph-start.html [ Skip ]
+fast/text/hidpi-text-selection-gap-between-words.html [ Skip ]
 svg/W3C-SVG-1.1/fonts-glyph-02-t.svg [ Skip ]
 svg/W3C-SVG-1.1/text-intro-05-t.svg [ Skip ]
 svg/text/text-intro-05-t.svg [ Skip ]
@@ -241,6 +242,10 @@ http/tests/security/no-indexeddb-from-sandbox.html [ Skip ]
 crypto/subtle/rsa-indexeddb.html [ Skip ]
 fast/history/page-cache-indexed-closed-db.html [ Skip ]
 fast/history/page-cache-indexed-opened-db.html [ Skip ]
+
+# But since it is disabled at runtime, we should make sure it is correctly disabled
+storage/indexeddb/properties-disabled-at-runtime.html [ Pass ]
+
 fast/history/page-cache-webdatabase-no-transaction-db.html [ Skip ]
 fast/history/page-cache-webdatabase-pending-transaction.html [ Skip ]
 
@@ -452,9 +457,6 @@ fast/css/draggable-region-parser.html [ Skip ]
 # Font feature settings is not implemented.
 css3/font-feature-settings-rendering.html [ Skip ]
 
-# TODO Implement dumpProgressFinishedCallback
-webkit.org/b/66773 http/tests/loading/progress-finished-callback.html
-
 # TODO HiDPI tests require test infrastructure enhancements (e.g. testRunner.setBackingScaleFactor)
 # https://bugs.webkit.org/show_bug.cgi?id=87919
 webkit.org/b/87919 compositing/tiled-layers-hidpi.html
@@ -510,6 +512,9 @@ fast/events/constructors/device-proximity-event-constructor.html
 
 # TODO Fail until SUBPIXEL_LAYOUT is enabled
 webkit.org/b/85532 fast/sub-pixel [ Skip ]
+
+# These tests reference specific fonts on Mac port.
+fast/text/font-weights-zh.html [ WontFix ]
 
 # TODO LAYER_TREE_INCLUDES_VISIBLE_RECTS option to layerTreeAsText is only applicable to Mac.
 compositing/visible-rect/  [ Skip ]
@@ -1322,6 +1327,8 @@ webkit.org/b/140798 [ Release ] accessibility/html-html-element-is-ignored.html 
 webkit.org/b/140798 [ Debug ] accessibility/html-html-element-is-ignored.html [ Skip ] # Debug assertion
 webkit.org/b/140798 [ Release ] accessibility/inline-block-assertion.html [ Failure ]
 webkit.org/b/140798 [ Debug ] accessibility/inline-block-assertion.html [ Skip ] # Debug assertion
+webkit.org/b/140798 [ Release ] accessibility/input-auto-fill-button.html [ Failure ]
+webkit.org/b/140798 [ Debug ] accessibility/input-auto-fill-button.html [ Failure ]
 webkit.org/b/140798 [ Release ] accessibility/input-type-hidden-in-aria-hidden-false.html [ Failure ]
 webkit.org/b/140798 [ Debug ] accessibility/input-type-hidden-in-aria-hidden-false.html [ Skip ] # Debug assertion
 webkit.org/b/140798 [ Release ] accessibility/legend-children-are-visible.html [ Failure ]
@@ -2362,6 +2369,8 @@ inspector-protocol/debugger/removeBreakpoint.html [ Skip ] # Crashing
 inspector-protocol/debugger/searchInContent-linebreaks.html [ Pass Crash ] # Flaky
 
 webkit.org/b/143548 inspector/console/console-api.html [ Skip ] # Timeout
+webkit.org/b/143548 inspector/console/console-table.html [ Skip ] # Timeout
+
 ################################################################################
 #################        End Inspector Issues               ####################
 ################################################################################
@@ -3092,14 +3101,13 @@ loader/meta-refresh-disabled.html [ Skip ]
 # Started failing recently.
 webkit.org/b/143275 accessibility/aria-hidden-hides-all-elements.html [ Pass Failure ]
 
-# Broken Ruby tests
-webkit.org/b/143354 fast/ruby/ruby-expansion-cjk.html [ ImageOnlyFailure ]
-webkit.org/b/143354 fast/ruby/ruby-expansion-cjk-2.html [ ImageOnlyFailure ]
-webkit.org/b/143354 fast/ruby/ruby-expansion-cjk-3.html [ ImageOnlyFailure ]
-webkit.org/b/143354 fast/ruby/ruby-expansion-cjk-4.html [ ImageOnlyFailure ]
-webkit.org/b/143354 fast/ruby/ruby-expansion-cjk-5.html [ ImageOnlyFailure ]
-
 webkit.org/b/143420 fast/fixed-layout/fixed-layout.html [ Skip ]
 
 # Seems to be font metrics dependent.
 fast/text/simple-line-layout-text-stroke-width.html [ Failure ]
+
+# ShouldOpenExternalURLs not yet supported in WK1
+loader/navigation-policy [ Skip ]
+
+#Subpixel difference
+fast/text/decorations-vertical-underline.html [ Skip ]

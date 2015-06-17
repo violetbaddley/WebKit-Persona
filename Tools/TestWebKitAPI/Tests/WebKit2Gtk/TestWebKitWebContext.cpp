@@ -24,8 +24,8 @@
 #include <gtk/gtk.h>
 #include <webkit2/webkit2.h>
 #include <wtf/HashMap.h>
-#include <wtf/gobject/GRefPtr.h>
-#include <wtf/gobject/GUniquePtr.h>
+#include <wtf/glib/GRefPtr.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/StringHash.h>
 
 static WebKitTestServer* kServer;
@@ -41,6 +41,12 @@ static void testWebContextConfiguration(WebViewTest* test, gconstpointer)
 {
     GUniquePtr<char> localStorageDirectory(g_build_filename(Test::dataDirectory(), "local-storage", nullptr));
     g_assert(g_file_test(localStorageDirectory.get(), G_FILE_TEST_IS_DIR));
+
+    test->loadURI(kServer->getURIForPath("/empty").data());
+    test->waitUntilLoadFinished();
+    test->runJavaScriptAndWaitUntilFinished("window.indexedDB.open('TestDatabase');", nullptr);
+    GUniquePtr<char> indexedDBDirectory(g_build_filename(Test::dataDirectory(), "indexeddb", nullptr));
+    g_assert(g_file_test(indexedDBDirectory.get(), G_FILE_TEST_IS_DIR));
 }
 
 class PluginsTest: public Test {
@@ -208,6 +214,16 @@ static void testWebContextURIScheme(URISchemeTest* test, gconstpointer)
     g_assert_cmpint(mainResourceDataSize, ==, strlen(echoHTML.get()));
     g_assert(!strncmp(mainResourceData, echoHTML.get(), mainResourceDataSize));
 
+    test->loadURI("echo:with#fragment");
+    test->waitUntilLoadFinished();
+    g_assert_cmpstr(webkit_uri_scheme_request_get_path(test->m_uriSchemeRequest.get()), ==, "with");
+    g_assert_cmpstr(webkit_uri_scheme_request_get_uri(test->m_uriSchemeRequest.get()), ==, "echo:with#fragment");
+    echoHTML.reset(g_strdup_printf(kEchoHTMLFormat, webkit_uri_scheme_request_get_path(test->m_uriSchemeRequest.get())));
+    mainResourceDataSize = 0;
+    mainResourceData = test->mainResourceData(mainResourceDataSize);
+    g_assert_cmpint(mainResourceDataSize, ==, strlen(echoHTML.get()));
+    g_assert(!strncmp(mainResourceData, echoHTML.get(), mainResourceDataSize));
+
     test->registerURISchemeHandler("nomime", kBarHTML, -1, 0);
     test->m_loadEvents.clear();
     test->loadURI("nomime:foo-bar");
@@ -330,6 +346,11 @@ static void serverCallback(SoupServer* server, SoupMessage* message, const char*
         soup_message_set_status(message, SOUP_STATUS_OK);
         soup_message_body_append(message->response_body, SOUP_MEMORY_COPY, acceptLanguage, strlen(acceptLanguage));
         soup_message_body_complete(message->response_body);
+    } else if (g_str_equal(path, "/empty")) {
+        const char* emptyHTML = "<html><body></body></html>";
+        soup_message_body_append(message->response_body, SOUP_MEMORY_STATIC, emptyHTML, strlen(emptyHTML));
+        soup_message_body_complete(message->response_body);
+        soup_message_set_status(message, SOUP_STATUS_OK);
     } else
         soup_message_set_status(message, SOUP_STATUS_NOT_FOUND);
 }

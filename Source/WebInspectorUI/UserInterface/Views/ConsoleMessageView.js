@@ -191,7 +191,7 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
 
         var hasStackTrace = this._shouldShowStackTrace();
         if (hasStackTrace) {
-            this._message.stackTrace.forEach(function(frame) {
+            this._message.stackTrace.callFrames.forEach(function(frame) {
                 clipboardString += "\n\t" + (frame.functionName || WebInspector.UIString("(anonymous function)"));
                 if (frame.url)
                     clipboardString += " (" + WebInspector.displayNameForURL(frame.url) + ", line " + frame.lineNumber + ")";
@@ -243,9 +243,9 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
                 break;
 
             case WebInspector.ConsoleMessage.MessageType.Table:
-                // FIXME: Remove messageText?
-                var args = this._message.parameters || [this._message.messageText];
+                var args = this._message.parameters;
                 element.appendChild(this._formatParameterAsTable(args));
+                this._extraParameters = null;
                 break;
 
             default:
@@ -286,12 +286,12 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
         if (this._message.source === WebInspector.ConsoleMessage.MessageSource.Network || this._message.request)
             return;
 
-        var firstNonNativeCallFrame = this._firstNonNativeCallFrame();
+        var firstNonNativeCallFrame = this._message.stackTrace.firstNonNativeCallFrame;
 
         var callFrame;
         if (firstNonNativeCallFrame) {
             // JavaScript errors and console.* methods.
-            callFrame = WebInspector.CallFrame.fromPayload(firstNonNativeCallFrame);
+            callFrame = firstNonNativeCallFrame;
         } else if (this._message.url && !this._shouldHideURL(this._message.url)) {
             // CSS warnings have no stack traces.
             callFrame = WebInspector.CallFrame.fromPayload({
@@ -346,11 +346,12 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
         this._stackTraceElement.classList.add("console-message-stack-trace-container");
         this._stackTraceElement.classList.add("console-message-text");
 
-        for (var callFrame of this._message.stackTrace) {
+        for (var callFrame of this._message.stackTrace.callFrames) {
             var callFrameElement = this._stackTraceElement.appendChild(document.createElement("li"));
             callFrameElement.classList.add("console-message-stack-trace-call-frame");
             callFrameElement.textContent = callFrame.functionName || WebInspector.UIString("(anonymous function)");
-            if (callFrame.url && !this._shouldHideURL(callFrame.url))
+            var url = (callFrame.sourceCodeLocation && callFrame.sourceCodeLocation.sourceCode && callFrame.sourceCodeLocation.sourceCode.url) || "";
+            if (url && !this._shouldHideURL(url))
                 callFrameElement.appendChild(this._linkifyCallFrame(callFrame));
         }
     }
@@ -580,10 +581,7 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
                     toAppend = wrapper;
                 }
 
-                var span = document.createElement("span");
-                span.className = "type-string";
-                span.appendChild(toAppend);
-                a.appendChild(span);
+                a.appendChild(toAppend);
             }
             return a;
         }
@@ -594,7 +592,7 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
 
     _shouldShowStackTrace()
     {
-        if (!this._message.stackTrace || !this._message.stackTrace.length)
+        if (!this._message.stackTrace.callFrames.length)
             return false;
 
         return this._message.source === WebInspector.ConsoleMessage.MessageSource.Network
@@ -607,21 +605,6 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
         return url === "undefined" || url === "[native code]";
     }
 
-    _firstNonNativeCallFrame()
-    {
-        if (!this._message.stackTrace)
-            return null;
-
-        for (var i = 0; i < this._message.stackTrace.length; i++) {
-            var frame = this._message.stackTrace[i];
-            if (!frame.url || frame.url === "[native code]")
-                continue;
-            return frame;
-        }
-
-        return null;
-    }
-
     _linkifyLocation(url, lineNumber, columnNumber)
     {
         // ConsoleMessage stack trace line numbers are one-based.
@@ -632,7 +615,18 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
 
     _linkifyCallFrame(callFrame)
     {
-        return this._linkifyLocation(callFrame.url, callFrame.lineNumber, callFrame.columnNumber);
+        var url = "";
+        var lineNumber = 0;
+        var columnNumber = 0;
+
+        var sourceCodeLocation = callFrame._sourceCodeLocation;
+        if (sourceCodeLocation) {
+            lineNumber = sourceCodeLocation.lineNumber;
+            columnNumber = sourceCodeLocation.columnNumber;
+            url = sourceCodeLocation.sourceCode && sourceCodeLocation.sourceCode.url || "";
+        }
+
+        return this._linkifyLocation(url, lineNumber, columnNumber);
     }
 
     _userProvidedColumnNames(columnNamesArgument)
@@ -741,12 +735,11 @@ WebInspector.ConsoleMessageView = class ConsoleMessageView extends WebInspector.
             }
         }
 
-        // If lossless or not table data, output the object so full data can be gotten.
-        if (!preview.lossless || !flatValues.length) {
-            element.appendChild(this._formatParameter(table));
-            if (!flatValues.length)
-                return element;
-        }
+        // If no table data show nothing.
+        if (!flatValues.length)
+            return element;
+
+        // FIXME: Should we output something extra if the preview is lossless?
 
         var dataGrid = WebInspector.DataGrid.createSortableDataGrid(columnNames, flatValues);
         dataGrid.element.classList.add("inline");

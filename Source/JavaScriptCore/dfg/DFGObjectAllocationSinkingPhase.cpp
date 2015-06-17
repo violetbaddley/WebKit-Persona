@@ -586,6 +586,27 @@ private:
                             nodeIndex + 1,
                             PromotedHeapLocation(ActivationScopePLoc, node).createHint(
                                 m_graph, node->origin, node->child1().node()));
+                        Node* symbolTableNode = m_insertionSet.insertConstant(
+                            nodeIndex + 1, node->origin, node->cellOperand());
+                        m_insertionSet.insert(
+                            nodeIndex + 1,
+                            PromotedHeapLocation(ActivationSymbolTablePLoc, node).createHint(
+                                m_graph, node->origin, symbolTableNode));
+
+                        {
+                            SymbolTable* symbolTable = node->castOperand<SymbolTable*>();
+                            Node* undefined = m_insertionSet.insertConstant(
+                                nodeIndex + 1, node->origin, jsUndefined());
+                            ConcurrentJITLocker locker(symbolTable->m_lock);
+                            for (auto iter = symbolTable->begin(locker), end = symbolTable->end(locker); iter != end; ++iter) {
+                                m_insertionSet.insert(
+                                    nodeIndex + 1,
+                                    PromotedHeapLocation(
+                                        ClosureVarPLoc, node, iter->value.scopeOffset().offset()).createHint(
+                                        m_graph, node->origin, undefined));
+                            }
+                        }
+
                         node->convertToPhantomCreateActivation();
                     }
                     break;
@@ -597,6 +618,12 @@ private:
                             nodeIndex + 1,
                             PromotedHeapLocation(ActivationScopePLoc, node).createHint(
                                 m_graph, node->origin, m_graph.varArgChild(node, 0).node()));
+                        Node* symbolTableNode = m_insertionSet.insertConstant(
+                            nodeIndex + 1, node->origin, node->cellOperand());
+                        m_insertionSet.insert(
+                            nodeIndex + 1,
+                            PromotedHeapLocation(ActivationSymbolTablePLoc, node).createHint(
+                                m_graph, node->origin, symbolTableNode));
                         ObjectMaterializationData& data = node->objectMaterializationData();
                         for (unsigned i = 0; i < data.m_properties.size(); ++i) {
                             unsigned identifierNumber = data.m_properties[i].m_identifierNumber;
@@ -612,13 +639,8 @@ private:
                     break;
                 }
 
-                case StoreBarrier:
-                case StoreBarrierWithNullCheck: {
-                    Node* target = node->child1().node();
-                    if (m_sinkCandidates.contains(target)) {
-                        ASSERT(target->isPhantomAllocation());
-                        node->remove();
-                    }
+                case StoreBarrier: {
+                    DFG_CRASH(m_graph, node, "Unexpected store barrier during sinking.");
                     break;
                 }
                     
@@ -834,7 +856,7 @@ private:
             break;
 
         case CreateActivation:
-            if (!m_graph.symbolTableFor(node->origin.semantic)->singletonScope()->isStillValid())
+            if (!node->castOperand<SymbolTable*>()->singletonScope()->isStillValid())
                 sinkCandidate();
             escape(node->child1().node());
             break;
@@ -855,8 +877,6 @@ private:
 
         case MovHint:
         case PutHint:
-        case StoreBarrier:
-        case StoreBarrierWithNullCheck:
             break;
 
         case PutStructure:
@@ -877,6 +897,13 @@ private:
                 escape(node->child1().node());
             }
             escape(node->child3().node());
+            break;
+        }
+
+        case GetClosureVar: {
+            Node* target = node->child1().node();
+            if (!target->isActivationAllocation())
+                escape(target);
             break;
         }
 
@@ -939,13 +966,13 @@ private:
         case CreateActivation:
         case MaterializeCreateActivation: {
             ObjectMaterializationData* data = m_graph.m_objectMaterializationData.add();
-
+            FrozenValue* symbolTable = escapee->cellOperand();
             result = m_graph.addNode(
                 escapee->prediction(), Node::VarArg, MaterializeCreateActivation,
                 NodeOrigin(
                     escapee->origin.semantic,
                     where->origin.forExit),
-                OpInfo(data), OpInfo(), 0, 0);
+                OpInfo(data), OpInfo(symbolTable), 0, 0);
             break;
         }
 
@@ -1016,6 +1043,7 @@ private:
             Vector<PromotedHeapLocation> locations = m_locationsForAllocation.get(escapee);
 
             PromotedHeapLocation scope(ActivationScopePLoc, escapee);
+            PromotedHeapLocation symbolTable(ActivationSymbolTablePLoc, escapee);
             ASSERT(locations.contains(scope));
 
             m_graph.m_varArgChildren.append(Edge(resolve(block, scope), KnownCellUse));
@@ -1024,6 +1052,11 @@ private:
                 switch (locations[i].kind()) {
                 case ActivationScopePLoc: {
                     ASSERT(locations[i] == scope);
+                    break;
+                }
+
+                case ActivationSymbolTablePLoc: {
+                    ASSERT(locations[i] == symbolTable);
                     break;
                 }
 

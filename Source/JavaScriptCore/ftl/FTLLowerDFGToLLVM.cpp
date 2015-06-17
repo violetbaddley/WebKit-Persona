@@ -63,7 +63,9 @@ namespace JSC { namespace FTL {
 
 using namespace DFG;
 
-static std::atomic<int> compileCounter;
+namespace {
+
+std::atomic<int> compileCounter;
 
 #if ASSERT_DISABLED
 NO_RETURN_DUE_TO_CRASH static void ftlUnreachable()
@@ -818,9 +820,6 @@ private:
         case StoreBarrier:
             compileStoreBarrier();
             break;
-        case StoreBarrierWithNullCheck:
-            compileStoreBarrierWithNullCheck();
-            break;
         case HasIndexedProperty:
             compileHasIndexedProperty();
             break;
@@ -961,9 +960,113 @@ private:
     void compileDoubleRep()
     {
         switch (m_node->child1().useKind()) {
-        case NumberUse: {
+        case RealNumberUse: {
             LValue value = lowJSValue(m_node->child1(), ManualOperandSpeculation);
-            setDouble(jsValueToDouble(m_node->child1(), value));
+            
+            LValue doubleValue = unboxDouble(value);
+            
+            LBasicBlock intCase = FTL_NEW_BLOCK(m_out, ("DoubleRep RealNumberUse int case"));
+            LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("DoubleRep continuation"));
+            
+            ValueFromBlock fastResult = m_out.anchor(doubleValue);
+            m_out.branch(
+                m_out.doubleEqual(doubleValue, doubleValue),
+                usually(continuation), rarely(intCase));
+            
+            LBasicBlock lastNext = m_out.appendTo(intCase, continuation);
+            
+            FTL_TYPE_CHECK(
+                jsValueValue(value), m_node->child1(), SpecBytecodeRealNumber,
+                isNotInt32(value, provenType(m_node->child1()) & ~SpecFullDouble));
+            ValueFromBlock slowResult = m_out.anchor(m_out.intToDouble(unboxInt32(value)));
+            m_out.jump(continuation);
+            
+            m_out.appendTo(continuation, lastNext);
+            
+            setDouble(m_out.phi(m_out.doubleType, fastResult, slowResult));
+            return;
+        }
+            
+        case NotCellUse:
+        case NumberUse: {
+            bool shouldConvertNonNumber = m_node->child1().useKind() == NotCellUse;
+            
+            LValue value = lowJSValue(m_node->child1(), ManualOperandSpeculation);
+
+            LBasicBlock intCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble unboxing int case"));
+            LBasicBlock doubleTesting = FTL_NEW_BLOCK(m_out, ("jsValueToDouble testing double case"));
+            LBasicBlock doubleCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble unboxing double case"));
+            LBasicBlock nonDoubleCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble testing undefined case"));
+            LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("jsValueToDouble unboxing continuation"));
+            
+            m_out.branch(
+                isNotInt32(value, provenType(m_node->child1())),
+                unsure(doubleTesting), unsure(intCase));
+            
+            LBasicBlock lastNext = m_out.appendTo(intCase, doubleTesting);
+            
+            ValueFromBlock intToDouble = m_out.anchor(
+                m_out.intToDouble(unboxInt32(value)));
+            m_out.jump(continuation);
+            
+            m_out.appendTo(doubleTesting, doubleCase);
+            LValue valueIsNumber = isNumber(value, provenType(m_node->child1()));
+            m_out.branch(valueIsNumber, usually(doubleCase), rarely(nonDoubleCase));
+
+            m_out.appendTo(doubleCase, nonDoubleCase);
+            ValueFromBlock unboxedDouble = m_out.anchor(unboxDouble(value));
+            m_out.jump(continuation);
+
+            if (shouldConvertNonNumber) {
+                LBasicBlock undefinedCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble converting undefined case"));
+                LBasicBlock testNullCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble testing null case"));
+                LBasicBlock nullCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble converting null case"));
+                LBasicBlock testBooleanTrueCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble testing boolean true case"));
+                LBasicBlock convertBooleanTrueCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble convert boolean true case"));
+                LBasicBlock convertBooleanFalseCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble convert boolean false case"));
+
+                m_out.appendTo(nonDoubleCase, undefinedCase);
+                LValue valueIsUndefined = m_out.equal(value, m_out.constInt64(ValueUndefined));
+                m_out.branch(valueIsUndefined, unsure(undefinedCase), unsure(testNullCase));
+
+                m_out.appendTo(undefinedCase, testNullCase);
+                ValueFromBlock convertedUndefined = m_out.anchor(m_out.constDouble(PNaN));
+                m_out.jump(continuation);
+
+                m_out.appendTo(testNullCase, nullCase);
+                LValue valueIsNull = m_out.equal(value, m_out.constInt64(ValueNull));
+                m_out.branch(valueIsNull, unsure(nullCase), unsure(testBooleanTrueCase));
+
+                m_out.appendTo(nullCase, testBooleanTrueCase);
+                ValueFromBlock convertedNull = m_out.anchor(m_out.constDouble(0));
+                m_out.jump(continuation);
+
+                m_out.appendTo(testBooleanTrueCase, convertBooleanTrueCase);
+                LValue valueIsBooleanTrue = m_out.equal(value, m_out.constInt64(ValueTrue));
+                m_out.branch(valueIsBooleanTrue, unsure(convertBooleanTrueCase), unsure(convertBooleanFalseCase));
+
+                m_out.appendTo(convertBooleanTrueCase, convertBooleanFalseCase);
+                ValueFromBlock convertedTrue = m_out.anchor(m_out.constDouble(1));
+                m_out.jump(continuation);
+
+                m_out.appendTo(convertBooleanFalseCase, continuation);
+
+                LValue valueIsNotBooleanFalse = m_out.notEqual(value, m_out.constInt64(ValueFalse));
+                FTL_TYPE_CHECK(jsValueValue(value), m_node->child1(), ~SpecCell, valueIsNotBooleanFalse);
+                ValueFromBlock convertedFalse = m_out.anchor(m_out.constDouble(0));
+                m_out.jump(continuation);
+
+                m_out.appendTo(continuation, lastNext);
+                setDouble(m_out.phi(m_out.doubleType, intToDouble, unboxedDouble, convertedUndefined, convertedNull, convertedTrue, convertedFalse));
+                return;
+            }
+            m_out.appendTo(nonDoubleCase, continuation);
+            FTL_TYPE_CHECK(jsValueValue(value), m_node->child1(), SpecBytecodeNumber, m_out.booleanTrue);
+            m_out.unreachable();
+
+            m_out.appendTo(continuation, lastNext);
+
+            setDouble(m_out.phi(m_out.doubleType, intToDouble, unboxedDouble));
             return;
         }
             
@@ -1082,6 +1185,11 @@ private:
             
         case UntypedUse: {
             LValue value = lowJSValue(m_node->child1());
+            
+            if (!m_interpreter.needsTypeCheck(m_node->child1(), SpecBoolInt32 | SpecBoolean)) {
+                setInt32(m_out.bitAnd(m_out.castToInt32(value), m_out.int32One));
+                return;
+            }
             
             LBasicBlock booleanCase = FTL_NEW_BLOCK(m_out, ("BooleanToNumber boolean case"));
             LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("BooleanToNumber continuation"));
@@ -2064,8 +2172,8 @@ private:
             
             m_out.appendTo(notCellCase, continuation);
             ValueFromBlock notCellResult = m_out.anchor(vmCall(
-                m_out.operation(operationGetById),
-                m_callFrame, getUndef(m_out.intPtr), value,
+                m_out.operation(operationGetByIdGeneric),
+                m_callFrame, value,
                 m_out.constIntPtr(m_graph.identifiers()[m_node->identifierNumber()])));
             m_out.jump(continuation);
             
@@ -2087,7 +2195,7 @@ private:
         
         LValue base = lowCell(m_node->child1());
         LValue value = lowJSValue(m_node->child2());
-        StringImpl* uid = m_graph.identifiers()[m_node->identifierNumber()];
+        auto uid = m_graph.identifiers()[m_node->identifierNumber()];
 
         // Arguments: id, bytes, target, numArgs, args...
         unsigned stackmapID = m_stackmapIDs++;
@@ -2945,7 +3053,7 @@ private:
     void compileCreateActivation()
     {
         LValue scope = lowCell(m_node->child1());
-        SymbolTable* table = m_graph.symbolTableFor(m_node->origin.semantic);
+        SymbolTable* table = m_node->castOperand<SymbolTable*>();
         Structure* structure = m_graph.globalObjectFor(m_node->origin.semantic)->activationStructure();
         
         if (table->singletonScope()->isStillValid()) {
@@ -3773,11 +3881,13 @@ private:
         LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("MultiGetByOffset continuation"));
         
         Vector<SwitchCase, 2> cases;
+        StructureSet baseSet;
         for (unsigned i = data.variants.size(); i--;) {
             GetByIdVariant variant = data.variants[i];
             for (unsigned j = variant.structureSet().size(); j--;) {
-                cases.append(SwitchCase(
-                    weakStructureID(variant.structureSet()[j]), blocks[i], Weight(1)));
+                Structure* structure = variant.structureSet()[j];
+                baseSet.add(structure);
+                cases.append(SwitchCase(weakStructureID(structure), blocks[i], Weight(1)));
             }
         }
         m_out.switchInstruction(
@@ -3790,6 +3900,7 @@ private:
             m_out.appendTo(blocks[i], i + 1 < data.variants.size() ? blocks[i + 1] : exit);
             
             GetByIdVariant variant = data.variants[i];
+            baseSet.merge(variant.structureSet());
             LValue result;
             JSValue constantResult;
             if (variant.alternateBase()) {
@@ -3814,7 +3925,8 @@ private:
         }
         
         m_out.appendTo(exit, continuation);
-        speculate(BadCache, noValue(), nullptr, m_out.booleanTrue);
+        if (!m_interpreter.forNode(m_node->child1()).m_structure.isSubsetOf(baseSet))
+            speculate(BadCache, noValue(), nullptr, m_out.booleanTrue);
         m_out.unreachable();
         
         m_out.appendTo(continuation, lastNext);
@@ -3844,11 +3956,13 @@ private:
         LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("MultiPutByOffset continuation"));
         
         Vector<SwitchCase, 2> cases;
+        StructureSet baseSet;
         for (unsigned i = data.variants.size(); i--;) {
             PutByIdVariant variant = data.variants[i];
             for (unsigned j = variant.oldStructure().size(); j--;) {
-                cases.append(
-                    SwitchCase(weakStructureID(variant.oldStructure()[j]), blocks[i], Weight(1)));
+                Structure* structure = variant.oldStructure()[j];
+                baseSet.add(structure);
+                cases.append(SwitchCase(weakStructureID(structure), blocks[i], Weight(1)));
             }
         }
         m_out.switchInstruction(
@@ -3888,7 +4002,8 @@ private:
         }
         
         m_out.appendTo(exit, continuation);
-        speculate(BadCache, noValue(), nullptr, m_out.booleanTrue);
+        if (!m_interpreter.forNode(m_node->child1()).m_structure.isSubsetOf(baseSet))
+            speculate(BadCache, noValue(), nullptr, m_out.booleanTrue);
         m_out.unreachable();
         
         m_out.appendTo(continuation, lastNext);
@@ -3902,7 +4017,7 @@ private:
     void compilePutGlobalVar()
     {
         m_out.store64(
-            lowJSValue(m_node->child1()), m_out.absolute(m_node->variablePointer()));
+            lowJSValue(m_node->child2()), m_out.absolute(m_node->variablePointer()));
     }
     
     void compileNotifyWrite()
@@ -4811,7 +4926,7 @@ private:
         if (JSString* string = m_node->child1()->dynamicCastConstant<JSString*>()) {
             if (string->tryGetValueImpl() && string->tryGetValueImpl()->isAtomic()) {
 
-                const StringImpl* str = string->tryGetValueImpl();
+                const auto str = static_cast<const AtomicStringImpl*>(string->tryGetValueImpl());
                 unsigned stackmapID = m_stackmapIDs++;
             
                 LValue call = m_out.call(
@@ -4901,22 +5016,6 @@ private:
         emitStoreBarrier(lowCell(m_node->child1()));
     }
 
-    void compileStoreBarrierWithNullCheck()
-    {
-#if ENABLE(GGC)
-        LBasicBlock isNotNull = FTL_NEW_BLOCK(m_out, ("Store barrier with null check value not null"));
-        LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("Store barrier continuation"));
-
-        LValue base = lowJSValue(m_node->child1());
-        m_out.branch(m_out.isZero64(base), unsure(continuation), unsure(isNotNull));
-        LBasicBlock lastNext = m_out.appendTo(isNotNull, continuation);
-        emitStoreBarrier(base);
-        m_out.appendTo(continuation, lastNext);
-#else
-        speculate(m_node->child1());
-#endif
-    }
-    
     void compileHasIndexedProperty()
     {
         switch (m_node->arrayMode().type()) {
@@ -5278,7 +5377,7 @@ private:
             values.append(lowJSValue(m_graph.varArgChild(m_node, 1 + i)));
 
         LValue scope = lowCell(m_graph.varArgChild(m_node, 0));
-        SymbolTable* table = m_graph.symbolTableFor(m_node->origin.semantic);
+        SymbolTable* table = m_node->castOperand<SymbolTable*>();
         Structure* structure = m_graph.globalObjectFor(m_node->origin.semantic)->activationStructure();
 
         LBasicBlock slowPath = FTL_NEW_BLOCK(m_out, ("MaterializeCreateActivation slow path"));
@@ -5292,11 +5391,6 @@ private:
         m_out.storePtr(scope, fastObject, m_heaps.JSScope_next);
         m_out.storePtr(weakPointer(table), fastObject, m_heaps.JSSymbolTableObject_symbolTable);
 
-        for (unsigned i = 0; i < table->scopeSize(); ++i) {
-            m_out.store64(
-                m_out.constInt64(JSValue::encode(jsUndefined())),
-                fastObject, m_heaps.JSEnvironmentRecord_variables[i]);
-        }
 
         ValueFromBlock fastResult = m_out.anchor(fastObject);
         m_out.jump(continuation);
@@ -5310,11 +5404,28 @@ private:
 
         m_out.appendTo(continuation, lastNext);
         LValue activation = m_out.phi(m_out.intPtr, fastResult, slowResult);
+        RELEASE_ASSERT(data.m_properties.size() == table->scopeSize());
         for (unsigned i = 0; i < data.m_properties.size(); ++i) {
             m_out.store64(values[i],
                 activation,
                 m_heaps.JSEnvironmentRecord_variables[data.m_properties[i].m_identifierNumber]);
         }
+
+        if (validationEnabled()) {
+            // Validate to make sure every slot in the scope has one value.
+            ConcurrentJITLocker locker(table->m_lock);
+            for (auto iter = table->begin(locker), end = table->end(locker); iter != end; ++iter) {
+                bool found = false;
+                for (unsigned i = 0; i < data.m_properties.size(); ++i) {
+                    if (iter->value.scopeOffset().offset() == data.m_properties[i].m_identifierNumber) {
+                        found = true;
+                        break;
+                    }
+                }
+                ASSERT_UNUSED(found, found);
+            }
+        }
+
         setJSValue(activation);
     }
 
@@ -5750,7 +5861,7 @@ private:
     
     LValue getById(LValue base)
     {
-        StringImpl* uid = m_graph.identifiers()[m_node->identifierNumber()];
+        auto uid = m_graph.identifiers()[m_node->identifierNumber()];
 
         // Arguments: id, bytes, target, numArgs, args...
         unsigned stackmapID = m_stackmapIDs++;
@@ -6126,9 +6237,9 @@ private:
     {
         switch (edge.useKind()) {
         case BooleanUse:
-            return lowBoolean(m_node->child1());
+            return lowBoolean(edge);
         case Int32Use:
-            return m_out.notZero32(lowInt32(m_node->child1()));
+            return m_out.notZero32(lowInt32(edge));
         case DoubleRepUse:
             return m_out.doubleNotEqual(lowDouble(edge), m_out.doubleZero);
         case ObjectOrOtherUse:
@@ -6137,32 +6248,108 @@ private:
                     edge, CellCaseSpeculatesObject, SpeculateNullOrUndefined,
                     ManualOperandSpeculation));
         case StringUse: {
-            LValue stringValue = lowString(m_node->child1());
+            LValue stringValue = lowString(edge);
             LValue length = m_out.load32NonNegative(stringValue, m_heaps.JSString_length);
             return m_out.notEqual(length, m_out.int32Zero);
         }
         case UntypedUse: {
-            LValue value = lowJSValue(m_node->child1());
+            LValue value = lowJSValue(edge);
             
-            LBasicBlock slowCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped slow case"));
-            LBasicBlock fastCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped fast case"));
+            // Implements the following control flow structure:
+            // if (value is cell) {
+            //     if (value is string)
+            //         result = !!value->length
+            //     else {
+            //         do evil things for masquerades-as-undefined
+            //         result = true
+            //     }
+            // } else if (value is int32) {
+            //     result = !!unboxInt32(value)
+            // } else if (value is number) {
+            //     result = !!unboxDouble(value)
+            // } else {
+            //     result = value == jsTrue
+            // }
+            
+            LBasicBlock cellCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped cell case"));
+            LBasicBlock stringCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped string case"));
+            LBasicBlock notStringCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped not string case"));
+            LBasicBlock notCellCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped not cell case"));
+            LBasicBlock int32Case = FTL_NEW_BLOCK(m_out, ("Boolify untyped int32 case"));
+            LBasicBlock notInt32Case = FTL_NEW_BLOCK(m_out, ("Boolify untyped not int32 case"));
+            LBasicBlock doubleCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped double case"));
+            LBasicBlock notDoubleCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped not double case"));
             LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("Boolify untyped continuation"));
             
-            m_out.branch(
-                isNotBoolean(value, provenType(m_node->child1())),
-                rarely(slowCase), usually(fastCase));
+            Vector<ValueFromBlock> results;
             
-            LBasicBlock lastNext = m_out.appendTo(fastCase, slowCase);
-            ValueFromBlock fastResult = m_out.anchor(unboxBoolean(value));
+            m_out.branch(isCell(value, provenType(edge)), unsure(cellCase), unsure(notCellCase));
+            
+            LBasicBlock lastNext = m_out.appendTo(cellCase, stringCase);
+            m_out.branch(
+                isString(value, provenType(edge) & SpecCell),
+                unsure(stringCase), unsure(notStringCase));
+            
+            m_out.appendTo(stringCase, notStringCase);
+            LValue nonEmptyString = m_out.notZero32(
+                m_out.load32NonNegative(value, m_heaps.JSString_length));
+            results.append(m_out.anchor(nonEmptyString));
             m_out.jump(continuation);
             
-            m_out.appendTo(slowCase, continuation);
-            ValueFromBlock slowResult = m_out.anchor(m_out.notNull(vmCall(
-                m_out.operation(operationConvertJSValueToBoolean), m_callFrame, value)));
+            m_out.appendTo(notStringCase, notCellCase);
+            LValue isTruthyObject;
+            if (masqueradesAsUndefinedWatchpointIsStillValid())
+                isTruthyObject = m_out.booleanTrue;
+            else {
+                LBasicBlock masqueradesCase = FTL_NEW_BLOCK(m_out, ("Boolify untyped masquerades case"));
+                
+                results.append(m_out.anchor(m_out.booleanTrue));
+                
+                m_out.branch(
+                    m_out.testIsZero8(
+                        m_out.load8(value, m_heaps.JSCell_typeInfoFlags),
+                        m_out.constInt8(MasqueradesAsUndefined)),
+                    usually(continuation), rarely(masqueradesCase));
+                
+                m_out.appendTo(masqueradesCase);
+                
+                isTruthyObject = m_out.notEqual(
+                    m_out.constIntPtr(m_graph.globalObjectFor(m_node->origin.semantic)),
+                    m_out.loadPtr(loadStructure(value), m_heaps.Structure_globalObject));
+            }
+            results.append(m_out.anchor(isTruthyObject));
+            m_out.jump(continuation);
+            
+            m_out.appendTo(notCellCase, int32Case);
+            m_out.branch(
+                isInt32(value, provenType(edge) & ~SpecCell),
+                unsure(int32Case), unsure(notInt32Case));
+            
+            m_out.appendTo(int32Case, notInt32Case);
+            results.append(m_out.anchor(m_out.notZero32(unboxInt32(value))));
+            m_out.jump(continuation);
+            
+            m_out.appendTo(notInt32Case, doubleCase);
+            m_out.branch(
+                isNumber(value, provenType(edge) & ~SpecCell),
+                unsure(doubleCase), unsure(notDoubleCase));
+            
+            m_out.appendTo(doubleCase, notDoubleCase);
+            // Note that doubleNotEqual() really means not-equal-and-ordered. It will return false
+            // if value is NaN.
+            LValue doubleIsTruthy = m_out.doubleNotEqual(
+                unboxDouble(value), m_out.constDouble(0));
+            results.append(m_out.anchor(doubleIsTruthy));
+            m_out.jump(continuation);
+            
+            m_out.appendTo(notDoubleCase, continuation);
+            LValue miscIsTruthy = m_out.equal(
+                value, m_out.constInt64(JSValue::encode(jsBoolean(true))));
+            results.append(m_out.anchor(miscIsTruthy));
             m_out.jump(continuation);
             
             m_out.appendTo(continuation, lastNext);
-            return m_out.phi(m_out.boolean, fastResult, slowResult);
+            return m_out.phi(m_out.boolean, results);
         }
         default:
             DFG_CRASH(m_graph, m_node, "Bad use kind");
@@ -7167,8 +7354,16 @@ private:
         return m_out.aShr(value, m_out.constInt64(JSValue::int52ShiftAmount));
     }
     
-    LValue isNotInt32(LValue jsValue)
+    LValue isInt32(LValue jsValue, SpeculatedType type = SpecFullTop)
     {
+        if (LValue proven = isProvenValue(type, SpecInt32))
+            return proven;
+        return m_out.aboveOrEqual(jsValue, m_tagTypeNumber);
+    }
+    LValue isNotInt32(LValue jsValue, SpeculatedType type = SpecFullTop)
+    {
+        if (LValue proven = isProvenValue(type, ~SpecInt32))
+            return proven;
         return m_out.below(jsValue, m_tagTypeNumber);
     }
     LValue unboxInt32(LValue jsValue)
@@ -7200,39 +7395,6 @@ private:
     LValue boxDouble(LValue doubleValue)
     {
         return m_out.sub(m_out.bitCast(doubleValue, m_out.int64), m_tagTypeNumber);
-    }
-    LValue jsValueToDouble(Edge edge, LValue boxedValue)
-    {
-        LBasicBlock intCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble unboxing int case"));
-        LBasicBlock doubleCase = FTL_NEW_BLOCK(m_out, ("jsValueToDouble unboxing double case"));
-        LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("jsValueToDouble unboxing continuation"));
-            
-        LValue isNotInt32;
-        if (!m_interpreter.needsTypeCheck(edge, SpecInt32))
-            isNotInt32 = m_out.booleanFalse;
-        else if (!m_interpreter.needsTypeCheck(edge, ~SpecInt32))
-            isNotInt32 = m_out.booleanTrue;
-        else
-            isNotInt32 = this->isNotInt32(boxedValue);
-        m_out.branch(isNotInt32, unsure(doubleCase), unsure(intCase));
-            
-        LBasicBlock lastNext = m_out.appendTo(intCase, doubleCase);
-            
-        ValueFromBlock intToDouble = m_out.anchor(
-            m_out.intToDouble(unboxInt32(boxedValue)));
-        m_out.jump(continuation);
-            
-        m_out.appendTo(doubleCase, continuation);
-            
-        FTL_TYPE_CHECK(
-            jsValueValue(boxedValue), edge, SpecBytecodeNumber, isCellOrMisc(boxedValue));
-            
-        ValueFromBlock unboxedDouble = m_out.anchor(unboxDouble(boxedValue));
-        m_out.jump(continuation);
-            
-        m_out.appendTo(continuation, lastNext);
-            
-        return m_out.phi(m_out.doubleType, intToDouble, unboxedDouble);
     }
     
     LValue jsValueToStrictInt52(Edge edge, LValue boxedValue)
@@ -7450,8 +7612,11 @@ private:
         case NumberUse:
             speculateNumber(edge);
             break;
+        case RealNumberUse:
+            speculateRealNumber(edge);
+            break;
         case DoubleRepRealUse:
-            speculateDoubleReal(edge);
+            speculateDoubleRepReal(edge);
             break;
         case DoubleRepMachineIntUse:
             speculateDoubleRepMachineInt(edge);
@@ -7777,7 +7942,33 @@ private:
         FTL_TYPE_CHECK(jsValueValue(value), edge, SpecBytecodeNumber, isNotNumber(value));
     }
     
-    void speculateDoubleReal(Edge edge)
+    void speculateRealNumber(Edge edge)
+    {
+        // Do an early return here because lowDouble() can create a lot of control flow.
+        if (!m_interpreter.needsTypeCheck(edge))
+            return;
+        
+        LValue value = lowJSValue(edge, ManualOperandSpeculation);
+        LValue doubleValue = unboxDouble(value);
+        
+        LBasicBlock intCase = FTL_NEW_BLOCK(m_out, ("speculateRealNumber int case"));
+        LBasicBlock continuation = FTL_NEW_BLOCK(m_out, ("speculateRealNumber continuation"));
+        
+        m_out.branch(
+            m_out.doubleEqual(doubleValue, doubleValue),
+            usually(continuation), rarely(intCase));
+        
+        LBasicBlock lastNext = m_out.appendTo(intCase, continuation);
+        
+        typeCheck(
+            jsValueValue(value), m_node->child1(), SpecBytecodeRealNumber,
+            isNotInt32(value, provenType(m_node->child1()) & ~SpecFullDouble));
+        m_out.jump(continuation);
+
+        m_out.appendTo(continuation, lastNext);
+    }
+    
+    void speculateDoubleRepReal(Edge edge)
     {
         // Do an early return here because lowDouble() can create a lot of control flow.
         if (!m_interpreter.needsTypeCheck(edge))
@@ -7876,17 +8067,17 @@ private:
 
         // Append to the write barrier buffer.
         LBasicBlock lastNext = m_out.appendTo(isMarkedAndNotRemembered, bufferHasSpace);
-        LValue currentBufferIndex = m_out.load32(m_out.absolute(&vm().heap.writeBarrierBuffer().m_currentIndex));
-        LValue bufferCapacity = m_out.load32(m_out.absolute(&vm().heap.writeBarrierBuffer().m_capacity));
+        LValue currentBufferIndex = m_out.load32(m_out.absolute(vm().heap.writeBarrierBuffer().currentIndexAddress()));
+        LValue bufferCapacity = m_out.constInt32(vm().heap.writeBarrierBuffer().capacity());
         m_out.branch(
             m_out.lessThan(currentBufferIndex, bufferCapacity),
             usually(bufferHasSpace), rarely(bufferIsFull));
 
         // Buffer has space, store to it.
         m_out.appendTo(bufferHasSpace, bufferIsFull);
-        LValue writeBarrierBufferBase = m_out.loadPtr(m_out.absolute(&vm().heap.writeBarrierBuffer().m_buffer));
+        LValue writeBarrierBufferBase = m_out.constIntPtr(vm().heap.writeBarrierBuffer().buffer());
         m_out.storePtr(base, m_out.baseIndex(m_heaps.WriteBarrierBuffer_bufferContents, writeBarrierBufferBase, m_out.zeroExtPtr(currentBufferIndex)));
-        m_out.store32(m_out.add(currentBufferIndex, m_out.constInt32(1)), m_out.absolute(&vm().heap.writeBarrierBuffer().m_currentIndex));
+        m_out.store32(m_out.add(currentBufferIndex, m_out.constInt32(1)), m_out.absolute(vm().heap.writeBarrierBuffer().currentIndexAddress()));
         m_out.jump(continuation);
 
         // Buffer is out of space, flush it.
@@ -8470,6 +8661,8 @@ private:
     unsigned m_tbaaKind;
     unsigned m_tbaaStructKind;
 };
+
+} // anonymous namespace
 
 void lowerDFGToLLVM(State& state)
 {

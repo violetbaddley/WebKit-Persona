@@ -32,6 +32,7 @@
 #include "WaylandSurface.h"
 #include <cstring>
 #include <glib.h>
+#include <wtf/Assertions.h>
 
 namespace WebCore {
 
@@ -57,15 +58,19 @@ void PlatformDisplayWayland::globalRemoveCallback(void*, struct wl_registry*, ui
 
 std::unique_ptr<PlatformDisplayWayland> PlatformDisplayWayland::create()
 {
-    struct wl_display* wlDisplay = wl_display_connect("webkitgtk-wayland-compositor-socket");
-    if (!wlDisplay)
+    struct wl_display* wlDisplay = wl_display_connect(nullptr);
+    if (!wlDisplay) {
+        WTFLogAlways("PlatformDisplayWayland initialization: failed to connect to the Wayland server socket. Check your WAYLAND_DISPLAY or WAYLAND_SOCKET environment variables.");
         return nullptr;
+    }
 
-    auto display = std::make_unique<PlatformDisplayWayland>(wlDisplay);
-    if (!display->isInitialized())
+    auto display = std::unique_ptr<PlatformDisplayWayland>(new PlatformDisplayWayland(wlDisplay));
+    if (!display->isInitialized()) {
+        WTFLogAlways("PlatformDisplayWayland initialization: failed to complete the initialization of the display.");
         return nullptr;
+    }
 
-    return WTF::move(display);
+    return display;
 }
 
 PlatformDisplayWayland::PlatformDisplayWayland(struct wl_display* wlDisplay)
@@ -98,6 +103,18 @@ PlatformDisplayWayland::PlatformDisplayWayland(struct wl_display* wlDisplay)
     }
 
     m_eglConfigChosen = true;
+}
+
+PlatformDisplayWayland::~PlatformDisplayWayland()
+{
+    if (m_webkitgtk)
+        wl_webkitgtk_destroy(m_webkitgtk);
+    if (m_compositor)
+        wl_compositor_destroy(m_compositor);
+    if (m_registry)
+        wl_registry_destroy(m_registry);
+    if (m_display)
+        wl_display_disconnect(m_display);
 }
 
 std::unique_ptr<WaylandSurface> PlatformDisplayWayland::createSurface(const IntSize& size, int widgetId)

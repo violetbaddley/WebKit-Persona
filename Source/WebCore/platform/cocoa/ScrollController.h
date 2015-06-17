@@ -114,6 +114,7 @@ public:
     bool handleWheelEvent(const PlatformWheelEvent&);
 
     bool isRubberBandInProgress() const;
+    bool isScrollSnapInProgress() const;
 
 #if ENABLE(CSS_SCROLL_SNAP) && PLATFORM(MAC)
     bool processWheelEventForScrollSnap(const PlatformWheelEvent&);
@@ -121,8 +122,10 @@ public:
     void updateScrollSnapPoints(ScrollEventAxis, const Vector<LayoutUnit>&);
     unsigned activeScrollSnapIndexForAxis(ScrollEventAxis) const;
     void setActiveScrollSnapIndexForAxis(ScrollEventAxis, unsigned);
+    void setActiveScrollSnapIndicesForOffset(int x, int y);
     bool activeScrollSnapIndexDidChange() const { return m_activeScrollSnapIndexDidChange; }
     void setScrollSnapIndexDidChange(bool state) { m_activeScrollSnapIndexDidChange = state; }
+    bool hasActiveScrollSnapTimerForAxis(ScrollEventAxis) const;
 #endif
 
 private:
@@ -142,6 +145,7 @@ private:
     LayoutUnit scrollOffsetOnAxis(ScrollEventAxis) const;
     void processWheelEventForScrollSnapOnAxis(ScrollEventAxis, const PlatformWheelEvent&);
     bool shouldOverrideWheelEvent(ScrollEventAxis, const PlatformWheelEvent&) const;
+    void setNearestScrollSnapIndexForAxisAndOffset(ScrollEventAxis, int);
 
     void beginScrollSnapAnimation(ScrollEventAxis, ScrollSnapState);
     void scrollSnapAnimationUpdate(ScrollEventAxis);

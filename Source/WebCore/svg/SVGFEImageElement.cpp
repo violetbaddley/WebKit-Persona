@@ -69,7 +69,7 @@ void SVGFEImageElement::clearResourceReferences()
 {
     if (m_cachedImage) {
         m_cachedImage->removeClient(this);
-        m_cachedImage = 0;
+        m_cachedImage = nullptr;
     }
 
     document().accessSVGExtensions().removeAllTargetReferencesForElement(this);
@@ -146,7 +146,7 @@ Node::InsertionNotificationRequest SVGFEImageElement::insertedInto(ContainerNode
     return InsertionShouldCallDidNotifySubtreeInsertions;
 }
 
-void SVGFEImageElement::didNotifySubtreeInsertions(ContainerNode*)
+void SVGFEImageElement::didNotifySubtreeInsertions()
 {
     buildPendingResource();
 }

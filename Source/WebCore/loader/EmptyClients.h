@@ -317,6 +317,9 @@ public:
     virtual void willChangeTitle(DocumentLoader*) override { }
     virtual void didChangeTitle(DocumentLoader*) override { }
 
+    virtual void willReplaceMultipartContent() override { }
+    virtual void didReplaceMultipartContent() override { }
+
     virtual void committedLoad(DocumentLoader*, const char*, int) override { }
     virtual void finishedLoading(DocumentLoader*) override { }
 
@@ -344,6 +347,7 @@ public:
     virtual void prepareForDataSourceReplacement() override { }
 
     virtual PassRefPtr<DocumentLoader> createDocumentLoader(const ResourceRequest&, const SubstituteData&) override;
+    virtual void updateCachedDocumentLoader(DocumentLoader&) override { }
     virtual void setTitle(const StringWithDirection&, const URL&) override { }
 
     virtual String userAgent(const URL&) override { return ""; }

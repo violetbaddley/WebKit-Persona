@@ -25,7 +25,6 @@
 #ifndef Element_h
 #define Element_h
 
-#include "CollectionType.h"
 #include "Document.h"
 #include "ElementData.h"
 #include "HTMLNames.h"
@@ -395,7 +394,6 @@ public:
     virtual bool isInRange() const { return false; }
     virtual bool isOutOfRange() const { return false; }
     virtual bool isFrameElementBase() const { return false; }
-    virtual bool isSearchFieldCancelButtonElement() const { return false; }
 
     virtual bool canContainRangeEndPoint() const override;
 
@@ -484,7 +482,6 @@ public:
     void clearHoverAndActiveStatusBeforeDetachingRenderer();
 
     WEBCORE_EXPORT URL absoluteLinkURL() const;
-    WeakPtr<Element> createWeakPtr();
 
 protected:
     Element(const QualifiedName&, Document&, ConstructionType);
@@ -497,9 +494,6 @@ protected:
 
     void clearTabIndexExplicitlyIfNeeded();
     void setTabIndexExplicitly(short);
-
-    Ref<HTMLCollection> ensureCachedHTMLCollection(CollectionType);
-    HTMLCollection* cachedHTMLCollection(CollectionType);
 
     // classAttributeChanged() exists to share code between
     // parseAttribute (called via setAttribute()) and

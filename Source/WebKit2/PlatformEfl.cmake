@@ -210,7 +210,6 @@ list(APPEND WebKit2_SOURCES
     WebProcess/efl/SeccompFiltersWebProcessEfl.cpp
     WebProcess/efl/WebProcessMainEfl.cpp
 
-    WebProcess/soup/WebKitSoupRequestGeneric.cpp
     WebProcess/soup/WebKitSoupRequestInputStream.cpp
     WebProcess/soup/WebProcessSoup.cpp
 )
@@ -256,8 +255,11 @@ list(APPEND WebKit2_INCLUDE_DIRECTORIES
     "${WEBKIT2_DIR}/WebProcess/WebCoreSupport/efl"
     "${WEBKIT2_DIR}/WebProcess/WebCoreSupport/soup"
     "${WEBKIT2_DIR}/WebProcess/WebPage/CoordinatedGraphics"
-    "${WTF_DIR}/wtf/efl/"
-    "${WTF_DIR}/wtf/gobject"
+    "${WTF_DIR}/wtf/efl"
+    "${WTF_DIR}/wtf/glib"
+)
+
+list(APPEND WebKit2_SYSTEM_INCLUDE_DIRECTORIES
     ${CAIRO_INCLUDE_DIRS}
     ${ECORE_EVAS_INCLUDE_DIRS}
     ${ECORE_IMF_EVAS_INCLUDE_DIRS}
@@ -328,7 +330,7 @@ if (ENABLE_SECCOMP_FILTERS)
     list(APPEND WebKit2_LIBRARIES
         ${LIBSECCOMP_LIBRARIES}
     )
-    list(APPEND WebKit2_INCLUDE_DIRECTORIES
+    list(APPEND WebKit2_SYSTEM_INCLUDE_DIRECTORIES
         ${LIBSECCOMP_INCLUDE_DIRS}
     )
 
@@ -342,10 +344,10 @@ endif ()
 if (ENABLE_ECORE_X)
     list(APPEND WebProcess_LIBRARIES
         ${ECORE_X_LIBRARIES}
-        ${X11_Xext_LIB}
     )
     list(APPEND WebKit2_LIBRARIES
         ${ECORE_X_LIBRARIES}
+        ${X11_Xext_LIB}
     )
 endif ()
 
@@ -510,6 +512,7 @@ set(EWK2UnitTests_BINARIES
     test_ewk2_file_chooser_request
     test_ewk2_javascript_binding
     test_ewk2_object
+    test_ewk2_page
     test_ewk2_page_group
     test_ewk2_popup_menu
     test_ewk2_settings
@@ -539,7 +542,7 @@ if (ENABLE_API_TESTS)
 endif ()
 
 if (ENABLE_SPELLCHECK)
-    list(APPEND WebKit2_INCLUDE_DIRECTORIES
+    list(APPEND WebKit2_SYSTEM_INCLUDE_DIRECTORIES
         ${ENCHANT_INCLUDE_DIRS}
     )
     list(APPEND WebKit2_LIBRARIES
@@ -550,6 +553,8 @@ endif ()
 if (ENABLE_ACCESSIBILITY)
     list(APPEND WebKit2_INCLUDE_DIRECTORIES
         "${WEBKIT2_DIR}/WebProcess/WebPage/atk"
+    )
+    list(APPEND WebKit2_SYSTEM_INCLUDE_DIRECTORIES
         ${ATK_INCLUDE_DIRS}
     )
     list(APPEND WebKit2_LIBRARIES

@@ -94,6 +94,7 @@ public:
     virtual void addFence(const WebCore::MachSendRight&) { }
 #endif
 #if PLATFORM(IOS)
+    virtual WebCore::FloatRect exposedContentRect() const = 0;
     virtual void setExposedContentRect(const WebCore::FloatRect&) = 0;
 #endif
     virtual void mainFrameScrollabilityChanged(bool) { }
@@ -125,6 +126,8 @@ public:
     virtual bool adjustLayerFlushThrottling(WebCore::LayerFlushThrottleState::Flags) { return false; }
 
     virtual void attachViewOverlayGraphicsLayer(WebCore::Frame*, WebCore::GraphicsLayer*) { }
+
+    virtual void setShouldScaleViewToFitDocument(bool) { }
 
 #if PLATFORM(COCOA)
     // Used by TiledCoreAnimationDrawingArea.

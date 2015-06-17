@@ -52,14 +52,12 @@ enum class ContentExtensionError {
     JSONInvalidDomainList,
     JSONDomainNotLowerCaseASCII,
     JSONUnlessAndIfDomain,
+    JSONTooManyRules,
     
     JSONInvalidAction,
     JSONInvalidActionType,
     JSONInvalidCSSDisplayNoneActionType,
     JSONInvalidRegex,
-    
-    RegexMatchesEverythingAfterIgnorePreviousRules,
-    RegexMatchesEverythingWithDomains,
 };
 
 WEBCORE_EXPORT const std::error_category& contentExtensionErrorCategory();

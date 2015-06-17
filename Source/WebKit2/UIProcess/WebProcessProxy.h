@@ -157,11 +157,11 @@ private:
     virtual void getLaunchOptions(ProcessLauncher::LaunchOptions&) override;
     void platformGetLaunchOptions(ProcessLauncher::LaunchOptions&);
     virtual void connectionWillOpen(IPC::Connection&) override;
-    virtual void connectionDidClose(IPC::Connection&) override;
+    virtual void processWillShutDown(IPC::Connection&) override;
 
     // Called when the web process has crashed or we know that it will terminate soon.
     // Will potentially cause the WebProcessProxy object to be freed.
-    void disconnect();
+    void shutDown();
 
     // IPC message handlers.
     void addBackForwardItem(uint64_t itemID, uint64_t pageID, const PageState&);
@@ -210,6 +210,7 @@ private:
     void sendPrepareToSuspend() override;
     void sendCancelPrepareToSuspend() override;
     void sendProcessDidResume() override;
+    void didSetAssertionState(AssertionState) override;
 
     // ProcessLauncher::Client
     virtual void didFinishLaunching(ProcessLauncher*, IPC::Connection::Identifier) override;
@@ -219,8 +220,6 @@ private:
     void didReceiveSyncWebProcessProxyMessage(IPC::Connection&, IPC::MessageDecoder&, std::unique_ptr<IPC::MessageEncoder>&);
 
     bool canTerminateChildProcess();
-
-    void initializeNetworkProcessActivityToken();
 
     ResponsivenessTimer m_responsivenessTimer;
     
@@ -248,7 +247,8 @@ private:
     ProcessThrottler m_throttler;
     ProcessThrottler::BackgroundActivityToken m_tokenForHoldingLockedFiles;
 #if PLATFORM(IOS) && ENABLE(NETWORK_PROCESS)
-    ProcessThrottler::ForegroundActivityToken m_tokenForNetworkProcess;
+    ProcessThrottler::ForegroundActivityToken m_foregroundTokenForNetworkProcess;
+    ProcessThrottler::BackgroundActivityToken m_backgroundTokenForNetworkProcess;
 #endif
 
     HashMap<String, uint64_t> m_pageURLRetainCountMap;

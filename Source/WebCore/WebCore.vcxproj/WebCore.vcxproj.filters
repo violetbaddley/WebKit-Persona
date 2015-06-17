@@ -1113,9 +1113,6 @@
     <ClCompile Include="..\platform\Length.cpp">
       <Filter>platform</Filter>
     </ClCompile>
-    <ClCompile Include="..\platform\LengthBox.cpp">
-      <Filter>platform</Filter>
-    </ClCompile>
     <ClCompile Include="..\platform\LinkHash.cpp">
       <Filter>platform</Filter>
     </ClCompile>
@@ -1186,6 +1183,9 @@
       <Filter>platform</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\UUID.cpp">
+      <Filter>platform</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\VNodeTracker.cpp">
       <Filter>platform</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\Widget.cpp">
@@ -1369,9 +1369,6 @@
       <Filter>platform\graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\graphics\IntSize.cpp">
-      <Filter>platform\graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\platform\graphics\LayoutBoxExtent.cpp">
       <Filter>platform\graphics</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\graphics\LayoutRect.cpp">
@@ -6613,9 +6610,6 @@
     <ClCompile Include="..\rendering\ImageQualityController.cpp">
       <Filter>rendering</Filter>
     </ClCompile>
-    <ClCompile Include="..\accessibility\AccessibilitySearchFieldButtons.cpp">
-      <Filter>accessibility</Filter>
-    </ClCompile>
     <ClCompile Include="..\dom\ElementData.cpp">
       <Filter>dom</Filter>
     </ClCompile>
@@ -6745,7 +6739,7 @@
     <ClCompile Include="..\platform\graphics\texmap\coordinated\CoordinatedSurface.cpp">
       <Filter>platform\graphics\texmap\coordinated</Filter>
     </ClCompile>
-    <ClCompile Include="..\platform\graphics\texmap\coordinated\CoordinatedTile.cpp">
+    <ClCompile Include="..\platform\graphics\texmap\coordinated\Tile.cpp">
       <Filter>platform\graphics\texmap\coordinated</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\graphics\texmap\coordinated\UpdateAtlas.cpp">
@@ -6887,9 +6881,6 @@
       <Filter>platform\network\soup</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\network\soup\NetworkStorageSessionSoup.cpp">
-      <Filter>platform\network\soup</Filter>
-    </ClCompile>
-    <ClCompile Include="..\platform\network\soup\ProxyResolverSoup.cpp">
       <Filter>platform\network\soup</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\network\soup\ProxyServerSoup.cpp">
@@ -7039,7 +7030,7 @@
     <ClCompile Include="..\Modules\gamepad\GamepadEvent.cpp">
       <Filter>Modules\gamepad</Filter>
     </ClCompile>
-    <ClCompile Include="..\html\HTMLMediaSession.cpp">
+    <ClCompile Include="..\html\MediaElementSession.cpp">
       <Filter>html</Filter>
     </ClCompile>
     <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\HTTPHeaderNames.cpp">
@@ -7060,10 +7051,10 @@
     <ClCompile Include="..\rendering\line\LineInfo.cpp">
       <Filter>rendering\line</Filter>
     </ClCompile>
-    <ClCompile Include="..\platform\audio\MediaSession.cpp">
+    <ClCompile Include="..\platform\audio\PlatformMediaSession.cpp">
       <Filter>platform\audio</Filter>
     </ClCompile>
-    <ClCompile Include="..\platform\audio\MediaSessionManager.cpp">
+    <ClCompile Include="..\platform\audio\PlatformMediaSessionManager.cpp">
       <Filter>platform\audio</Filter>
     </ClCompile>
     <ClCompile Include="..\Modules\gamepad\NavigatorGamepad.cpp">
@@ -8497,9 +8488,6 @@
       <Filter>platform\graphics</Filter>
     </ClInclude>
     <ClInclude Include="..\platform\graphics\IntSizeHash.h">
-      <Filter>platform\graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="..\platform\graphics\LayoutBoxExtent.h">
       <Filter>platform\graphics</Filter>
     </ClInclude>
     <ClInclude Include="..\platform\graphics\LayoutPoint.h">
@@ -14006,9 +13994,6 @@
     <ClInclude Include="..\rendering\ImageQualityController.h">
       <Filter>rendering</Filter>
     </ClInclude>
-    <ClInclude Include="..\accessibility\AccessibilitySearchFieldButtons.h">
-      <Filter>accessibility</Filter>
-    </ClInclude>
     <ClInclude Include="..\dom\ElementAncestorIterator.h">
       <Filter>dom</Filter>
     </ClInclude>
@@ -14159,10 +14144,10 @@
     <ClInclude Include="..\platform\graphics\texmap\coordinated\CoordinatedSurface.h">
       <Filter>platform\graphics\texmap\coordinated</Filter>
     </ClInclude>
-    <ClInclude Include="..\platform\graphics\texmap\coordinated\CoordinatedTile.h">
+    <ClInclude Include="..\platform\graphics\texmap\coordinated\SurfaceUpdateInfo.h">
       <Filter>platform\graphics\texmap\coordinated</Filter>
     </ClInclude>
-    <ClInclude Include="..\platform\graphics\texmap\coordinated\SurfaceUpdateInfo.h">
+    <ClInclude Include="..\platform\graphics\texmap\coordinated\Tile.h">
       <Filter>platform\graphics\texmap\coordinated</Filter>
     </ClInclude>
     <ClInclude Include="..\platform\graphics\texmap\coordinated\UpdateAtlas.h">
@@ -14510,7 +14495,7 @@
     <ClInclude Include="..\platform\audio\MediaSessionManager.h">
       <Filter>platform\audio</Filter>
     </ClInclude>
-    <ClInclude Include="..\platform\audio\MediaSession.h">
+    <ClInclude Include="..\platform\audio\PlatformMediaSession.h">
       <Filter>platform\audio</Filter>
     </ClInclude>
     <ClInclude Include="..\Modules\gamepad\NavigatorGamepad.h">
@@ -15241,9 +15226,6 @@
     </ClInclude>
     <ClInclude Include="..\platform\graphics\FontCascadeFonts.h">
       <Filter>platform\graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Modules\streams\ReadableStreamSource.h">
-      <Filter>Modules\streams</Filter>
     </ClInclude>
     <ClInclude Include="..\Modules\streams\ReadableStream.h">
       <Filter>Modules\streams</Filter>

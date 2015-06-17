@@ -78,6 +78,10 @@
 #include "WebVibrationProxy.h"
 #endif
 
+#if ENABLE(MEDIA_SESSION)
+#include <WebCore/MediaEventTypes.h>
+#endif
+
 using namespace WebCore;
 using namespace WebKit;
 
@@ -126,9 +130,15 @@ void WKPageLoadURL(WKPageRef pageRef, WKURLRef URLRef)
     toImpl(pageRef)->loadRequest(URL(URL(), toWTFString(URLRef)));
 }
 
+void WKPageLoadURLWithShouldOpenExternalURLsPolicy(WKPageRef pageRef, WKURLRef URLRef, bool shouldOpenExternalURLs)
+{
+    ShouldOpenExternalURLsPolicy shouldOpenExternalURLsPolicy = shouldOpenExternalURLs ? ShouldOpenExternalURLsPolicy::ShouldAllow : ShouldOpenExternalURLsPolicy::ShouldNotAllow;
+    toImpl(pageRef)->loadRequest(URL(URL(), toWTFString(URLRef)), shouldOpenExternalURLsPolicy);
+}
+
 void WKPageLoadURLWithUserData(WKPageRef pageRef, WKURLRef URLRef, WKTypeRef userDataRef)
 {
-    toImpl(pageRef)->loadRequest(URL(URL(), toWTFString(URLRef)), toImpl(userDataRef));
+    toImpl(pageRef)->loadRequest(URL(URL(), toWTFString(URLRef)), ShouldOpenExternalURLsPolicy::ShouldNotAllow, toImpl(userDataRef));
 }
 
 void WKPageLoadURLRequest(WKPageRef pageRef, WKURLRequestRef urlRequestRef)
@@ -138,7 +148,7 @@ void WKPageLoadURLRequest(WKPageRef pageRef, WKURLRequestRef urlRequestRef)
 
 void WKPageLoadURLRequestWithUserData(WKPageRef pageRef, WKURLRequestRef urlRequestRef, WKTypeRef userDataRef)
 {
-    toImpl(pageRef)->loadRequest(toImpl(urlRequestRef)->resourceRequest(), toImpl(userDataRef));
+    toImpl(pageRef)->loadRequest(toImpl(urlRequestRef)->resourceRequest(), ShouldOpenExternalURLsPolicy::ShouldNotAllow, toImpl(userDataRef));
 }
 
 void WKPageLoadFile(WKPageRef pageRef, WKURLRef fileURL, WKURLRef resourceDirectoryURL)
@@ -1934,7 +1944,9 @@ void WKPageSetSession(WKPageRef pageRef, WKSessionRef session)
 
 void WKPageRunJavaScriptInMainFrame(WKPageRef pageRef, WKStringRef scriptRef, void* context, WKPageRunJavaScriptFunction callback)
 {
-    toImpl(pageRef)->runJavaScriptInMainFrame(toImpl(scriptRef)->string(), toGenericCallbackFunction(context, callback));
+    toImpl(pageRef)->runJavaScriptInMainFrame(toImpl(scriptRef)->string(), [context, callback](API::SerializedScriptValue* returnValue, bool, CallbackBase::Error error) {
+        callback(toAPI(returnValue), (error != CallbackBase::Error::None) ? toAPI(API::Error::create().ptr()) : 0, context);
+    });
 }
 
 #ifdef __BLOCKS__
@@ -2113,6 +2125,32 @@ void WKPageSetMediaVolume(WKPageRef page, float volume)
 void WKPageSetMuted(WKPageRef page, bool muted)
 {
     toImpl(page)->setMuted(muted);
+}
+
+void WKPageHandleMediaEvent(WKPageRef page, WKMediaEventType wkEventType)
+{
+#if ENABLE(MEDIA_SESSION)
+    MediaEventType eventType;
+
+    switch (wkEventType) {
+    case kWKMediaEventTypePlayPause:
+        eventType = MediaEventType::PlayPause;
+        break;
+    case kWKMediaEventTypeTrackNext:
+        eventType = MediaEventType::TrackNext;
+        break;
+    case kWKMediaEventTypeTrackPrevious:
+        eventType = MediaEventType::TrackPrevious;
+        break;
+    default:
+        ASSERT_NOT_REACHED();
+    }
+
+    toImpl(page)->handleMediaEvent(eventType);
+#else
+    UNUSED_PARAM(page);
+    UNUSED_PARAM(wkEventType);
+#endif
 }
 
 void WKPagePostMessageToInjectedBundle(WKPageRef pageRef, WKStringRef messageNameRef, WKTypeRef messageBodyRef)

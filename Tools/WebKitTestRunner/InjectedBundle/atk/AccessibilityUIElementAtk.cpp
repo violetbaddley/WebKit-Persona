@@ -40,8 +40,8 @@
 #endif
 #include <atk/atk.h>
 #include <wtf/Assertions.h>
-#include <wtf/gobject/GRefPtr.h>
-#include <wtf/gobject/GUniquePtr.h>
+#include <wtf/glib/GRefPtr.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/WTFString.h>
@@ -1070,7 +1070,10 @@ JSRetainPtr<JSStringRef> AccessibilityUIElement::roleDescription()
 
 JSRetainPtr<JSStringRef> AccessibilityUIElement::computedRoleString()
 {
-    // FIXME: implement http://webkit.org/b/128420
+    String role = getAttributeSetValueForId(ATK_OBJECT(m_element.get()), ObjectAttributeType, "computed-role");
+    if (!role.isEmpty())
+        return JSStringCreateWithUTF8CString(role.utf8().data());
+
     return JSStringCreateWithCharacters(0, 0);
 }
 

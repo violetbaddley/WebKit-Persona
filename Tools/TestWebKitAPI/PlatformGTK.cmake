@@ -97,6 +97,7 @@ add_executable(TestWebKit2
     ${TESTWEBKITAPI_DIR}/Tests/WebKit2/ResizeWindowAfterCrash.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebKit2/RestoreSessionStateContainingFormData.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebKit2/ShouldGoToBackForwardListItem.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WebKit2/TextFieldDidBeginAndEndEditing.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebKit2/UserMedia.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebKit2/UserMessage.cpp
     ${TESTWEBKITAPI_DIR}/Tests/WebKit2/WillSendSubmitEvent.cpp
@@ -135,7 +136,7 @@ set_tests_properties(TestWebCore PROPERTIES TIMEOUT 60)
 set_target_properties(TestWebCore PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${TESTWEBKITAPI_RUNTIME_OUTPUT_DIRECTORY}/WebCore)
 
 list(APPEND TestWTF_SOURCES
-    ${TESTWEBKITAPI_DIR}/Tests/WTF/gobject/GMainLoopSource.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WTF/gobject/GUniquePtr.cpp
-    ${TESTWEBKITAPI_DIR}/Tests/WTF/gtk/WorkQueueGtk.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/glib/GMainLoopSource.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/glib/GUniquePtr.cpp
+    ${TESTWEBKITAPI_DIR}/Tests/WTF/glib/WorkQueueGLib.cpp
 )

@@ -35,7 +35,7 @@
 #include <wtf/text/WTFString.h>
 
 #if USE(SOUP)
-#include <wtf/gobject/GRefPtr.h>
+#include <wtf/glib/GRefPtr.h>
 #endif
 
 namespace WebKit {
@@ -59,12 +59,6 @@ public:
 
 private:
     IOChannel(const String& filePath, IOChannel::Type);
-
-#if USE(SOUP)
-    void read(size_t offset, size_t, std::function<void (Data&, int error)>);
-    void readSync(size_t offset, size_t, std::function<void (Data&, int error)>);
-    void write(size_t offset, const Data&, std::function<void (int error)>);
-#endif
 
     String m_path;
     Type m_type;

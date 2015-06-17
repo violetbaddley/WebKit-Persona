@@ -65,8 +65,8 @@ set(test_webkit2_api_BINARIES
     AboutBlankLoad
     CloseThenTerminate
     CookieManager
-    DidAssociateFormControls
     DOMWindowExtensionNoCache
+    DidAssociateFormControls
     DocumentStartUserScriptAlertCrash
     EvaluateJavaScript
     FailedLoad
@@ -92,13 +92,16 @@ set(test_webkit2_api_BINARIES
     ResponsivenessTimerDoesntFireEarly
     ShouldGoToBackForwardListItem
     TerminateTwice
+    TextFieldDidBeginAndEndEditing
     WKPreferences
     WKString
     WKStringJSString
     WKURL
     WillSendSubmitEvent
+
     CoordinatedGraphics/WKViewRestoreZoomAndScrollBackForward
     CoordinatedGraphics/WKViewUserViewportToContents
+
     efl/WKViewClientWebProcessCallbacks
     efl/WKViewScrollTo
 )

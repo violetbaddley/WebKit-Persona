@@ -54,7 +54,7 @@ struct NetworkProcessCreationParameters;
 
 class NetworkProcessProxy : public ChildProcessProxy, private ProcessThrottlerClient {
 public:
-    static PassRefPtr<NetworkProcessProxy> create(WebProcessPool&);
+    static Ref<NetworkProcessProxy> create(WebProcessPool&);
     ~NetworkProcessProxy();
 
     void getNetworkProcessConnection(PassRefPtr<Messages::WebProcessProxy::GetNetworkProcessConnection::DelayedReply>);
@@ -82,6 +82,7 @@ private:
     // ChildProcessProxy
     virtual void getLaunchOptions(ProcessLauncher::LaunchOptions&) override;
     virtual void connectionWillOpen(IPC::Connection&) override;
+    virtual void processWillShutDown(IPC::Connection&) override;
 
     void platformGetLaunchOptions(ProcessLauncher::LaunchOptions&);
     void networkProcessCrashedOrFailedToLaunch();
@@ -91,6 +92,7 @@ private:
     void sendPrepareToSuspend() override;
     void sendCancelPrepareToSuspend() override;
     void sendProcessDidResume() override;
+    void didSetAssertionState(AssertionState) override;
 
     // IPC::Connection::Client
     virtual void didReceiveMessage(IPC::Connection&, IPC::MessageDecoder&) override;

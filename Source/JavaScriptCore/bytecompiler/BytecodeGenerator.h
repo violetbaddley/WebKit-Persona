@@ -175,6 +175,7 @@ namespace JSC {
     struct TryData {
         RefPtr<Label> target;
         unsigned targetScopeDepth;
+        HandlerType handlerType;
     };
 
     struct TryContext {
@@ -503,8 +504,11 @@ namespace JSC {
             RegisterID* valueRegister, RegisterID* getterRegister, RegisterID* setterRegister, unsigned options, const JSTextPosition&);
 
         void emitEnumeration(ThrowableExpressionData* enumerationNode, ExpressionNode* subjectNode, const std::function<void(BytecodeGenerator&, RegisterID*)>& callBack);
+
+#if ENABLE(ES6_TEMPLATE_LITERAL_SYNTAX)
         RegisterID* emitGetTemplateObject(RegisterID* dst, TaggedTemplateNode*);
-        
+#endif
+
         RegisterID* emitReturn(RegisterID* src);
         RegisterID* emitEnd(RegisterID* src) { return emitUnaryNoDstOp(op_end, src); }
 
@@ -549,7 +553,7 @@ namespace JSC {
         // Start a try block. 'start' must have been emitted.
         TryData* pushTry(Label* start);
         // End a try block. 'end' must have been emitted.
-        RegisterID* popTryAndEmitCatch(TryData*, RegisterID* targetRegister, Label* end);
+        void popTryAndEmitCatch(TryData*, RegisterID* exceptionRegister, RegisterID* thrownValueRegister, Label* end, HandlerType);
 
         void emitThrow(RegisterID* exc)
         { 
@@ -624,7 +628,7 @@ namespace JSC {
         void emitComplexPopScopes(RegisterID*, ControlFlowContext* topScope, ControlFlowContext* bottomScope);
 
         typedef HashMap<double, JSValue> NumberMap;
-        typedef HashMap<StringImpl*, JSString*, IdentifierRepHash> IdentifierStringMap;
+        typedef HashMap<UniquedStringImpl*, JSString*, IdentifierRepHash> IdentifierStringMap;
         typedef HashMap<TemplateRegistryKey, JSTemplateRegistryKey*> TemplateRegistryKeyMap;
         
         // Helper for emitCall() and emitConstruct(). This works because the set of
@@ -648,7 +652,7 @@ namespace JSC {
 
         // Initializes the stack form the parameter; does nothing for the symbol table.
         RegisterID* initializeNextParameter();
-        StringImpl* visibleNameForParameter(DeconstructionPatternNode*);
+        UniquedStringImpl* visibleNameForParameter(DeconstructionPatternNode*);
         
         RegisterID& registerFor(VirtualRegister reg)
         {
@@ -726,7 +730,7 @@ namespace JSC {
 
         // Some of these objects keep pointers to one another. They are arranged
         // to ensure a sane destruction order that avoids references to freed memory.
-        HashSet<RefPtr<StringImpl>, IdentifierRepHash> m_functions;
+        HashSet<RefPtr<UniquedStringImpl>, IdentifierRepHash> m_functions;
         RegisterID m_ignoredResultRegister;
         RegisterID m_thisRegister;
         RegisterID m_calleeRegister;

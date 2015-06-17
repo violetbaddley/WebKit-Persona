@@ -23,7 +23,6 @@
 
 #include "CoordinatedGraphicsState.h"
 #include "CoordinatedImageBacking.h"
-#include "CoordinatedTile.h"
 #include "FloatPoint3D.h"
 #include "GraphicsLayer.h"
 #include "GraphicsLayerTransform.h"
@@ -58,8 +57,7 @@ public:
 
 class CoordinatedGraphicsLayer : public GraphicsLayer
     , public TiledBackingStoreClient
-    , public CoordinatedImageBacking::Host
-    , public CoordinatedTileClient {
+    , public CoordinatedImageBacking::Host {
 public:
     explicit CoordinatedGraphicsLayer(Type, GraphicsLayerClient&);
     virtual ~CoordinatedGraphicsLayer();
@@ -128,15 +126,11 @@ public:
     IntRect coverRect() const { return m_mainBackingStore ? m_mainBackingStore->mapToContents(m_mainBackingStore->coverRect()) : IntRect(); }
 
     // TiledBackingStoreClient
-    virtual void tiledBackingStorePaintBegin() override;
     virtual void tiledBackingStorePaint(GraphicsContext*, const IntRect&) override;
-    virtual void tiledBackingStorePaintEnd(const Vector<IntRect>& paintedArea) override;
+    virtual void didUpdateTileBuffers() override;
     virtual void tiledBackingStoreHasPendingTileCreation() override;
     virtual IntRect tiledBackingStoreContentsRect() override;
     virtual IntRect tiledBackingStoreVisibleRect() override;
-    virtual Color tiledBackingStoreBackgroundColor() const override;
-
-    // CoordinatedTileClient
     virtual void createTile(uint32_t tileID, float) override;
     virtual void updateTile(uint32_t tileID, const SurfaceUpdateInfo&, const IntRect&) override;
     virtual void removeTile(uint32_t tileID) override;

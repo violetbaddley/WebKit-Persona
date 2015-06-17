@@ -198,6 +198,13 @@ void InspectorTimelineAgent::internalStop()
 #if PLATFORM(COCOA)
     m_frameStartObserver = nullptr;
     m_frameStopObserver = nullptr;
+    if (m_didStartRecordingRunLoop) {
+        m_didStartRecordingRunLoop = false;
+
+        // Complete all pending records to prevent discarding events that are currently in progress.
+        while (!m_recordStack.isEmpty())
+            didCompleteCurrentRecord(m_recordStack.last().type);
+    }
 #endif
 
     clearRecordStack();
@@ -666,6 +673,10 @@ void InspectorTimelineAgent::addRecordToTimeline(RefPtr<InspectorObject>&& recor
         sendEvent(WTF::move(recordObject));
     } else {
         const TimelineRecordEntry& parent = m_recordStack.last();
+        // Nested paint records are an implementation detail and add no information not already contained in the parent.
+        if (type == TimelineRecordType::Paint && parent.type == type)
+            return;
+
         parent.children->pushObject(WTF::move(record));
     }
 }

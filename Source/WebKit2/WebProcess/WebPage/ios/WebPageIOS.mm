@@ -42,7 +42,6 @@
 #import "WKAccessibilityWebPageObjectIOS.h"
 #import "WebChromeClient.h"
 #import "WebCoreArgumentCoders.h"
-#import "WebDatabaseManager.h"
 #import "WebFrame.h"
 #import "WebImage.h"
 #import "WebKitSystemInterface.h"
@@ -2710,7 +2709,7 @@ void WebPage::updateViewportSizeForCSSViewportUnits()
         largestUnobscuredRect = m_viewportConfiguration.minimumLayoutSize();
 
     FrameView& frameView = *mainFrameView();
-    largestUnobscuredRect.scale(1 / m_viewportConfiguration.initialScale());
+    largestUnobscuredRect.scale(1 / m_viewportConfiguration.initialScaleIgnoringContentSize());
     frameView.setViewportSizeForCSSViewportUnits(roundedIntSize(largestUnobscuredRect));
 }
 
@@ -2719,16 +2718,29 @@ void WebPage::applicationWillResignActive()
     [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationWillResignActiveNotification object:nil];
 }
 
-void WebPage::applicationWillEnterForeground()
+void WebPage::volatilityTimerFired()
 {
-    WebProcess::singleton().supplement<WebDatabaseManager>()->setPauseAllDatabases(false);
-    [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationWillEnterForegroundNotification object:nil];
+    if (!markLayersVolatileImmediatelyIfPossible())
+        return;
+
+    m_volatilityTimer.stop();
 }
 
-void WebPage::applicationDidEnterBackground(uint64_t callbackID)
+void WebPage::applicationDidEnterBackground()
 {
-    WebProcess::singleton().supplement<WebDatabaseManager>()->setPauseAllDatabases(true);
-    send(Messages::WebPageProxy::VoidCallback(callbackID));
+    setLayerTreeStateIsFrozen(true);
+    if (markLayersVolatileImmediatelyIfPossible())
+        return;
+
+    m_volatilityTimer.startRepeating(std::chrono::milliseconds(200));
+}
+
+void WebPage::applicationWillEnterForeground()
+{
+    m_volatilityTimer.stop();
+    setLayerTreeStateIsFrozen(false);
+
+    [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationWillEnterForegroundNotification object:nil];
 }
 
 void WebPage::applicationDidBecomeActive()
@@ -2736,14 +2748,14 @@ void WebPage::applicationDidBecomeActive()
     [[NSNotificationCenter defaultCenter] postNotificationName:WebUIApplicationDidBecomeActiveNotification object:nil];
 }
 
-static inline void adjustVelocityDataForBoundedScale(double& horizontalVelocity, double& verticalVelocity, double& scaleChangeRate, double exposedRectScale, double boundedScale)
+static inline void adjustVelocityDataForBoundedScale(double& horizontalVelocity, double& verticalVelocity, double& scaleChangeRate, double exposedRectScale, double minimumScale, double maximumScale)
 {
     if (scaleChangeRate) {
         horizontalVelocity = 0;
         verticalVelocity = 0;
     }
 
-    if (exposedRectScale != boundedScale)
+    if (exposedRectScale >= maximumScale || exposedRectScale <= minimumScale)
         scaleChangeRate = 0;
 }
 
@@ -2822,7 +2834,7 @@ void WebPage::updateVisibleContentRects(const VisibleContentRectUpdateInfo& visi
     double horizontalVelocity = visibleContentRectUpdateInfo.horizontalVelocity();
     double verticalVelocity = visibleContentRectUpdateInfo.verticalVelocity();
     double scaleChangeRate = visibleContentRectUpdateInfo.scaleChangeRate();
-    adjustVelocityDataForBoundedScale(horizontalVelocity, verticalVelocity, scaleChangeRate, visibleContentRectUpdateInfo.scale(), boundedScale);
+    adjustVelocityDataForBoundedScale(horizontalVelocity, verticalVelocity, scaleChangeRate, visibleContentRectUpdateInfo.scale(), m_viewportConfiguration.minimumScale(), m_viewportConfiguration.maximumScale());
 
     frameView.setScrollVelocity(horizontalVelocity, verticalVelocity, scaleChangeRate, visibleContentRectUpdateInfo.timestamp());
 

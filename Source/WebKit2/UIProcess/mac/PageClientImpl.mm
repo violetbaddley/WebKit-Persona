@@ -408,9 +408,10 @@ void PageClientImpl::setDragImage(const IntPoint& clientPosition, PassRefPtr<Sha
     [dragNSImage setSize:size];
 
 #if WK_API_ENABLED
-    if (m_webView)
-        [m_wkView _dragImageForView:m_webView withImage:dragNSImage.get() at:clientPosition linkDrag:isLinkDrag];
-    else
+    if (m_webView) {
+        NSPoint webViewPosition = [m_wkView convertPoint:clientPosition toView:m_webView];
+        [m_wkView _dragImageForView:m_webView withImage:dragNSImage.get() at:webViewPosition linkDrag:isLinkDrag];
+    } else
 #endif
         [m_wkView _dragImageForView:m_wkView withImage:dragNSImage.get() at:clientPosition linkDrag:isLinkDrag];
 }
@@ -807,10 +808,10 @@ CGRect PageClientImpl::boundsOfLayerInLayerBackedWindowCoordinates(CALayer *laye
     return [windowContentLayer convertRect:layer.bounds fromLayer:layer];
 }
 
-void PageClientImpl::didPerformActionMenuHitTest(const WebHitTestResult::Data& result, bool forImmediateAction, bool contentPreventsDefault, API::Object* userData)
+void PageClientImpl::didPerformImmediateActionHitTest(const WebHitTestResult::Data& result, bool contentPreventsDefault, API::Object* userData)
 {
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-    [m_wkView _didPerformActionMenuHitTest:result forImmediateAction:forImmediateAction contentPreventsDefault:contentPreventsDefault userData:userData];
+    [m_wkView _didPerformImmediateActionHitTest:result contentPreventsDefault:contentPreventsDefault userData:userData];
 #endif
 }
 

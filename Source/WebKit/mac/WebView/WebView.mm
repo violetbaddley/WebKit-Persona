@@ -79,7 +79,6 @@
 #import "WebKitLogging.h"
 #import "WebKitNSStringExtras.h"
 #import "WebKitStatisticsPrivate.h"
-#import "WebKitSystemBits.h"
 #import "WebKitVersionChecks.h"
 #import "WebLocalizableStrings.h"
 #import "WebNSDataExtras.h"
@@ -91,7 +90,6 @@
 #import "WebNodeHighlight.h"
 #import "WebNotificationClient.h"
 #import "WebPDFView.h"
-#import "WebPanelAuthenticationHandler.h"
 #import "WebPlatformStrategies.h"
 #import "WebPluginDatabase.h"
 #import "WebPolicyDelegate.h"
@@ -114,6 +112,7 @@
 #import <CoreFoundation/CFSet.h>
 #import <Foundation/NSURLConnection.h>
 #import <JavaScriptCore/APICast.h>
+#import <JavaScriptCore/Exception.h>
 #import <JavaScriptCore/JSValueRef.h>
 #import <WebCore/AlternativeTextUIController.h>
 #import <WebCore/AnimationController.h>
@@ -123,7 +122,6 @@
 #import <WebCore/CFNetworkSPI.h>
 #import <WebCore/Chrome.h>
 #import <WebCore/ColorMac.h>
-#import <WebCore/Cursor.h>
 #import <WebCore/DatabaseManager.h>
 #import <WebCore/Document.h>
 #import <WebCore/DocumentLoader.h>
@@ -212,7 +210,6 @@
 #import <wtf/StdLibExtras.h>
 
 #if !PLATFORM(IOS)
-#import "WebActionMenuController.h"
 #import "WebContextMenuClient.h"
 #import "WebFullScreenController.h"
 #import "WebImmediateActionController.h"
@@ -223,7 +220,6 @@
 #import "WebPDFView.h"
 #import <WebCore/LookupSPI.h>
 #import <WebCore/NSImmediateActionGestureRecognizerSPI.h>
-#import <WebCore/NSViewSPI.h>
 #import <WebCore/SoftLinking.h>
 #import <WebCore/TextIndicator.h>
 #import <WebCore/TextIndicatorWindow.h>
@@ -855,6 +851,16 @@ static bool shouldAllowDisplayAndRunningOfInsecureContent()
     return shouldAllowDisplayAndRunningOfInsecureContent;
 }
 
+static bool shouldAllowAlternateFullscreen()
+{
+#if PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000
+    static bool shouldAllowAlternateFullscreen = iosExecutableWasLinkedOnOrAfterVersion(wkIOSSystemVersion_9_0);
+    return shouldAllowAlternateFullscreen;
+#else
+    return false;
+#endif
+}
+
 #if ENABLE(GAMEPAD)
 static void WebKitInitializeGamepadProviderIfNecessary()
 {
@@ -899,13 +905,6 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     [frameView release];
 
 #if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-    if ([self respondsToSelector:@selector(_setActionMenu:)]) {
-        RetainPtr<NSMenu> actionMenu = adoptNS([[NSMenu alloc] init]);
-        self._actionMenu = actionMenu.get();
-        _private->actionMenuController = [[WebActionMenuController alloc] initWithWebView:self];
-        self._actionMenu.autoenablesItems = NO;
-    }
-
     if (Class gestureClass = NSClassFromString(@"NSImmediateActionGestureRecognizer")) {
         RetainPtr<NSImmediateActionGestureRecognizer> recognizer = adoptNS([(NSImmediateActionGestureRecognizer *)[gestureClass alloc] init]);
         _private->immediateActionController = [[WebImmediateActionController alloc] initWithWebView:self recognizer:recognizer.get()];
@@ -1234,6 +1233,9 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     // FIXME: this is a workaround for <rdar://problem/11820090> Quoted text changes in size when replying to certain email
     _private->page->settings().setMinimumFontSize([_private->preferences minimumFontSize]);
 
+    // This is a workaround for <rdar://problem/21309911>.
+    _private->page->settings().setMetaRefreshEnabled([_private->preferences metaRefreshEnabled]);
+
     _private->page->setGroupName(groupName);
 
 #if ENABLE(REMOTE_INSPECTOR)
@@ -1325,11 +1327,6 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     });
 }
 
-+ (void)_clearPrivateBrowsingSessionCookieStorage
-{
-    WebFrameNetworkingContext::clearPrivateBrowsingSessionCookieStorage();
-}
-
 - (void)_replaceCurrentHistoryItem:(WebHistoryItem *)item
 {
     Frame* frame = [self _mainCoreFrame];
@@ -1355,7 +1352,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 {
     ASSERT(WebThreadIsCurrent());
     WebKit::MemoryMeasure measurer("Memory warning: Calling JavaScript GC.");
-    gcController().garbageCollectNow();
+    GCController::singleton().garbageCollectNow();
 }
 
 + (void)purgeInactiveFontData
@@ -1376,7 +1373,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 {
     ASSERT(WebThreadIsCurrent());
     WebKit::MemoryMeasure measurer("Memory warning: Discarding JIT'ed code.");
-    gcController().discardAllCompiledCode();
+    GCController::singleton().discardAllCompiledCode();
 }
 
 + (BOOL)isCharacterSmartReplaceExempt:(unichar)character isPreviousCharacter:(BOOL)b
@@ -1752,7 +1749,6 @@ static bool fastDocumentTeardownEnabled()
     [_private->inspector webViewClosed];
 #endif
 #if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-    [_private->actionMenuController webViewClosed];
     [_private->immediateActionController webViewClosed];
 #endif
 
@@ -1808,7 +1804,7 @@ static bool fastDocumentTeardownEnabled()
 #ifndef NDEBUG
     // Need this to make leak messages accurate.
     if (applicationIsTerminating) {
-        gcController().garbageCollectNow();
+        GCController::singleton().garbageCollectNow();
         [WebCache setDisabled:YES];
     }
 #endif
@@ -2296,9 +2292,9 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings.setInteractiveFormValidationEnabled([self interactiveFormValidationEnabled]);
     settings.setValidationMessageTimerMagnification([self validationMessageTimerMagnification]);
 
-    settings.setMediaPlaybackRequiresUserGesture([preferences mediaPlaybackRequiresUserGesture]);
-    settings.setMediaPlaybackAllowsInline([preferences mediaPlaybackAllowsInline]);
-    settings.setAllowsAlternateFullscreen([preferences allowsAlternateFullscreen]);
+    settings.setRequiresUserGestureForMediaPlayback([preferences mediaPlaybackRequiresUserGesture]);
+    settings.setAllowsInlineMediaPlayback([preferences mediaPlaybackAllowsInline]);
+    settings.setAllowsAlternateFullscreen([preferences allowsAlternateFullscreen] && shouldAllowAlternateFullscreen());
     settings.setSuppressesIncrementalRendering([preferences suppressesIncrementalRendering]);
     settings.setBackspaceKeyNavigationEnabled([preferences backspaceKeyNavigationEnabled]);
     settings.setWantsBalancedSetDefersLoadingBehavior([preferences wantsBalancedSetDefersLoadingBehavior]);
@@ -2343,6 +2339,9 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings.setRubberBandingForSubScrollableRegionsEnabled(false);
 #endif
 
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    settings.setAllowsAirPlayForMediaPlayback([preferences allowsAirPlayForMediaPlayback]);
+#endif
 #if PLATFORM(IOS)
     settings.setStandalone([preferences _standalone]);
     settings.setTelephoneNumberParsingEnabled([preferences _telephoneNumberParsingEnabled]);
@@ -2350,7 +2349,6 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings.setLayoutInterval(std::chrono::milliseconds([preferences _layoutInterval]));
     settings.setMaxParseDuration([preferences _maxParseDuration]);
     settings.setAlwaysUseAcceleratedOverflowScroll([preferences _alwaysUseAcceleratedOverflowScroll]);
-    settings.setMediaPlaybackAllowsAirPlay([preferences mediaPlaybackAllowsAirPlay]);
     settings.setAudioSessionCategoryOverride([preferences audioSessionCategoryOverride]);
     settings.setNetworkDataUsageTrackingEnabled([preferences networkDataUsageTrackingEnabled]);
     settings.setNetworkInterfaceName([preferences networkInterfaceName]);
@@ -3785,14 +3783,6 @@ static inline IMP getMethod(id o, SEL s)
     return [[[WebTextIterator alloc] initWithRange:kit(selectionInsideRect.toNormalizedRange().get())] autorelease];
 }
 
-#if ENABLE(DASHBOARD_SUPPORT)
-- (void)handleAuthenticationForResource:(id)identifier challenge:(NSURLAuthenticationChallenge *)challenge fromDataSource:(WebDataSource *)dataSource 
-{
-    NSWindow *window = [self hostWindow] ? [self hostWindow] : [self window]; 
-    [[WebPanelAuthenticationHandler sharedHandler] startAuthentication:challenge window:window]; 
-} 
-#endif
-
 #if !PLATFORM(IOS)
 - (void)_clearUndoRedoOperations
 {
@@ -3837,13 +3827,6 @@ static inline IMP getMethod(id o, SEL s)
 {
     return _private->page->areMemoryCacheClientCallsEnabled();
 }
-
-#if !PLATFORM(IOS)
-+ (NSCursor *)_pointingHandCursor
-{
-    return handCursor().platformCursor();
-}
-#endif
 
 - (BOOL)_postsAcceleratedCompositingNotifications
 {
@@ -7738,7 +7721,10 @@ static WebFrameView *containingFrameView(NSView *view)
         nsurlCacheDirectory = NSHomeDirectory();
 
     static uint64_t memSize = ramSize() / 1024 / 1024;
-    unsigned long long diskFreeSize = WebVolumeFreeSize(nsurlCacheDirectory) / 1024 / 1000;
+
+    NSDictionary *fileSystemAttributesDictionary = [[NSFileManager defaultManager] attributesOfFileSystemForPath:nsurlCacheDirectory error:nullptr];
+    unsigned long long diskFreeSize = [[fileSystemAttributesDictionary objectForKey:NSFileSystemFreeSize] unsignedLongLongValue] / 1024 / 1000;
+
     NSURLCache *nsurlCache = [NSURLCache sharedURLCache];
 
     unsigned cacheTotalCapacity = 0;
@@ -8415,7 +8401,7 @@ bool LayerFlushController::flushLayers()
 #endif
 
 #if ENABLE(VIDEO)
-- (void)_enterVideoFullscreenForVideoElement:(WebCore::HTMLVideoElement*)videoElement mode:(WebCore::HTMLMediaElement::VideoFullscreenMode)mode
+- (void)_enterVideoFullscreenForVideoElement:(WebCore::HTMLVideoElement*)videoElement mode:(WebCore::HTMLMediaElementEnums::VideoFullscreenMode)mode
 {
     if (_private->fullscreenController) {
         if ([_private->fullscreenController videoElement] == videoElement) {
@@ -8546,35 +8532,6 @@ bool LayerFlushController::flushLayers()
 
 #if PLATFORM(MAC)
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-- (void)prepareForMenu:(NSMenu *)menu withEvent:(NSEvent *)event
-{
-    if (menu != self._actionMenu)
-        return;
-
-    [_private->actionMenuController prepareForMenu:menu withEvent:event];
-}
-
-- (void)willOpenMenu:(NSMenu *)menu withEvent:(NSEvent *)event
-{
-    if (menu != self._actionMenu)
-        return;
-
-    [_private->actionMenuController willOpenMenu:menu withEvent:event];
-}
-
-- (void)didCloseMenu:(NSMenu *)menu withEvent:(NSEvent *)event
-{
-    if (menu != self._actionMenu)
-        return;
-
-    [_private->actionMenuController didCloseMenu:menu withEvent:event];
-}
-
-- (WebActionMenuController *)_actionMenuController
-{
-    return _private->actionMenuController;
-}
-
 - (WebImmediateActionController *)_immediateActionController
 {
     return _private->immediateActionController;

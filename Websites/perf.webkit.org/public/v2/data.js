@@ -64,7 +64,7 @@ var CommitLogs = {
     _cachedCommitsByRepository: {}
 };
 
-CommitLogs.fetchForTimeRange = function (repository, from, to, keyword)
+CommitLogs.fetchCommits = function (repository, from, to, keyword)
 {
     var params = [];
     if (from && to) {
@@ -407,9 +407,9 @@ RunsData.unitFromMetricName = function (metricName)
         'Runs': '/s',
         'Time': 'ms',
         'Duration': 'ms',
-        'Malloc': 'bytes',
-        'Heap': 'bytes',
-        'Allocations': 'bytes',
+        'Malloc': 'B',
+        'Heap': 'B',
+        'Allocations': 'B',
         'Score': 'pt',
     }[suffix];
     return unit;

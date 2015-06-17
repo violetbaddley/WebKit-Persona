@@ -48,7 +48,6 @@
 #include "WebKitWebViewBasePrivate.h"
 #include "WebKitWebViewPrivate.h"
 #include "WebNotificationManagerProxy.h"
-#include "WebResourceCacheManagerProxy.h"
 #include <WebCore/FileSystem.h>
 #include <WebCore/IconDatabase.h>
 #include <WebCore/Language.h>
@@ -59,8 +58,8 @@
 #include <wtf/NeverDestroyed.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
-#include <wtf/gobject/GRefPtr.h>
-#include <wtf/gobject/GUniquePtr.h>
+#include <wtf/glib/GRefPtr.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 
 using namespace WebKit;
@@ -102,7 +101,8 @@ using namespace WebKit;
 enum {
     PROP_0,
 
-    PROP_LOCAL_STORAGE_DIRECTORY
+    PROP_LOCAL_STORAGE_DIRECTORY,
+    PROP_INDEXED_DB_DIRECTORY
 };
 
 enum {
@@ -182,6 +182,7 @@ struct _WebKitWebContextPrivate {
     GRefPtr<GVariant> webExtensionsInitializationUserData;
 
     CString localStorageDirectory;
+    CString indexedDBDirectory;
 };
 
 static guint signals[LAST_SIGNAL] = { 0, };
@@ -235,6 +236,9 @@ static void webkitWebContextGetProperty(GObject* object, guint propID, GValue* v
     case PROP_LOCAL_STORAGE_DIRECTORY:
         g_value_set_string(value, context->priv->localStorageDirectory.data());
         break;
+    case PROP_INDEXED_DB_DIRECTORY:
+        g_value_set_string(value, context->priv->indexedDBDirectory.data());
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propID, paramSpec);
     }
@@ -247,6 +251,9 @@ static void webkitWebContextSetProperty(GObject* object, guint propID, const GVa
     switch (propID) {
     case PROP_LOCAL_STORAGE_DIRECTORY:
         context->priv->localStorageDirectory = g_value_get_string(value);
+        break;
+    case PROP_INDEXED_DB_DIRECTORY:
+        context->priv->indexedDBDirectory = g_value_get_string(value);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, propID, paramSpec);
@@ -266,6 +273,8 @@ static void webkitWebContextConstructed(GObject* object)
     WebKitWebContextPrivate* priv = webContext->priv;
     if (!priv->localStorageDirectory.isNull())
         configuration->setLocalStorageDirectory(WebCore::filenameToString(priv->localStorageDirectory.data()));
+    if (!priv->indexedDBDirectory.isNull())
+        configuration->setIndexedDBDatabaseDirectory(WebCore::filenameToString(priv->indexedDBDirectory.data()));
 
     priv->context = WebProcessPool::create(configuration.get());
 
@@ -328,6 +337,23 @@ static void webkit_web_context_class_init(WebKitWebContextClass* webContextClass
             "local-storage-directory",
             _("Local Storage Directory"),
             _("The directory where local storage data will be saved"),
+            nullptr,
+            static_cast<GParamFlags>(WEBKIT_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY)));
+
+    /**
+     * WebKitWebContext:indexed-db-directory:
+     *
+     * The directory where IndexedDB databases will be saved.
+     *
+     * Since: 2.10
+     */
+    g_object_class_install_property(
+        gObjectClass,
+        PROP_INDEXED_DB_DIRECTORY,
+        g_param_spec_string(
+            "indexed-db-directory",
+            _("IndexedDB Directory"),
+            _("The directory where IndexedDB databases will be saved"),
             nullptr,
             static_cast<GParamFlags>(WEBKIT_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY)));
 
@@ -489,7 +515,8 @@ void webkit_web_context_clear_cache(WebKitWebContext* context)
 {
     g_return_if_fail(WEBKIT_IS_WEB_CONTEXT(context));
 
-    context->priv->context->supplement<WebResourceCacheManagerProxy>()->clearCacheForAllOrigins(AllResourceCaches);
+    // FIXME: https://bugs.webkit.org/show_bug.cgi?id=146041
+    // context->priv->context->supplement<WebResourceCacheManagerProxy>()->clearCacheForAllOrigins(AllResourceCaches);
 }
 
 typedef HashMap<DownloadProxy*, GRefPtr<WebKitDownload> > DownloadsMap;
@@ -1003,7 +1030,12 @@ void webkit_web_context_set_disk_cache_directory(WebKitWebContext* context, cons
     g_return_if_fail(WEBKIT_IS_WEB_CONTEXT(context));
     g_return_if_fail(directory);
 
-    context->priv->context->setDiskCacheDirectory(WebCore::filenameToString(directory));
+#if ENABLE(NETWORK_CACHE)
+    static const char networkCacheSubdirectory[] = "WebKitCache";
+#else
+    static const char networkCacheSubdirectory[] = "webkit";
+#endif
+    context->priv->context->configuration().setDiskCacheDirectory(WebCore::pathByAppendingComponent(WebCore::filenameToString(directory), networkCacheSubdirectory));
 }
 
 /**
@@ -1012,7 +1044,9 @@ void webkit_web_context_set_disk_cache_directory(WebKitWebContext* context, cons
  * @hostname: a hostname to be resolved
  *
  * Resolve the domain name of the given @hostname in advance, so that if a URI
- * of @hostname is requested the load will be performed more quickly.
+ * of @hostname is requested the load will be performed more quickly. This
+ * function does nothing if the system has been configured to use a proxy to
+ * resolve @hostname.
  */
 void webkit_web_context_prefetch_dns(WebKitWebContext* context, const char* hostname)
 {

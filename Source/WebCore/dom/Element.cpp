@@ -48,13 +48,10 @@
 #include "HTMLCanvasElement.h"
 #include "HTMLCollection.h"
 #include "HTMLDocument.h"
-#include "HTMLFormControlsCollection.h"
 #include "HTMLLabelElement.h"
 #include "HTMLNameCollection.h"
-#include "HTMLOptionsCollection.h"
 #include "HTMLParserIdioms.h"
 #include "HTMLSelectElement.h"
-#include "HTMLTableRowsCollection.h"
 #include "HTMLTemplateElement.h"
 #include "IdTargetObserverRegistry.h"
 #include "InsertionPoint.h"
@@ -1377,11 +1374,6 @@ URL Element::absoluteLinkURL() const
     return document().completeURL(stripLeadingAndTrailingHTMLSpaces(linkAttribute));
 }
 
-WeakPtr<Element> Element::createWeakPtr()
-{
-    return ensureElementRareData().weakPtrFactory().createWeakPtr();
-}
-
 // Returns true is the given attribute is an event handler.
 // We consider an event handler any attribute that begins with "on".
 // It is a simple solution that has the advantage of not requiring any
@@ -1640,7 +1632,11 @@ void Element::addShadowRoot(Ref<ShadowRoot>&& newShadowRoot)
     shadowRoot.setParentTreeScope(&treeScope());
     shadowRoot.distributor().didShadowBoundaryChange(this);
 
-    ChildNodeInsertionNotifier(*this).notify(shadowRoot);
+    NodeVector postInsertionNotificationTargets;
+    ChildNodeInsertionNotifier(*this).notify(shadowRoot, postInsertionNotificationTargets);
+
+    for (auto& target : postInsertionNotificationTargets)
+        target->didNotifySubtreeInsertions();
 
     resetNeedsNodeRenderingTraversalSlowPath();
 
@@ -3054,27 +3050,6 @@ void Element::didRemoveAttribute(const QualifiedName& name, const AtomicString& 
     attributeChanged(name, oldValue, nullAtom);
     InspectorInstrumentation::didRemoveDOMAttr(document(), *this, name.localName());
     dispatchSubtreeModifiedEvent();
-}
-
-Ref<HTMLCollection> Element::ensureCachedHTMLCollection(CollectionType type)
-{
-    if (HTMLCollection* collection = cachedHTMLCollection(type))
-        return *collection;
-
-    if (type == TableRows) {
-        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTableRowsCollection>(downcast<HTMLTableElement>(*this), type);
-    } else if (type == SelectOptions) {
-        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLOptionsCollection>(downcast<HTMLSelectElement>(*this), type);
-    } else if (type == FormControls) {
-        ASSERT(hasTagName(formTag) || hasTagName(fieldsetTag));
-        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLFormControlsCollection>(*this, type);
-    }
-    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLCollection>(*this, type);
-}
-
-HTMLCollection* Element::cachedHTMLCollection(CollectionType type)
-{
-    return hasRareData() && rareData()->nodeLists() ? rareData()->nodeLists()->cachedCollection<HTMLCollection>(type) : 0;
 }
 
 IntSize Element::savedLayerScrollOffset() const

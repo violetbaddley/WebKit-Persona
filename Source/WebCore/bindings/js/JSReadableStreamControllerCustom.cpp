@@ -33,7 +33,6 @@
 #if ENABLE(STREAMS_API)
 
 #include "JSDOMBinding.h"
-#include "NotImplemented.h"
 #include "ReadableJSStream.h"
 #include <runtime/Error.h>
 
@@ -45,25 +44,35 @@ JSValue JSReadableStreamController::close(ExecState* exec)
 {
     ReadableJSStream& stream = impl().stream();
     // FIXME: Handle the case of draining.
-    if (stream.internalState() != ReadableStream::State::Readable)
+    if (!stream.isReadable())
         return exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Calling close on a stream which is not readable")));
     stream.changeStateToClosed();
     return jsUndefined();
 }
 
-JSValue JSReadableStreamController::enqueue(ExecState*)
-{
-    notImplemented();
-    return jsBoolean(false);
-}
-
-JSValue JSReadableStreamController::error(ExecState* exec)
+JSValue JSReadableStreamController::enqueue(ExecState* exec)
 {
     ReadableJSStream& stream = impl().stream();
-    if (stream.internalState() != ReadableStream::State::Readable)
-        return exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Calling error on a stream which is not readable")));
-    stream.storeError(*exec);
+    if (stream.isErrored())
+        return exec->vm().throwException(exec, stream.error());
+    if (stream.isCloseRequested())
+        return exec->vm().throwException(exec, createTypeError(exec, ASCIILiteral("Calling enqueue on a stream which is closing")));
+    stream.enqueue(*exec);
     return jsUndefined();
+}
+
+JSValue JSReadableStreamController::error(ExecState* state)
+{
+    ReadableJSStream& stream = impl().stream();
+    if (!stream.isReadable())
+        return state->vm().throwException(state, createTypeError(state, ASCIILiteral("Calling error on a stream which is not readable")));
+    stream.storeError(*state, state->argument(0));
+    return jsUndefined();
+}
+
+EncodedJSValue JSC_HOST_CALL constructJSReadableStreamController(ExecState* exec)
+{
+    return throwVMError(exec, createTypeError(exec, ASCIILiteral("ReadableStreamController constructor should not be called directly")));
 }
 
 } // namespace WebCore

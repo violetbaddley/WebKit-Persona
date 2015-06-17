@@ -45,7 +45,7 @@
 #include <WebCore/PlatformKeyboardEvent.h>
 #include <WebCore/Settings.h>
 #include <WebCore/UserAgentGtk.h>
-#include <wtf/gobject/GUniquePtr.h>
+#include <wtf/glib/GUniquePtr.h>
 
 using namespace WebCore;
 
@@ -86,11 +86,6 @@ void WebPage::updateAccessibilityTree()
 void WebPage::platformPreferencesDidChange(const WebPreferencesStore&)
 {
     notImplemented();
-}
-
-static inline void scroll(Page* page, ScrollDirection direction, ScrollGranularity granularity)
-{
-    page->focusController().focusedOrMainFrame().eventHandler().scrollRecursively(direction, granularity);
 }
 
 bool WebPage::performDefaultBehaviorForKeyEvent(const WebKeyboardEvent& keyboardEvent)

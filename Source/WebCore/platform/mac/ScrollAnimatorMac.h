@@ -115,6 +115,8 @@ private:
     virtual void didAddHorizontalScrollbar(Scrollbar*);
     virtual void willRemoveHorizontalScrollbar(Scrollbar*);
 
+    void invalidateScrollbarPartLayers(Scrollbar*) override;
+
     virtual void verticalScrollbarLayerDidChange();
     virtual void horizontalScrollbarLayerDidChange();
 
@@ -132,7 +134,8 @@ private:
 
     void immediateScrollTo(const FloatPoint&);
 
-    virtual bool isRubberBandInProgress() const override;
+    bool isRubberBandInProgress() const override;
+    bool isScrollSnapInProgress() const override;
 
 #if ENABLE(RUBBER_BANDING)
     /// ScrollControllerClient member functions.

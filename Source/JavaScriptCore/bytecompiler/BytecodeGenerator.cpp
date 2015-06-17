@@ -129,11 +129,10 @@ ParserError BytecodeGenerator::generate()
             continue;
         
         ASSERT(range.tryData->targetScopeDepth != UINT_MAX);
-        UnlinkedHandlerInfo info = {
-            static_cast<uint32_t>(start), static_cast<uint32_t>(end),
-            static_cast<uint32_t>(range.tryData->target->bind()),
-            range.tryData->targetScopeDepth
-        };
+        ASSERT(range.tryData->handlerType != HandlerType::Illegal);
+        UnlinkedHandlerInfo info(static_cast<uint32_t>(start), static_cast<uint32_t>(end),
+            static_cast<uint32_t>(range.tryData->target->bind()), range.tryData->targetScopeDepth,
+            range.tryData->handlerType);
         m_codeBlock->addExceptionHandler(info);
     }
     
@@ -211,7 +210,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
     bool shouldCaptureAllOfTheThings = m_shouldEmitDebugHooks || codeBlock->usesEval();
     bool needsArguments = functionNode->usesArguments() || codeBlock->usesEval();
     
-    auto captures = [&] (StringImpl* uid) -> bool {
+    auto captures = [&] (UniquedStringImpl* uid) -> bool {
         if (shouldCaptureAllOfTheThings)
             return true;
         if (!shouldCaptureSomeOfTheThings)
@@ -225,7 +224,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
         }
         return functionNode->captures(uid);
     };
-    auto varKind = [&] (StringImpl* uid) -> VarKind {
+    auto varKind = [&] (UniquedStringImpl* uid) -> VarKind {
         return captures(uid) ? VarKind::Scope : VarKind::Stack;
     };
 
@@ -315,7 +314,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
             for (unsigned i = 0; i < parameters.size(); ++i) {
                 ScopeOffset offset = m_symbolTable->takeNextScopeOffset();
                 m_symbolTable->setArgumentOffset(vm, i, offset);
-                if (StringImpl* name = visibleNameForParameter(parameters.at(i))) {
+                if (UniquedStringImpl* name = visibleNameForParameter(parameters.at(i))) {
                     VarOffset varOffset(offset);
                     SymbolTableEntry entry(varOffset);
                     // Stores to these variables via the ScopedArguments object will not do
@@ -343,7 +342,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
             // We're going to put all parameters into the DirectArguments object. First ensure
             // that the symbol table knows that this is happening.
             for (unsigned i = 0; i < parameters.size(); ++i) {
-                if (StringImpl* name = visibleNameForParameter(parameters.at(i)))
+                if (UniquedStringImpl* name = visibleNameForParameter(parameters.at(i)))
                     m_symbolTable->set(name, SymbolTableEntry(VarOffset(DirectArgumentsOffset(i))));
             }
             
@@ -354,7 +353,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
         // Create the formal parameters the normal way. Any of them could be captured, or not. If
         // captured, lift them into the scope.
         for (unsigned i = 0; i < parameters.size(); ++i) {
-            StringImpl* name = visibleNameForParameter(parameters.at(i));
+            UniquedStringImpl* name = visibleNameForParameter(parameters.at(i));
             if (!name)
                 continue;
             
@@ -466,7 +465,7 @@ BytecodeGenerator::BytecodeGenerator(VM& vm, FunctionNode* functionNode, Unlinke
         
         bool haveParameterNamedArguments = false;
         for (unsigned i = 0; i < parameters.size(); ++i) {
-            StringImpl* name = visibleNameForParameter(parameters.at(i));
+            UniquedStringImpl* name = visibleNameForParameter(parameters.at(i));
             if (name == propertyNames().arguments.impl()) {
                 haveParameterNamedArguments = true;
                 break;
@@ -546,7 +545,7 @@ RegisterID* BytecodeGenerator::initializeNextParameter()
     return &parameter;
 }
 
-StringImpl* BytecodeGenerator::visibleNameForParameter(DeconstructionPatternNode* pattern)
+UniquedStringImpl* BytecodeGenerator::visibleNameForParameter(DeconstructionPatternNode* pattern)
 {
     if (pattern->isBindingNode()) {
         const Identifier& ident = static_cast<const BindingNode*>(pattern)->boundProperty();
@@ -955,13 +954,13 @@ PassRefPtr<Label> BytecodeGenerator::emitJumpIfNotFunctionApply(RegisterID* cond
 
 bool BytecodeGenerator::hasConstant(const Identifier& ident) const
 {
-    StringImpl* rep = ident.impl();
+    UniquedStringImpl* rep = ident.impl();
     return m_identifierMap.contains(rep);
 }
 
 unsigned BytecodeGenerator::addConstant(const Identifier& ident)
 {
-    StringImpl* rep = ident.impl();
+    UniquedStringImpl* rep = ident.impl();
     IdentifierMap::AddResult result = m_identifierMap.add(rep, m_codeBlock->numberOfIdentifiers());
     if (result.isNewEntry)
         m_codeBlock->addIdentifier(ident);
@@ -1531,6 +1530,7 @@ RegisterID* BytecodeGenerator::emitPutById(RegisterID* base, const Identifier& p
 
 RegisterID* BytecodeGenerator::emitDirectPutById(RegisterID* base, const Identifier& property, RegisterID* value, PropertyNode::PutType putType)
 {
+    ASSERT(!parseIndex(property));
     unsigned propertyIndex = addConstant(property);
 
     m_staticPropertyAnalyzer.putById(base->index(), propertyIndex);
@@ -1545,7 +1545,7 @@ RegisterID* BytecodeGenerator::emitDirectPutById(RegisterID* base, const Identif
     instructions().append(0);
     instructions().append(0);
     instructions().append(0);
-    instructions().append(putType == PropertyNode::KnownDirect || (property != m_vm->propertyNames->underscoreProto && !parseIndex(property)));
+    instructions().append(putType == PropertyNode::KnownDirect || property != m_vm->propertyNames->underscoreProto);
     return value;
 }
 
@@ -1843,9 +1843,9 @@ RegisterID* BytecodeGenerator::emitCallEval(RegisterID* dst, RegisterID* func, C
 
 ExpectedFunction BytecodeGenerator::expectedFunctionForIdentifier(const Identifier& identifier)
 {
-    if (identifier == m_vm->propertyNames->Object)
+    if (identifier == m_vm->propertyNames->Object || identifier == m_vm->propertyNames->ObjectPrivateName)
         return ExpectObjectConstructor;
-    if (identifier == m_vm->propertyNames->Array)
+    if (identifier == m_vm->propertyNames->Array || identifier == m_vm->propertyNames->ArrayPrivateName)
         return ExpectArrayConstructor;
     return NoExpectedFunction;
 }
@@ -2515,6 +2515,7 @@ TryData* BytecodeGenerator::pushTry(Label* start)
     TryData tryData;
     tryData.target = newLabel();
     tryData.targetScopeDepth = UINT_MAX;
+    tryData.handlerType = HandlerType::Illegal;
     m_tryData.append(tryData);
     TryData* result = &m_tryData.last();
     
@@ -2527,7 +2528,7 @@ TryData* BytecodeGenerator::pushTry(Label* start)
     return result;
 }
 
-RegisterID* BytecodeGenerator::popTryAndEmitCatch(TryData* tryData, RegisterID* targetRegister, Label* end)
+void BytecodeGenerator::popTryAndEmitCatch(TryData* tryData, RegisterID* exceptionRegister, RegisterID* thrownValueRegister, Label* end, HandlerType handlerType)
 {
     m_usesExceptions = true;
     
@@ -2542,10 +2543,11 @@ RegisterID* BytecodeGenerator::popTryAndEmitCatch(TryData* tryData, RegisterID* 
     
     emitLabel(tryRange.tryData->target.get());
     tryRange.tryData->targetScopeDepth = m_localScopeDepth;
+    tryRange.tryData->handlerType = handlerType;
 
     emitOpcode(op_catch);
-    instructions().append(targetRegister->index());
-    return targetRegister;
+    instructions().append(exceptionRegister->index());
+    instructions().append(thrownValueRegister->index());
 }
 
 void BytecodeGenerator::emitThrowReferenceError(const String& message)
@@ -2758,7 +2760,11 @@ void BytecodeGenerator::emitEnumeration(ThrowableExpressionData* node, Expressio
         // IteratorClose sequence for throw-ed control flow.
         {
             RefPtr<Label> catchHere = emitLabel(newLabel().get());
-            RefPtr<RegisterID> exceptionRegister = popTryAndEmitCatch(tryData, newTemporary(), catchHere.get());
+            RefPtr<RegisterID> exceptionRegister = newTemporary();
+            RefPtr<RegisterID> thrownValueRegister = newTemporary();
+            popTryAndEmitCatch(tryData, exceptionRegister.get(),
+                thrownValueRegister.get(), catchHere.get(), HandlerType::SynthesizedFinally);
+
             RefPtr<Label> catchDone = newLabel();
 
             RefPtr<RegisterID> returnMethod = emitGetById(newTemporary(), iterator.get(), propertyNames().returnKeyword);
@@ -2776,7 +2782,8 @@ void BytecodeGenerator::emitEnumeration(ThrowableExpressionData* node, Expressio
             emitThrow(exceptionRegister.get());
 
             // Absorb exception.
-            popTryAndEmitCatch(returnCallTryData, newTemporary(), catchDone.get());
+            popTryAndEmitCatch(returnCallTryData, newTemporary(),
+                newTemporary(), catchDone.get(), HandlerType::SynthesizedFinally);
             emitThrow(exceptionRegister.get());
         }
 
@@ -2808,6 +2815,7 @@ void BytecodeGenerator::emitEnumeration(ThrowableExpressionData* node, Expressio
     emitLabel(loopDone.get());
 }
 
+#if ENABLE(ES6_TEMPLATE_LITERAL_SYNTAX)
 RegisterID* BytecodeGenerator::emitGetTemplateObject(RegisterID* dst, TaggedTemplateNode* taggedTemplate)
 {
     TemplateRegistryKey::StringVector rawStrings;
@@ -2834,6 +2842,7 @@ RegisterID* BytecodeGenerator::emitGetTemplateObject(RegisterID* dst, TaggedTemp
     emitLoad(arguments.thisRegister(), JSValue(addTemplateRegistryKeyConstant(TemplateRegistryKey(rawStrings, cookedStrings))));
     return emitCall(dst, getTemplateObject.get(), NoExpectedFunction, arguments, taggedTemplate->divot(), taggedTemplate->divotStart(), taggedTemplate->divotEnd());
 }
+#endif
 
 RegisterID* BytecodeGenerator::emitGetEnumerableLength(RegisterID* dst, RegisterID* base)
 {

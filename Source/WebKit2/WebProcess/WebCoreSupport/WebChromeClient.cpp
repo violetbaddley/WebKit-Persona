@@ -27,6 +27,7 @@
 #include "config.h"
 #include "WebChromeClient.h"
 
+#include "APIArray.h"
 #include "APISecurityOrigin.h"
 #include "DrawingArea.h"
 #include "InjectedBundleNavigationAction.h"
@@ -915,9 +916,9 @@ bool WebChromeClient::supportsVideoFullscreen()
     return m_page->videoFullscreenManager()->supportsVideoFullscreen();
 }
 
-void WebChromeClient::enterVideoFullscreenForVideoElement(WebCore::HTMLVideoElement& videoElement, WebCore::HTMLMediaElement::VideoFullscreenMode mode)
+void WebChromeClient::enterVideoFullscreenForVideoElement(WebCore::HTMLVideoElement& videoElement, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode)
 {
-    ASSERT(mode != HTMLMediaElement::VideoFullscreenModeNone);
+    ASSERT(mode != HTMLMediaElementEnums::VideoFullscreenModeNone);
     m_page->videoFullscreenManager()->enterVideoFullscreenForVideoElement(videoElement, mode);
 }
 

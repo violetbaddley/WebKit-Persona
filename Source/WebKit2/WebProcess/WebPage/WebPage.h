@@ -74,7 +74,7 @@
 
 #if HAVE(ACCESSIBILITY) && (PLATFORM(GTK) || PLATFORM(EFL))
 #include "WebPageAccessibilityObject.h"
-#include <wtf/gobject/GRefPtr.h>
+#include <wtf/glib/GRefPtr.h>
 #endif
 
 #if PLATFORM(GTK)
@@ -153,6 +153,7 @@ class VisibleContentRectUpdateInfo;
 class WebColorChooser;
 class WebContextMenu;
 class WebContextMenuItemData;
+class WebDocumentLoader;
 class WebEvent;
 class WebFrame;
 class WebFullScreenManager;
@@ -253,6 +254,8 @@ public:
     void didStartPageTransition();
     void didCompletePageTransition();
     void didCommitLoad(WebFrame*);
+    void willReplaceMultipartContent(const WebFrame&);
+    void didReplaceMultipartContent(const WebFrame&);
     void didFinishLoad(WebFrame*);
     void show();
     String userAgent(const WebCore::URL&) const;
@@ -551,6 +554,9 @@ public:
     void disableInspectorNodeSearch();
 #endif
 
+    void setLayerTreeStateIsFrozen(bool);
+    bool markLayersVolatileImmediatelyIfPossible();
+
     NotificationPermissionRequestManager* notificationPermissionRequestManager();
 
     void pageDidScroll();
@@ -735,6 +741,10 @@ public:
     void setMuted(bool);
     void setMayStartMediaWhenInWindow(bool);
 
+#if ENABLE(MEDIA_SESSION)
+    void handleMediaEvent(uint32_t /* WebCore::MediaEventType */);
+#endif
+
     void updateMainFrameScrollOffsetPinning();
 
     bool mainFrameHasCustomContentProvider() const;
@@ -786,12 +796,10 @@ public:
     void updateVisibleContentRects(const VisibleContentRectUpdateInfo&, double oldestTimestamp);
     bool scaleWasSetByUIProcess() const { return m_scaleWasSetByUIProcess; }
     void willStartUserTriggeredZooming();
-
     void applicationWillResignActive();
+    void applicationDidEnterBackground();
     void applicationWillEnterForeground();
-    void applicationDidEnterBackground(uint64_t callbackID);
     void applicationDidBecomeActive();
-
     void zoomToRect(WebCore::FloatRect, double minimumScale, double maximumScale);
     void completePendingSyntheticClickForContentChangeObserver();
 #endif
@@ -864,6 +872,7 @@ public:
     void setScrollbarOverlayStyle(WTF::Optional<uint32_t /* WebCore::ScrollbarOverlayStyle */> scrollbarStyle);
 
     PassRefPtr<WebCore::DocumentLoader> createDocumentLoader(WebCore::Frame&, const WebCore::ResourceRequest&, const WebCore::SubstituteData&);
+    void updateCachedDocumentLoader(WebDocumentLoader&, WebCore::Frame&);
 
     void getBytecodeProfile(uint64_t callbackID);
     
@@ -919,6 +928,7 @@ private:
     void sendTapHighlightForNodeIfNecessary(uint64_t requestID, WebCore::Node*);
     void resetTextAutosizingBeforeLayoutIfNeeded(const WebCore::FloatSize& oldSize, const WebCore::FloatSize& newSize);
     WebCore::VisiblePosition visiblePositionInFocusedNodeForPoint(WebCore::Frame&, const WebCore::IntPoint&);
+    void volatilityTimerFired();
 #endif
 #if !PLATFORM(COCOA)
     static const char* interpretKeyEvent(const WebCore::KeyboardEvent*);
@@ -938,13 +948,13 @@ private:
 
     // Actions
     void tryClose();
-    void loadRequest(uint64_t navigationID, const WebCore::ResourceRequest&, const SandboxExtension::Handle&, const UserData&);
-    void loadData(const IPC::DataReference&, const String& MIMEType, const String& encodingName, const String& baseURL, const UserData&);
+    void loadRequest(uint64_t navigationID, const WebCore::ResourceRequest&, const SandboxExtension::Handle&, uint64_t shouldOpenExternalURLsPolicy, const UserData&);
+    void loadData(uint64_t navigationID, const IPC::DataReference&, const String& MIMEType, const String& encodingName, const String& baseURL, const UserData&);
     void loadHTMLString(uint64_t navigationID, const String& htmlString, const String& baseURL, const UserData&);
     void loadAlternateHTMLString(const String& htmlString, const String& baseURL, const String& unreachableURL, const String& provisionalLoadErrorURL, const UserData&);
     void loadPlainTextString(const String&, const UserData&);
     void loadWebArchiveData(const IPC::DataReference&, const UserData&);
-    void navigateToURLWithSimulatedClick(const String& url, WebCore::IntPoint documentPoint, WebCore::IntPoint screenPoint);
+    void navigateToPDFLinkWithSimulatedClick(const String& url, WebCore::IntPoint documentPoint, WebCore::IntPoint screenPoint);
     void reload(uint64_t navigationID, bool reloadFromOrigin, const SandboxExtension::Handle&);
     void goForward(uint64_t navigationID, uint64_t);
     void goBack(uint64_t navigationID, uint64_t);
@@ -1105,10 +1115,8 @@ private:
     void reportUsedFeatures();
 
 #if PLATFORM(MAC)
-    void performActionMenuHitTestAtLocation(WebCore::FloatPoint, bool forImmediateAction);
+    void performImmediateActionHitTestAtLocation(WebCore::FloatPoint);
     PassRefPtr<WebCore::Range> lookupTextAtLocation(WebCore::FloatPoint, NSDictionary **options);
-    void selectLastActionMenuRange();
-    void focusAndSelectLastActionMenuHitTestResult();
     void immediateActionDidUpdate();
     void immediateActionDidCancel();
     void immediateActionDidComplete();
@@ -1128,6 +1136,8 @@ private:
 #endif
 
     void clearWheelEventTestTrigger();
+
+    void setShouldScaleViewToFitDocument(bool);
 
     uint64_t m_pageID;
 
@@ -1340,6 +1350,8 @@ private:
     HashMap<std::pair<WebCore::IntSize, double>, WebCore::IntPoint> m_dynamicSizeUpdateHistory;
     RefPtr<WebCore::Node> m_pendingSyntheticClickNode;
     WebCore::FloatPoint m_pendingSyntheticClickLocation;
+    WebCore::FloatRect m_previousExposedContentRect;
+    WebCore::Timer m_volatilityTimer;
 #endif
 
     WebInspectorClient* m_inspectorClient;
@@ -1365,12 +1377,6 @@ private:
 
 #if ENABLE(WEBGL)
     WebCore::WebGLLoadPolicy m_systemWebGLPolicy;
-#endif
-
-#if PLATFORM(MAC)
-    RefPtr<WebCore::Range> m_lastActionMenuRangeForSelection;
-    WebCore::HitTestResult m_lastActionMenuHitTestResult;
-    RefPtr<WebPageOverlay> m_lastActionMenuHitPageOverlay;
 #endif
 
     bool m_mainFrameProgressCompleted;

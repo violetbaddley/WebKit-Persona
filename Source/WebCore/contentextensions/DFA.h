@@ -39,6 +39,7 @@ namespace ContentExtensions {
 // The DFA abstract a partial DFA graph in a compact form.
 struct WEBCORE_EXPORT DFA {
     void minimize();
+    unsigned graphSize() const;
     size_t memoryUsed() const;
 
 #if CONTENT_EXTENSIONS_STATE_MACHINE_DEBUGGING
@@ -46,8 +47,8 @@ struct WEBCORE_EXPORT DFA {
 #endif
     
     Vector<uint64_t> actions;
-    // FIXME: transitions could be two Vectors to save even more memory.
-    Vector<std::pair<uint8_t, uint32_t>> transitions;
+    Vector<uint8_t> transitionCharacters;
+    Vector<uint32_t> transitionDestinations;
     Vector<DFANode> nodes;
     unsigned root { 0 };
 };

@@ -142,11 +142,9 @@
       <dep package="glib-networking"/>
       <dep package="libxml2"/>
     </dependencies>
-    <branch module="/pub/gnome/sources/libsoup/2.42/libsoup-2.42.0.tar.xz" version="2.42.0"
+    <branch module="/pub/gnome/sources/libsoup/2.50/libsoup-2.50.0.tar.xz" version="2.50.0"
             repo="ftp.gnome.org"
-            hash="sha256:9e0e7eb5d3f7401ccf521fbc289fc1fa0923b7c7833729e2ed7696f7b848893e">
-      <patch file="soup-clang-warning-fix1.patch" strip="1"/>
-      <patch file="soup-clang-warning-fix2.patch" strip="1"/>
+            hash="sha256:1e01365ac4af3817187ea847f9d3588c27eee01fc519a5a7cb212bb78b0f667b">
     </branch>
   </autotools>
 
@@ -315,9 +313,9 @@
   </autotools>
 
   <autotools id="libusrsctp" autogen-sh="./bootstrap; ./configure">
-    <branch repo="github.com" module="ossy-szeged/sctp-refimpl/archive/libusrsctp-r9168.tar.gz" version="r9168" checkoutdir="libusrsctp"
-            hash="sha256:c1947e6a67fdc0d12f9f078265141125d0df019c7189d60e24f2331f4b6aaec2"
-            md5sum="468386780c94370b1fb9b446ae3011ad" size="629523">
+    <branch repo="github.com" module="ossy-szeged/sctp-refimpl/archive/libusrsctp-r9168c.tar.gz" version="r9168" checkoutdir="libusrsctp"
+            hash="sha256:5f8913e07dd48ddec71a38f7654b16a1f0c776ab9d491ece624fddd7cefc0e71"
+            md5sum="1cbb17cc8cbe518f7e0a99745b232936" size="629581">
     </branch>
   </autotools>
 

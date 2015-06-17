@@ -58,8 +58,8 @@ list(APPEND WebKit2_SOURCES
     Shared/cairo/ShareableBitmapCairo.cpp
 
     Shared/gtk/ArgumentCodersGtk.cpp
-    Shared/gtk/KeyedEncoder.cpp
     Shared/gtk/KeyedDecoder.cpp
+    Shared/gtk/KeyedEncoder.cpp
     Shared/gtk/NativeContextMenuItemGtk.cpp
     Shared/gtk/NativeWebKeyboardEventGtk.cpp
     Shared/gtk/NativeWebMouseEventGtk.cpp
@@ -84,9 +84,6 @@ list(APPEND WebKit2_SOURCES
     Shared/unix/ChildProcessMain.cpp
 
     UIProcess/BackingStore.cpp
-
-    UIProcess/Databases/gtk/DatabaseProcessProxyGtk.cpp
-
     UIProcess/DefaultUndoController.cpp
     UIProcess/DrawingAreaProxyImpl.cpp
 
@@ -177,14 +174,14 @@ list(APPEND WebKit2_SOURCES
     UIProcess/API/gtk/WebKitNavigationPolicyDecision.cpp
     UIProcess/API/gtk/WebKitNavigationPolicyDecision.h
     UIProcess/API/gtk/WebKitNavigationPolicyDecisionPrivate.h
+    UIProcess/API/gtk/WebKitNotification.cpp
+    UIProcess/API/gtk/WebKitNotification.h
     UIProcess/API/gtk/WebKitNotificationPermissionRequest.cpp
     UIProcess/API/gtk/WebKitNotificationPermissionRequest.h
     UIProcess/API/gtk/WebKitNotificationPermissionRequestPrivate.h
+    UIProcess/API/gtk/WebKitNotificationPrivate.h
     UIProcess/API/gtk/WebKitNotificationProvider.cpp
     UIProcess/API/gtk/WebKitNotificationProvider.h
-    UIProcess/API/gtk/WebKitNotification.cpp
-    UIProcess/API/gtk/WebKitNotification.h
-    UIProcess/API/gtk/WebKitNotificationPrivate.h
     UIProcess/API/gtk/WebKitPermissionRequest.cpp
     UIProcess/API/gtk/WebKitPermissionRequest.h
     UIProcess/API/gtk/WebKitPlugin.cpp
@@ -225,12 +222,12 @@ list(APPEND WebKit2_SOURCES
     UIProcess/API/gtk/WebKitURISchemeRequest.cpp
     UIProcess/API/gtk/WebKitURISchemeRequest.h
     UIProcess/API/gtk/WebKitURISchemeRequestPrivate.h
-    UIProcess/API/gtk/WebKitUserContent.h
     UIProcess/API/gtk/WebKitUserContent.cpp
-    UIProcess/API/gtk/WebKitUserContentPrivate.h
+    UIProcess/API/gtk/WebKitUserContent.h
+    UIProcess/API/gtk/WebKitUserContentManager.cpp
     UIProcess/API/gtk/WebKitUserContentManager.h
     UIProcess/API/gtk/WebKitUserContentManagerPrivate.h
-    UIProcess/API/gtk/WebKitUserContentManager.cpp
+    UIProcess/API/gtk/WebKitUserContentPrivate.h
     UIProcess/API/gtk/WebKitUserMediaPermissionRequest.cpp
     UIProcess/API/gtk/WebKitUserMediaPermissionRequest.h
     UIProcess/API/gtk/WebKitUserMediaPermissionRequestPrivate.h
@@ -258,6 +255,8 @@ list(APPEND WebKit2_SOURCES
     UIProcess/API/gtk/WebKitWindowPropertiesPrivate.h
     UIProcess/API/gtk/webkit2.h
 
+    UIProcess/Databases/gtk/DatabaseProcessProxyGtk.cpp
+
     UIProcess/InspectorServer/gtk/WebInspectorServerGtk.cpp
 
     UIProcess/InspectorServer/soup/WebSocketServerSoup.cpp
@@ -265,8 +264,10 @@ list(APPEND WebKit2_SOURCES
     UIProcess/Launcher/gtk/ProcessLauncherGtk.cpp
 
     UIProcess/Network/CustomProtocols/soup/CustomProtocolManagerProxySoup.cpp
-    UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManagerClient.cpp
     UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManager.cpp
+    UIProcess/Network/CustomProtocols/soup/WebSoupCustomProtocolRequestManagerClient.cpp
+
+    UIProcess/Network/soup/NetworkProcessProxySoup.cpp
 
     UIProcess/Plugins/gtk/PluginInfoCache.cpp
 
@@ -281,6 +282,7 @@ list(APPEND WebKit2_SOURCES
     UIProcess/gtk/ExperimentalFeatures.cpp
     UIProcess/gtk/GestureController.cpp
     UIProcess/gtk/InputMethodFilter.cpp
+    UIProcess/gtk/KeyBindingTranslator.cpp
     UIProcess/gtk/RedirectedXCompositeWindow.cpp
     UIProcess/gtk/TextCheckerGtk.cpp
     UIProcess/gtk/WebColorPickerGtk.cpp
@@ -294,7 +296,6 @@ list(APPEND WebKit2_SOURCES
     UIProcess/gtk/WebProcessPoolGtk.cpp
     UIProcess/gtk/WebProcessProxyGtk.cpp
 
-    UIProcess/Network/soup/NetworkProcessProxySoup.cpp
     UIProcess/soup/WebCookieManagerProxySoup.cpp
     UIProcess/soup/WebProcessPoolSoup.cpp
 
@@ -336,7 +337,6 @@ list(APPEND WebKit2_SOURCES
     WebProcess/gtk/WebGtkInjectedBundleMain.cpp
     WebProcess/gtk/WebProcessMainGtk.cpp
 
-    WebProcess/soup/WebKitSoupRequestGeneric.cpp
     WebProcess/soup/WebKitSoupRequestInputStream.cpp
     WebProcess/soup/WebProcessSoup.cpp
 )
@@ -411,7 +411,7 @@ set(WebKit2WebExtension_INSTALLED_HEADERS
     ${WEBKIT2_DIR}/WebProcess/InjectedBundle/API/gtk/webkit-web-extension.h
 )
 
-file(GLOB InspectorFiles
+set(InspectorFiles
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/*.html
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Base/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Controllers/*.css
@@ -426,6 +426,11 @@ file(GLOB InspectorFiles
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Views/*.js
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/gtk/*.png
     ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/UserInterface/Images/gtk/*.svg
+    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/Localizations/en.lproj/localizedStrings.js
+)
+
+file(GLOB InspectorFilesDependencies
+    ${InspectorFiles}
 )
 
 # DerivedSources/JavaScriptCore/inspector/InspectorBackendCommands.js is
@@ -434,11 +439,6 @@ add_custom_command(
     OUTPUT ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
     DEPENDS ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/inspector/InspectorBackendCommands.js
     COMMAND cp ${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}/inspector/InspectorBackendCommands.js ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
-)
-
-list(APPEND InspectorFiles
-    ${CMAKE_SOURCE_DIR}/Source/WebInspectorUI/Localizations/en.lproj/localizedStrings.js
-    ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
 )
 
 # This is necessary because of a conflict between the GTK+ API WebKitVersion.h and one generated by WebCore.
@@ -484,9 +484,12 @@ list(APPEND WebKit2_INCLUDE_DIRECTORIES
     "${WEBKIT2_DIR}/WebProcess/WebCoreSupport/soup"
     "${WEBKIT2_DIR}/WebProcess/WebPage/atk"
     "${WEBKIT2_DIR}/WebProcess/WebPage/gtk"
-    "${WTF_DIR}/wtf/gtk/"
-    "${WTF_DIR}/wtf/gobject"
-    ${WTF_DIR}
+    "${WTF_DIR}/wtf/gtk"
+    "${WTF_DIR}/wtf/glib"
+    "${WTF_DIR}"
+)
+
+list(APPEND WebKit2_SYSTEM_INCLUDE_DIRECTORIES
     ${CAIRO_INCLUDE_DIRS}
     ${ENCHANT_INCLUDE_DIRS}
     ${GEOCLUE_INCLUDE_DIRS}
@@ -495,14 +498,15 @@ list(APPEND WebKit2_INCLUDE_DIRECTORIES
 )
 
 if (USE_LIBNOTIFY)
-list(APPEND WebKit2_INCLUDE_DIRECTORIES
+list(APPEND WebKit2_SYSTEM_INCLUDE_DIRECTORIES
     ${LIBNOTIFY_INCLUDE_DIRS}
 )
 endif ()
 
 set(WebKit2CommonIncludeDirectories ${WebKit2_INCLUDE_DIRECTORIES})
+set(WebKit2CommonSystemIncludeDirectories ${WebKit2_SYSTEM_INCLUDE_DIRECTORIES})
 
-list(APPEND WebKit2_INCLUDE_DIRECTORIES
+list(APPEND WebKit2_SYSTEM_INCLUDE_DIRECTORIES
     ${GLIB_INCLUDE_DIRS}
     ${GTK_INCLUDE_DIRS}
     ${GTK_UNIX_PRINT_INCLUDE_DIRS}
@@ -575,9 +579,10 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${DERIVED_SOURCES_WEBKIT2GTK_DIR}/InspectorGResourceBundle.xml
-    DEPENDS ${InspectorFiles}
+    DEPENDS ${InspectorFilesDependencies}
+            ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
             ${TOOLS_DIR}/gtk/generate-inspector-gresource-manifest.py
-    COMMAND ${TOOLS_DIR}/gtk/generate-inspector-gresource-manifest.py --output=${DERIVED_SOURCES_WEBKIT2GTK_DIR}/InspectorGResourceBundle.xml ${InspectorFiles}
+    COMMAND ${TOOLS_DIR}/gtk/generate-inspector-gresource-manifest.py --output=${DERIVED_SOURCES_WEBKIT2GTK_DIR}/InspectorGResourceBundle.xml ${InspectorFiles} ${DERIVED_SOURCES_WEBINSPECTORUI_DIR}/UserInterface/Protocol/InspectorBackendCommands.js
     VERBATIM
 )
 
@@ -661,12 +666,12 @@ if (ENABLE_PLUGIN_PROCESS_GTK2)
 
         Platform/unix/SharedMemoryUnix.cpp
 
-        PluginProcess/EntryPoint/unix/PluginProcessMain.cpp
-
         PluginProcess/PluginControllerProxy.cpp
         PluginProcess/PluginCreationParameters.cpp
         PluginProcess/PluginProcess.cpp
         PluginProcess/WebProcessConnection.cpp
+
+        PluginProcess/EntryPoint/unix/PluginProcessMain.cpp
 
         PluginProcess/unix/PluginControllerProxyUnix.cpp
         PluginProcess/unix/PluginProcessMainUnix.cpp
@@ -731,8 +736,8 @@ if (ENABLE_PLUGIN_PROCESS_GTK2)
         ${DERIVED_SOURCES_WEBKIT2_DIR}/PluginControllerProxyMessageReceiver.cpp
         ${DERIVED_SOURCES_WEBKIT2_DIR}/PluginProcessMessageReceiver.cpp
         ${DERIVED_SOURCES_WEBKIT2_DIR}/WebProcessConnectionMessageReceiver.cpp
-
         ${DERIVED_SOURCES_WEBKIT2_DIR}/NPObjectMessageReceiverMessageReceiver.cpp
+        ${DERIVED_SOURCES_WEBKIT2_DIR}/ChildProcessMessageReceiver.cpp
     )
 
     add_executable(WebKitPluginProcess2 ${PluginProcessGTK2_SOURCES})
@@ -745,13 +750,13 @@ if (ENABLE_PLUGIN_PROCESS_GTK2)
         APPEND
         PROPERTY COMPILE_DEFINITIONS GTK_API_VERSION_2=1
     )
-    set_property(
-        TARGET WebKitPluginProcess2
-        APPEND
-        PROPERTY INCLUDE_DIRECTORIES
-            ${WebKit2CommonIncludeDirectories}
-            ${GTK2_INCLUDE_DIRS}
-            ${GDK2_INCLUDE_DIRS}
+    target_include_directories(WebKitPluginProcess2 PRIVATE
+        ${WebKit2CommonIncludeDirectories}
+    )
+    target_include_directories(WebKitPluginProcess2 SYSTEM PRIVATE
+         ${WebKit2CommonSystemIncludeDirectories}
+         ${GTK2_INCLUDE_DIRS}
+         ${GDK2_INCLUDE_DIRS}
     )
 
     set(WebKitPluginProcess2_LIBRARIES
@@ -776,8 +781,10 @@ if (ENABLE_THREADED_COMPOSITOR)
         Shared/CoordinatedGraphics/CoordinatedBackingStore.cpp
         Shared/CoordinatedGraphics/CoordinatedGraphicsScene.cpp
         Shared/CoordinatedGraphics/SimpleViewportController.cpp
-        Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.cpp
+
         Shared/CoordinatedGraphics/threadedcompositor/ThreadSafeCoordinatedSurface.cpp
+        Shared/CoordinatedGraphics/threadedcompositor/ThreadedCompositor.cpp
+
         WebProcess/WebPage/CoordinatedGraphics/ThreadedCoordinatedLayerTreeHost.cpp
     )
     list(APPEND WebKit2_INCLUDE_DIRECTORIES
@@ -992,6 +999,6 @@ add_custom_target(WebKit2-fake-api-headers
 )
 
 set(WEBKIT2_EXTRA_DEPENDENCIES
-     WebKit2-forwarding-headers
      WebKit2-fake-api-headers
+     WebKit2-forwarding-headers
 )

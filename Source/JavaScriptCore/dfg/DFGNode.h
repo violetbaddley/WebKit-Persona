@@ -190,7 +190,7 @@ struct CallVarargsData {
 };
 
 struct LoadVarargsData {
-    VirtualRegister start; // Local for the first element.
+    VirtualRegister start; // Local for the first element. This is the first actual argument, not this.
     VirtualRegister count; // Local for the count.
     VirtualRegister machineStart;
     VirtualRegister machineCount;
@@ -830,13 +830,7 @@ struct Node {
 
     bool isStoreBarrier()
     {
-        switch (op()) {
-        case StoreBarrier:
-        case StoreBarrierWithNullCheck:
-            return true;
-        default:
-            return false;
-        }
+        return op() == StoreBarrier;
     }
 
     bool hasIdentifier()
@@ -1288,6 +1282,8 @@ struct Node {
         case NativeConstruct:
         case NativeCall:
         case NewFunction:
+        case CreateActivation:
+        case MaterializeCreateActivation:
             return true;
         default:
             return false;
@@ -1297,7 +1293,13 @@ struct Node {
     FrozenValue* cellOperand()
     {
         ASSERT(hasCellOperand());
-        return reinterpret_cast<FrozenValue*>(m_opInfo);
+        switch (op()) {
+        case MaterializeCreateActivation:
+            return reinterpret_cast<FrozenValue*>(m_opInfo2);
+        default:
+            return reinterpret_cast<FrozenValue*>(m_opInfo);
+        }
+        RELEASE_ASSERT_NOT_REACHED();
     }
     
     template<typename T>
@@ -1319,6 +1321,7 @@ struct Node {
     
     WatchpointSet* watchpointSet()
     {
+        ASSERT(hasWatchpointSet());
         return reinterpret_cast<WatchpointSet*>(m_opInfo);
     }
     
@@ -1329,6 +1332,7 @@ struct Node {
     
     void* storagePointer()
     {
+        ASSERT(hasStoragePointer());
         return reinterpret_cast<void*>(m_opInfo);
     }
 
@@ -1410,6 +1414,7 @@ struct Node {
     
     MultiGetByOffsetData& multiGetByOffsetData()
     {
+        ASSERT(hasMultiGetByOffsetData());
         return *reinterpret_cast<MultiGetByOffsetData*>(m_opInfo);
     }
     
@@ -1420,6 +1425,7 @@ struct Node {
     
     MultiPutByOffsetData& multiPutByOffsetData()
     {
+        ASSERT(hasMultiPutByOffsetData());
         return *reinterpret_cast<MultiPutByOffsetData*>(m_opInfo);
     }
     
@@ -1756,6 +1762,11 @@ struct Node {
         return isDoubleSpeculation(prediction());
     }
     
+    bool shouldSpeculateDoubleReal()
+    {
+        return isDoubleRealSpeculation(prediction());
+    }
+    
     bool shouldSpeculateNumber()
     {
         return isFullNumberSpeculation(prediction());
@@ -1993,13 +2004,25 @@ struct Node {
         return canSpeculateInt52(sourceFor(pass));
     }
 
+    bool hasTypeLocation()
+    {
+        return op() == ProfileType;
+    }
+
     TypeLocation* typeLocation()
     {
+        ASSERT(hasTypeLocation());
         return reinterpret_cast<TypeLocation*>(m_opInfo);
+    }
+
+    bool hasBasicBlockLocation()
+    {
+        return op() == ProfileControlFlow;
     }
 
     BasicBlockLocation* basicBlockLocation()
     {
+        ASSERT(hasBasicBlockLocation());
         return reinterpret_cast<BasicBlockLocation*>(m_opInfo);
     }
     

@@ -116,6 +116,7 @@ public:
     // DOMTimers throttling testing.
     bool isTimerThrottled(int timeoutId, ExceptionCode&);
     bool isRequestAnimationFrameThrottled() const;
+    bool areTimersThrottled() const;
 
     // Spatial Navigation testing.
     unsigned lastSpatialNavigationCandidateCount(ExceptionCode&) const;
@@ -189,6 +190,9 @@ public:
 
     Vector<String> userPreferredLanguages() const;
     void setUserPreferredLanguages(const Vector<String>&);
+
+    Vector<String> userPreferredAudioCharacteristics() const;
+    void setUserPreferredAudioCharacteristic(const String&);
 
     unsigned wheelEventHandlerCount(ExceptionCode&);
     unsigned touchEventHandlerCount(ExceptionCode&);
@@ -313,6 +317,7 @@ public:
 
     void updateLayoutIgnorePendingStylesheetsAndRunPostLayoutTasks(ExceptionCode&);
     void updateLayoutIgnorePendingStylesheetsAndRunPostLayoutTasks(Node*, ExceptionCode&);
+    unsigned layoutCount() const;
 
     PassRefPtr<ArrayBuffer> serializeObject(PassRefPtr<SerializedScriptValue>) const;
     PassRefPtr<SerializedScriptValue> deserializeBuffer(PassRefPtr<ArrayBuffer>) const;

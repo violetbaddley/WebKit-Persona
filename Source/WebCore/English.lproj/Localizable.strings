@@ -91,6 +91,9 @@
 /* WKErrorJavaScriptExceptionOccurred description */
 "A JavaScript exception occurred" = "A JavaScript exception occurred";
 
+/* WKErrorJavaScriptResultTypeIsUnsupported */
+"JavaScript execution returned a result of an unsupported type" = "JavaScript execution returned a result of an unsupported type";
+
 /* action menu item */
 "Add to Photos (action menu item)" = "Add to Photos";
 
@@ -759,6 +762,9 @@
 
 /* accessibility description for a search field cancel button */
 "cancel" = "cancel";
+
+/* accessibility description for a password field AutoFill button */
+"autofill" = "autofill";
 
 /* Verb stating the action that will occur when an unchecked checkbox is clicked, as used by accessibility */
 "check" = "check";

@@ -124,7 +124,6 @@ inline CapabilityLevel canCompile(Node* node)
     case GetTypedArrayByteOffset:
     case NotifyWrite:
     case StoreBarrier:
-    case StoreBarrierWithNullCheck:
     case Call:
     case Construct:
     case CallVarargs:
@@ -401,6 +400,7 @@ CapabilityLevel canCompile(Graph& graph)
                 case KnownInt32Use:
                 case Int52RepUse:
                 case NumberUse:
+                case RealNumberUse:
                 case DoubleRepUse:
                 case DoubleRepRealUse:
                 case BooleanUse:

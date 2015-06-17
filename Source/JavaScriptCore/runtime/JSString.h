@@ -30,6 +30,7 @@
 #include "PropertySlot.h"
 #include "Structure.h"
 #include <array>
+#include <wtf/text/StringView.h>
 
 namespace JSC {
 
@@ -44,7 +45,6 @@ JSString* jsString(ExecState*, const String&); // returns empty string if passed
 
 JSString* jsSingleCharacterString(VM*, UChar);
 JSString* jsSingleCharacterString(ExecState*, UChar);
-JSString* jsSingleCharacterSubstring(ExecState*, const String&, unsigned offset);
 JSString* jsSubstring(VM*, const String&, unsigned offset, unsigned length);
 JSString* jsSubstring(ExecState*, const String&, unsigned offset, unsigned length);
 
@@ -142,14 +142,15 @@ public:
 
     Identifier toIdentifier(ExecState*) const;
     AtomicString toAtomicString(ExecState*) const;
-    AtomicStringImpl* toExistingAtomicString(ExecState*) const;
+    RefPtr<AtomicStringImpl> toExistingAtomicString(ExecState*) const;
+    StringView view(ExecState*) const;
     const String& value(ExecState*) const;
     const String& tryGetValue() const;
     const StringImpl* tryGetValueImpl() const;
     unsigned length() const { return m_length; }
 
     JSValue toPrimitive(ExecState*, PreferredPrimitiveType) const;
-    JS_EXPORT_PRIVATE bool toBoolean() const;
+    bool toBoolean() const { return !!m_length; }
     bool getPrimitiveNumber(ExecState*, double& number, JSValue&) const;
     JSObject* toObject(ExecState*, JSGlobalObject*) const;
     double toNumber(ExecState*) const;
@@ -185,6 +186,7 @@ protected:
     friend class JSValue;
 
     bool isRope() const { return m_value.isNull(); }
+    bool isSubstring() const;
     bool is8Bit() const { return m_flags & Is8Bit; }
     void setIs8Bit(bool flag) const
     {
@@ -290,17 +292,29 @@ private:
         fiber(2).set(vm, this, s3);
     }
 
-    void finishCreation(VM& vm, JSString* base, unsigned offset, unsigned length)
+    void finishCreation(ExecState& exec, JSString& base, unsigned offset, unsigned length)
     {
+        VM& vm = exec.vm();
         Base::finishCreation(vm);
-        ASSERT(!base->isRope());
         ASSERT(!sumOverflows<int32_t>(offset, length));
-        ASSERT(offset + length <= base->length());
+        ASSERT(offset + length <= base.length());
         m_length = length;
-        setIs8Bit(base->is8Bit());
+        setIs8Bit(base.is8Bit());
         setIsSubstring(true);
-        substringBase().set(vm, this, base);
-        substringOffset() = offset;
+        if (base.isSubstring()) {
+            JSRopeString& baseRope = static_cast<JSRopeString&>(base);
+            substringBase().set(vm, this, baseRope.substringBase().get());
+            substringOffset() = baseRope.substringOffset() + offset;
+        } else {
+            substringBase().set(vm, this, &base);
+            substringOffset() = offset;
+
+            // For now, let's not allow substrings with a rope base.
+            // Resolve non-substring rope bases so we don't have to deal with it.
+            // FIXME: Evaluate if this would be worth adding more branches.
+            if (base.isRope())
+                static_cast<JSRopeString&>(base).resolveRope(&exec);
+        }
     }
 
     void finishCreation(VM& vm)
@@ -341,10 +355,10 @@ public:
         return newString;
     }
 
-    static JSString* create(VM& vm, JSString* base, unsigned offset, unsigned length)
+    static JSString* create(ExecState& exec, JSString& base, unsigned offset, unsigned length)
     {
-        JSRopeString* newString = new (NotNull, allocateCell<JSRopeString>(vm.heap)) JSRopeString(vm);
-        newString->finishCreation(vm, base, offset, length);
+        JSRopeString* newString = new (NotNull, allocateCell<JSRopeString>(exec.vm().heap)) JSRopeString(exec.vm());
+        newString->finishCreation(exec, base, offset, length);
         return newString;
     }
 
@@ -360,7 +374,7 @@ private:
 
     JS_EXPORT_PRIVATE void resolveRope(ExecState*) const;
     JS_EXPORT_PRIVATE void resolveRopeToAtomicString(ExecState*) const;
-    JS_EXPORT_PRIVATE AtomicStringImpl* resolveRopeToExistingAtomicString(ExecState*) const;
+    JS_EXPORT_PRIVATE RefPtr<AtomicStringImpl> resolveRopeToExistingAtomicString(ExecState*) const;
     void resolveRopeSlowCase8(LChar*) const;
     void resolveRopeSlowCase(UChar*) const;
     void outOfMemory(ExecState*) const;
@@ -369,8 +383,7 @@ private:
     void resolveRopeInternal16(UChar*) const;
     void resolveRopeInternal16NoSubstring(UChar*) const;
     void clearFibers() const;
-
-    JS_EXPORT_PRIVATE JSString* getIndexSlowCase(ExecState*, unsigned);
+    StringView view(ExecState*) const;
 
     WriteBarrierBase<JSString>& fiber(unsigned i) const
     {
@@ -441,16 +454,6 @@ ALWAYS_INLINE JSString* jsSingleCharacterString(VM* vm, UChar c)
     return JSString::create(*vm, String(&c, 1).impl());
 }
 
-ALWAYS_INLINE JSString* jsSingleCharacterSubstring(ExecState* exec, const String& s, unsigned offset)
-{
-    VM* vm = &exec->vm();
-    ASSERT(offset < static_cast<unsigned>(s.length()));
-    UChar c = s.characterAt(offset);
-    if (c <= maxSingleCharacterString)
-        return vm->smallStrings.singleCharacterString(c);
-    return JSString::create(*vm, StringImpl::createSubstringSharingImpl(s.impl(), offset, 1));
-}
-
 inline JSString* jsNontrivialString(VM* vm, const String& s)
 {
     ASSERT(s.length() > 1);
@@ -475,13 +478,13 @@ ALWAYS_INLINE AtomicString JSString::toAtomicString(ExecState* exec) const
     return AtomicString(m_value);
 }
 
-ALWAYS_INLINE AtomicStringImpl* JSString::toExistingAtomicString(ExecState* exec) const
+ALWAYS_INLINE RefPtr<AtomicStringImpl> JSString::toExistingAtomicString(ExecState* exec) const
 {
     if (isRope())
         return static_cast<const JSRopeString*>(this)->resolveRopeToExistingAtomicString(exec);
     if (m_value.impl()->isAtomic())
         return static_cast<AtomicStringImpl*>(m_value.impl());
-    return AtomicString::find(m_value.impl());
+    return AtomicStringImpl::lookUp(m_value.impl());
 }
 
 inline const String& JSString::value(ExecState* exec) const
@@ -501,10 +504,7 @@ inline const String& JSString::tryGetValue() const
 inline JSString* JSString::getIndex(ExecState* exec, unsigned i)
 {
     ASSERT(canGetIndex(i));
-    if (isRope())
-        return static_cast<JSRopeString*>(this)->getIndexSlowCase(exec, i);
-    ASSERT(i < m_value.length());
-    return jsSingleCharacterSubstring(exec, m_value, i);
+    return jsSingleCharacterString(exec, view(exec)[i]);
 }
 
 inline JSString* jsString(VM* vm, const String& s)
@@ -528,8 +528,7 @@ inline JSString* jsSubstring(ExecState* exec, JSString* s, unsigned offset, unsi
     VM& vm = exec->vm();
     if (!length)
         return vm.smallStrings.emptyString();
-    s->value(exec); // For effect. We need to ensure that any string that is used as a substring base is not a rope.
-    return JSRopeString::create(vm, s, offset, length);
+    return JSRopeString::create(*exec, *s, offset, length);
 }
 
 inline JSString* jsSubstring8(VM* vm, const String& s, unsigned offset, unsigned length)
@@ -696,6 +695,29 @@ ALWAYS_INLINE String JSValue::toWTFStringInline(ExecState* exec) const
         return static_cast<JSString*>(asCell())->value(exec);
 
     return inlineJSValueNotStringtoString(*this, exec);
+}
+
+ALWAYS_INLINE StringView JSRopeString::view(ExecState* exec) const
+{
+    if (isSubstring()) {
+        if (is8Bit())
+            return StringView(substringBase()->m_value.characters8() + substringOffset(), m_length);
+        return StringView(substringBase()->m_value.characters16() + substringOffset(), m_length);
+    }
+    resolveRope(exec);
+    return StringView(m_value);
+}
+
+ALWAYS_INLINE StringView JSString::view(ExecState* exec) const
+{
+    if (isRope())
+        return static_cast<const JSRopeString*>(this)->view(exec);
+    return StringView(m_value);
+}
+
+inline bool JSString::isSubstring() const
+{
+    return isRope() && static_cast<const JSRopeString*>(this)->isSubstring();
 }
 
 } // namespace JSC

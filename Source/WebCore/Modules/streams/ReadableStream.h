@@ -33,10 +33,15 @@
 #if ENABLE(STREAMS_API)
 
 #include "ActiveDOMObject.h"
-#include "ReadableStreamSource.h"
 #include "ScriptWrappable.h"
 #include <functional>
+#include <wtf/Deque.h>
 #include <wtf/Ref.h>
+#include <wtf/RefCounted.h>
+
+namespace JSC {
+class JSValue;
+}
 
 namespace WebCore {
 
@@ -57,55 +62,64 @@ public:
 
     virtual ~ReadableStream();
 
-    ReadableStreamReader* reader() { return m_reader; }
-    virtual Ref<ReadableStreamReader> createReader() = 0;
+    ReadableStreamReader& getReader();
+    const ReadableStreamReader* reader() const { return m_reader.get(); }
+    bool isLocked() const { return !!m_reader; }
 
-    bool isLocked() const { return m_isLocked; }
-    void lock(ReadableStreamReader&);
-    void release();
-    void releaseButKeepLocked();
+    bool isErrored() const { return m_state == State::Errored; }
+    bool isReadable() const { return m_state == State::Readable; }
+    bool isCloseRequested() const { return m_closeRequested; }
 
-    State internalState() { return m_state; }
+    virtual JSC::JSValue error() = 0;
 
     void start();
     void changeStateToClosed();
     void changeStateToErrored();
 
-    ReadableStreamSource& source() { return m_source.get(); }
+    typedef std::function<void(JSC::JSValue)> FailureCallback;
+
+    typedef std::function<void()> ClosedSuccessCallback;
+    void closed(ClosedSuccessCallback&&, FailureCallback&&);
+
+    typedef std::function<void(JSC::JSValue)> ReadSuccessCallback;
+    typedef std::function<void()> ReadEndCallback;
+    void read(ReadSuccessCallback&&, ReadEndCallback&&, FailureCallback&&);
 
 protected:
-    ReadableStream(ScriptExecutionContext&, Ref<ReadableStreamSource>&&);
+    explicit ReadableStream(ScriptExecutionContext&);
+
+    bool resolveReadCallback(JSC::JSValue);
+    void pull();
 
 private:
     // ActiveDOMObject API.
     const char* activeDOMObjectName() const override;
     bool canSuspendForPageCache() const override;
 
-    State m_state;
-    Ref<ReadableStreamSource> m_source;
-    ReadableStreamReader* m_reader { nullptr };
-    bool m_isLocked { false };
+    void clearCallbacks();
+    void close();
+
+    virtual bool hasValue() const = 0;
+    virtual JSC::JSValue read() = 0;
+    virtual void doPull() = 0;
+
+    std::unique_ptr<ReadableStreamReader> m_reader;
+    Vector<std::unique_ptr<ReadableStreamReader>> m_releasedReaders;
+
+    ClosedSuccessCallback m_closedSuccessCallback;
+    FailureCallback m_closedFailureCallback;
+
+    struct ReadCallbacks {
+        ReadSuccessCallback successCallback;
+        ReadEndCallback endCallback;
+        FailureCallback failureCallback;
+    };
+    Deque<ReadCallbacks> m_readRequests;
+
+    bool m_isStarted { false };
+    bool m_closeRequested { false };
+    State m_state { State::Readable };
 };
-
-inline void ReadableStream::lock(ReadableStreamReader& reader)
-{
-    m_reader = &reader;
-    m_isLocked = true;
-}
-
-inline void ReadableStream::release()
-{
-    m_reader = nullptr;
-    m_isLocked = false;
-}
-
-inline void ReadableStream::releaseButKeepLocked()
-{
-    m_reader = nullptr;
-    m_isLocked = true;
-}
-
-
 
 }
 

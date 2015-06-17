@@ -30,6 +30,7 @@ WebInspector.RulesStyleDetailsPanel = class RulesStyleDetailsPanel extends WebIn
         super("rules", "rules", WebInspector.UIString("Rules"));
 
         this._sections = [];
+        this._propertyToSelectAndHighlight = null;
     }
 
     // Public
@@ -119,7 +120,7 @@ WebInspector.RulesStyleDetailsPanel = class RulesStyleDetailsPanel extends WebIn
                 previousFocusedSection = section;
 
             if (!section) {
-                section = new WebInspector.CSSStyleDeclarationSection(style);
+                section = new WebInspector.CSSStyleDeclarationSection(this, style);
                 style.__rulesSection = section;
             } else
                 section.refresh();
@@ -241,11 +242,34 @@ WebInspector.RulesStyleDetailsPanel = class RulesStyleDetailsPanel extends WebIn
             previousFocusedSection.focus();
     }
 
+    scrollToSectionAndHighlightProperty(property)
+    {
+        if (!this._visible) {
+            this._propertyToSelectAndHighlight = property;
+            return false;
+        }
+
+        for (var section of this._sections) {
+            if (section.highlightProperty(property))
+                return true;
+        }
+
+        return false;
+    }
+
+    cssStyleDeclarationSectionEditorFocused(ignoredSection)
+    {
+        for (var section of this._sections) {
+            if (section !== ignoredSection)
+                section.clearSelection();
+        }
+    }
+
     // Protected
 
     shown()
     {
-        WebInspector.StyleDetailsPanel.prototype.shown.call(this);
+        super.shown();
 
         // Associate the style and section objects so they can be reused.
         // Also update the layout in case we changed widths while hidden.
@@ -258,7 +282,7 @@ WebInspector.RulesStyleDetailsPanel = class RulesStyleDetailsPanel extends WebIn
 
     hidden()
     {
-        WebInspector.StyleDetailsPanel.prototype.hidden.call(this);
+        super.hidden();
 
         // Disconnect the style and section objects so they have a chance
         // to release their objects when this panel is not visible.
@@ -270,6 +294,16 @@ WebInspector.RulesStyleDetailsPanel = class RulesStyleDetailsPanel extends WebIn
     {
         for (var i = 0; i < this._sections.length; ++i)
             this._sections[i].updateLayout();
+    }
+
+    nodeStylesRefreshed(event)
+    {
+        super.nodeStylesRefreshed(event);
+        
+        if (this._propertyToSelectAndHighlight) {
+            this.scrollToSectionAndHighlightProperty(this._propertyToSelectAndHighlight);
+            this._propertyToSelectAndHighlight = null;
+        }
     }
 
     // Private

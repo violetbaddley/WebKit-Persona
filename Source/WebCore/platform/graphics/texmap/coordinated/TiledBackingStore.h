@@ -26,11 +26,9 @@
 #include "IntPoint.h"
 #include "IntRect.h"
 #include "Tile.h"
-#include "TiledBackingStoreBackend.h"
 #include "Timer.h"
 #include <wtf/Assertions.h>
 #include <wtf/HashMap.h>
-#include <wtf/RefPtr.h>
 
 namespace WebCore {
 
@@ -41,7 +39,7 @@ class TiledBackingStoreClient;
 class TiledBackingStore {
     WTF_MAKE_NONCOPYABLE(TiledBackingStore); WTF_MAKE_FAST_ALLOCATED;
 public:
-    TiledBackingStore(TiledBackingStoreClient*, std::unique_ptr<TiledBackingStoreBackend>);
+    TiledBackingStore(TiledBackingStoreClient*);
     ~TiledBackingStore();
 
     TiledBackingStoreClient* client() { return m_client; }
@@ -80,10 +78,6 @@ private:
     void setCoverRect(const IntRect& rect) { m_coverRect = rect; }
     void setKeepRect(const IntRect&);
 
-    PassRefPtr<Tile> tileAt(const Tile::Coordinate&) const;
-    void setTile(const Tile::Coordinate&, PassRefPtr<Tile>);
-    void removeTile(const Tile::Coordinate&);
-
     IntRect visibleRect() const;
 
     float coverageRatio(const IntRect&) const;
@@ -93,9 +87,8 @@ private:
 
 private:
     TiledBackingStoreClient* m_client;
-    std::unique_ptr<TiledBackingStoreBackend> m_backend;
 
-    typedef HashMap<Tile::Coordinate, RefPtr<Tile> > TileMap;
+    typedef HashMap<Tile::Coordinate, std::unique_ptr<Tile>> TileMap;
     TileMap m_tiles;
 
     IntSize m_tileSize;

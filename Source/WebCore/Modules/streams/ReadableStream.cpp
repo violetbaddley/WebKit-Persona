@@ -32,18 +32,16 @@
 
 #if ENABLE(STREAMS_API)
 
-#include "NotImplemented.h"
 #include "ReadableStreamReader.h"
+#include <runtime/JSCJSValueInlines.h>
 #include <wtf/RefCountedLeakCounter.h>
 
 namespace WebCore {
 
 DEFINE_DEBUG_ONLY_GLOBAL(WTF::RefCountedLeakCounter, readableStreamCounter, ("ReadableStream"));
 
-ReadableStream::ReadableStream(ScriptExecutionContext& scriptExecutionContext, Ref<ReadableStreamSource>&& source)
+ReadableStream::ReadableStream(ScriptExecutionContext& scriptExecutionContext)
     : ActiveDOMObject(&scriptExecutionContext)
-    , m_state(State::Readable)
-    , m_source(WTF::move(source))
 {
 #ifndef NDEBUG
     readableStreamCounter.increment();
@@ -58,14 +56,40 @@ ReadableStream::~ReadableStream()
 #endif
 }
 
+void ReadableStream::clearCallbacks()
+{
+    m_closedSuccessCallback = nullptr;
+    m_closedFailureCallback = nullptr;
+
+    m_readRequests.clear();
+}
+
 void ReadableStream::changeStateToClosed()
 {
-    if (m_state != State::Readable)
+    ASSERT(!m_closeRequested);
+    ASSERT(m_state != State::Errored);
+
+    m_closeRequested = true;
+
+    if (m_state != State::Readable || hasValue())
         return;
+    close();
+}
+
+void ReadableStream::close()
+{
     m_state = State::Closed;
+
     if (m_reader)
-        m_reader->changeStateToClosed();
-    ASSERT(!m_reader);
+        m_releasedReaders.append(WTF::move(m_reader));
+
+    if (m_closedSuccessCallback)
+        m_closedSuccessCallback();
+
+    for (auto& request : m_readRequests)
+        request.endCallback();
+
+    clearCallbacks();
 }
 
 void ReadableStream::changeStateToErrored()
@@ -73,14 +97,96 @@ void ReadableStream::changeStateToErrored()
     if (m_state != State::Readable)
         return;
     m_state = State::Errored;
+
     if (m_reader)
-        m_reader->changeStateToErrored();
-    ASSERT(!m_reader);
+        m_releasedReaders.append(WTF::move(m_reader));
+
+    JSC::JSValue error = this->error();
+    if (m_closedFailureCallback)
+        m_closedFailureCallback(error);
+
+    for (auto& request : m_readRequests)
+        request.failureCallback(error);
+
+    clearCallbacks();
 }
 
 void ReadableStream::start()
 {
-    notImplemented();
+    m_isStarted = true;
+    pull();
+}
+
+void ReadableStream::pull()
+{
+    if (!m_isStarted || m_state == State::Closed || m_state == State::Errored || m_closeRequested)
+        return;
+    // FIXME: Implement queueSize check.
+    if (m_readRequests.isEmpty() && hasValue())
+        return;
+    // FIXME: Implement async pull check.
+    doPull();
+}
+
+ReadableStreamReader& ReadableStream::getReader()
+{
+    ASSERT(!m_reader);
+
+    std::unique_ptr<ReadableStreamReader> newReader = std::make_unique<ReadableStreamReader>(*this);
+    ReadableStreamReader& reader = *newReader.get();
+
+    if (m_state == State::Readable) {
+        m_reader = WTF::move(newReader);
+        return reader;
+    }
+
+    m_releasedReaders.append(WTF::move(newReader));
+    return reader;
+}
+
+void ReadableStream::closed(ClosedSuccessCallback&& successCallback, FailureCallback&& failureCallback)
+{
+    if (m_state == State::Closed) {
+        successCallback();
+        return;
+    }
+    if (m_state == State::Errored) {
+        failureCallback(error());
+        return;
+    }
+    m_closedSuccessCallback = WTF::move(successCallback);
+    m_closedFailureCallback = WTF::move(failureCallback);
+}
+
+void ReadableStream::read(ReadSuccessCallback&& successCallback, ReadEndCallback&& endCallback, FailureCallback&& failureCallback)
+{
+    if (m_state == State::Closed) {
+        endCallback();
+        return;
+    }
+    if (m_state == State::Errored) {
+        failureCallback(error());
+        return;
+    }
+    if (hasValue()) {
+        successCallback(read());
+        if (!m_closeRequested)
+            pull();
+        else if (!hasValue())
+            close();
+        return;
+    }
+    m_readRequests.append({ WTF::move(successCallback), WTF::move(endCallback), WTF::move(failureCallback) });
+    pull();
+}
+
+bool ReadableStream::resolveReadCallback(JSC::JSValue value)
+{
+    if (m_readRequests.isEmpty())
+        return false;
+
+    m_readRequests.takeFirst().successCallback(value);
+    return true;
 }
 
 const char* ReadableStream::activeDOMObjectName() const

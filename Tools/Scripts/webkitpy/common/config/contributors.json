@@ -1959,6 +1959,7 @@
       },
       "Micha\u0142 Paku\u0142a vel Rutka" : {
          "emails" : [
+            "mpakulavelrutka@gmail.com",
             "m.pakula@samsung.com"
          ],
          "nicks" : [
@@ -2648,6 +2649,15 @@
          ],
          "nicks" : [
             "mtibor"
+         ]
+      },
+      "Tobias Reiss" : {
+         "emails" : [
+            "tobi+webkit@basecode.de"
+         ],
+         "expertise" : "Web Inspector",
+         "nicks" : [
+            "basecode"
          ]
       },
       "Tom Hudson" : {
@@ -4094,7 +4104,9 @@
       },
       "Gyuyoung Kim" : {
          "emails" : [
-            "gyuyoung.kim@webkit.org"
+            "gyuyoung.kim@webkit.org",
+            "gyuyoung.kim@navercorp.com",
+            "gyuyoung.kim@samsung.com"
          ],
          "expertise" : "The EFLWebKit Port, Navigator Content Utils, CMake build system",
          "nicks" : [

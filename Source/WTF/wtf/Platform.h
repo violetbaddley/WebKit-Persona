@@ -605,6 +605,10 @@
 #endif
 #endif
 
+#if OS(DARWIN) || OS(FREEBSD) || OS(NETBSD)
+#define HAVE_STAT_BIRTHTIME 1
+#endif
+
 #if !OS(WINDOWS) && !OS(SOLARIS)
 #define HAVE_TM_GMTOFF 1
 #define HAVE_TM_ZONE 1
@@ -945,7 +949,7 @@
 #endif
 
 #if USE(GLIB)
-#include <wtf/gobject/GTypedefs.h>
+#include <wtf/glib/GTypedefs.h>
 #endif
 
 #if PLATFORM(EFL)
@@ -1071,6 +1075,10 @@
 
 #if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 #define USE_INSERTION_UNDO_GROUPING 1
+#endif
+
+#if (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100) || (PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000)
+#define HAVE_TIMINGDATAOPTIONS 1
 #endif
 
 #if PLATFORM(IOS)

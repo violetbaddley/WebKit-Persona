@@ -50,6 +50,7 @@ public:
         case DoubleRepRealUse:
         case Int52RepUse:
         case NumberUse:
+        case RealNumberUse:
         case BooleanUse:
         case CellUse:
         case ObjectUse:
@@ -246,9 +247,9 @@ bool safeToExecute(AbstractStateType& state, Graph& graph, Node* node)
     case CheckTierUpInLoop:
     case CheckTierUpAtReturn:
     case CheckTierUpAndOSREnter:
+    case CheckTierUpWithNestedTriggerAndOSREnter:
     case LoopHint:
     case StoreBarrier:
-    case StoreBarrierWithNullCheck:
     case InvalidationPoint:
     case NotifyWrite:
     case CheckInBounds:

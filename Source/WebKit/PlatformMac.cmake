@@ -51,7 +51,6 @@ list(APPEND WebKit_INCLUDE_DIRECTORIES
     "${DERIVED_SOURCES_WEBCORE_DIR}"
     "${DERIVED_SOURCES_WEBKITLEGACY_DIR}"
     "${JAVASCRIPTCORE_DIR}/dfg"
-    "${PDFKIT_INCLUDE_DIRECTORY}"
     "${WEBCORE_DIR}/accessibility/mac"
     "${WEBCORE_DIR}/bindings/objc"
     "${WEBCORE_DIR}/bridge"
@@ -81,7 +80,11 @@ list(APPEND WebKit_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/text/cf"
     "${WEBCORE_DIR}/platform/text/mac"
     "${WEBCORE_DIR}/plugins/mac"
+    ../../WebKitLibraries
+)
 
+list(APPEND WebKit_SYSTEM_INCLUDE_DIRECTORIES
+    "${PDFKIT_INCLUDE_DIRECTORY}"
     mac
     mac/Carbon
     mac/DefaultDelegates
@@ -97,10 +100,18 @@ list(APPEND WebKit_INCLUDE_DIRECTORIES
     mac/WebInspector
     mac/WebView
     Storage
-    ../../WebKitLibraries
 )
 
 list(APPEND WebKit_SOURCES
+    Storage/StorageAreaImpl.cpp
+    Storage/StorageAreaSync.cpp
+    Storage/StorageNamespaceImpl.cpp
+    Storage/StorageSyncManager.cpp
+    Storage/StorageThread.cpp
+    Storage/StorageTracker.cpp
+    Storage/WebDatabaseProvider.cpp
+    Storage/WebStorageNamespaceProvider.cpp
+
     mac/Carbon/CarbonUtils.m
     mac/Carbon/CarbonWindowAdapter.mm
     mac/Carbon/CarbonWindowContentView.m
@@ -256,15 +267,6 @@ list(APPEND WebKit_SOURCES
     mac/WebView/WebTextIterator.mm
     mac/WebView/WebView.mm
     mac/WebView/WebViewData.mm
-
-    Storage/StorageAreaImpl.cpp
-    Storage/StorageAreaSync.cpp
-    Storage/StorageNamespaceImpl.cpp
-    Storage/StorageSyncManager.cpp
-    Storage/StorageThread.cpp
-    Storage/StorageTracker.cpp
-    Storage/WebDatabaseProvider.cpp
-    Storage/WebStorageNamespaceProvider.cpp
 )
 
 set(WebKit_LIBRARY_TYPE SHARED)

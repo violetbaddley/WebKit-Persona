@@ -156,37 +156,37 @@ WebSocket::~WebSocket()
         m_channel->disconnect();
 }
 
-PassRefPtr<WebSocket> WebSocket::create(ScriptExecutionContext& context)
+Ref<WebSocket> WebSocket::create(ScriptExecutionContext& context)
 {
-    RefPtr<WebSocket> webSocket(adoptRef(new WebSocket(context)));
+    Ref<WebSocket> webSocket(adoptRef(*new WebSocket(context)));
     webSocket->suspendIfNeeded();
-    return webSocket.release();
+    return webSocket;
 }
 
-PassRefPtr<WebSocket> WebSocket::create(ScriptExecutionContext& context, const String& url, ExceptionCode& ec)
+RefPtr<WebSocket> WebSocket::create(ScriptExecutionContext& context, const String& url, ExceptionCode& ec)
 {
     Vector<String> protocols;
     return WebSocket::create(context, url, protocols, ec);
 }
 
-PassRefPtr<WebSocket> WebSocket::create(ScriptExecutionContext& context, const String& url, const Vector<String>& protocols, ExceptionCode& ec)
+RefPtr<WebSocket> WebSocket::create(ScriptExecutionContext& context, const String& url, const Vector<String>& protocols, ExceptionCode& ec)
 {
     if (url.isNull()) {
         ec = SYNTAX_ERR;
-        return 0;
+        return nullptr;
     }
 
-    RefPtr<WebSocket> webSocket(adoptRef(new WebSocket(context)));
+    RefPtr<WebSocket> webSocket(adoptRef(*new WebSocket(context)));
     webSocket->suspendIfNeeded();
 
     webSocket->connect(context.completeURL(url), protocols, ec);
     if (ec)
-        return 0;
+        return nullptr;
 
-    return webSocket.release();
+    return WTF::move(webSocket);
 }
 
-PassRefPtr<WebSocket> WebSocket::create(ScriptExecutionContext& context, const String& url, const String& protocol, ExceptionCode& ec)
+RefPtr<WebSocket> WebSocket::create(ScriptExecutionContext& context, const String& url, const String& protocol, ExceptionCode& ec)
 {
     Vector<String> protocols;
     protocols.append(protocol);
@@ -260,18 +260,18 @@ void WebSocket::connect(const String& url, const Vector<String>& protocols, Exce
     //
     // Here, we throw SYNTAX_ERR if the given protocols do not meet the latter criteria. This behavior does not
     // comply with WebSocket API specification, but it seems to be the only reasonable way to handle this conflict.
-    for (size_t i = 0; i < protocols.size(); ++i) {
-        if (!isValidProtocolString(protocols[i])) {
-            scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Error, "Wrong protocol for WebSocket '" + encodeProtocolString(protocols[i]) + "'");
+    for (auto& protocol : protocols) {
+        if (!isValidProtocolString(protocol)) {
+            scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Error, "Wrong protocol for WebSocket '" + encodeProtocolString(protocol) + "'");
             m_state = CLOSED;
             ec = SYNTAX_ERR;
             return;
         }
     }
     HashSet<String> visited;
-    for (size_t i = 0; i < protocols.size(); ++i) {
-        if (!visited.add(protocols[i]).isNewEntry) {
-            scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Error, "WebSocket protocols contain duplicates: '" + encodeProtocolString(protocols[i]) + "'");
+    for (auto& protocol : protocols) {
+        if (!visited.add(protocol).isNewEntry) {
+            scriptExecutionContext()->addConsoleMessage(MessageSource::JS, MessageLevel::Error, "WebSocket protocols contain duplicates: '" + encodeProtocolString(protocol) + "'");
             m_state = CLOSED;
             ec = SYNTAX_ERR;
             return;
@@ -511,7 +511,7 @@ void WebSocket::stop()
     bool pending = hasPendingActivity();
     if (m_channel)
         m_channel->disconnect();
-    m_channel = 0;
+    m_channel = nullptr;
     m_state = CLOSED;
     m_pendingEvents.clear();
     ActiveDOMObject::stop();

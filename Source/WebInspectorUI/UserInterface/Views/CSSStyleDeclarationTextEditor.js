@@ -70,6 +70,9 @@ WebInspector.CSSStyleDeclarationTextEditor = class CSSStyleDeclarationTextEditor
         this._codeMirror.on("change", this._contentChanged.bind(this));
         this._codeMirror.on("blur", this._editorBlured.bind(this));
 
+        if (typeof this._delegate.cssStyleDeclarationTextEditorFocused === "function")
+            this._codeMirror.on("focus", this._editorFocused.bind(this));
+
         this.style = style;
     }
 
@@ -181,6 +184,51 @@ WebInspector.CSSStyleDeclarationTextEditor = class CSSStyleDeclarationTextEditor
         this._codeMirror.refresh();
     }
 
+    highlightProperty(property)
+    {
+        function propertiesMatch(cssProperty)
+        {
+            if (cssProperty.enabled && !cssProperty.overridden) {
+                if (cssProperty.canonicalName === property.canonicalName || hasMatchingLonghandProperty(cssProperty))
+                    return true;
+            }
+
+            return false;
+        }
+
+        function hasMatchingLonghandProperty(cssProperty)
+        {
+            var cssProperties = cssProperty.relatedLonghandProperties;
+
+            if (!cssProperties.length)
+                return false;
+
+            for (var property of cssProperties) {
+                if (propertiesMatch(property))
+                    return true;
+            }
+
+            return false;
+        }
+
+        for (var cssProperty of this.style.properties) {
+            if (propertiesMatch(cssProperty)) {
+                var selection = cssProperty.__propertyTextMarker.find();
+                this._codeMirror.setSelection(selection.from, selection.to);
+                this.focus();
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    clearSelection()
+    {
+        this._codeMirror.setCursor({line: 0, ch: 0});
+    }
+
     // Protected
 
     didDismissPopover(popover)
@@ -274,6 +322,12 @@ WebInspector.CSSStyleDeclarationTextEditor = class CSSStyleDeclarationTextEditor
         // Reset the content on blur since we stop accepting external changes while the the editor is focused.
         // This causes us to pick up any change that was suppressed while the editor was focused.
         this._resetContent();
+    }
+
+    _editorFocused(codeMirror)
+    {
+        if (typeof this._delegate.cssStyleDeclarationTextEditorFocused === "function")
+            this._delegate.cssStyleDeclarationTextEditorFocused();
     }
 
     _contentChanged(codeMirror, change)
@@ -437,7 +491,22 @@ WebInspector.CSSStyleDeclarationTextEditor = class CSSStyleDeclarationTextEditor
 
             var checkboxMarker = this._codeMirror.setUniqueBookmark(from, checkboxElement);
             checkboxMarker.__propertyCheckbox = true;
+        } else if (this._delegate.cssStyleDeclarationTextEditorShouldAddPropertyGoToArrows
+                && !property.implicit && typeof this._delegate.cssStyleDeclarationTextEditorShowProperty === "function") {
+
+            var arrowElement = WebInspector.createGoToArrowButton();
+
+            var delegate = this._delegate;
+            arrowElement.addEventListener("click", function() {
+                delegate.cssStyleDeclarationTextEditorShowProperty(property);
+            });
+
+            this._codeMirror.setUniqueBookmark(to, arrowElement);
         }
+
+        var propertyNameIsValid = false;
+        if (WebInspector.CSSCompletions.cssNameCompletions)
+            propertyNameIsValid = WebInspector.CSSCompletions.cssNameCompletions.isValidPropertyName(property.name);
 
         var classNames = ["css-style-declaration-property"];
 
@@ -452,7 +521,7 @@ WebInspector.CSSStyleDeclarationTextEditor = class CSSStyleDeclarationTextEditor
 
         if (!property.valid && property.hasOtherVendorNameOrKeyword())
             classNames.push("other-vendor");
-        else if (!property.valid)
+        else if (!property.valid && !propertyNameIsValid)
             classNames.push("invalid");
 
         if (!property.enabled)
@@ -479,6 +548,16 @@ WebInspector.CSSStyleDeclarationTextEditor = class CSSStyleDeclarationTextEditor
         property.addEventListener(WebInspector.CSSProperty.Event.OverriddenStatusChanged, this._propertyOverriddenStatusChanged, this);
 
         this._removeCheckboxPlaceholder(from.line);
+
+        if (!property.valid && propertyNameIsValid && !property.text.trim().endsWith(":")) {
+            // The property.text.trim().endsWith(":") is for the situation when a property only has a name and colon and the user leaves the value blank (it looks weird to have an invalid marker through just the colon).
+            // Creating the synthesizedText is necessary for if the user adds multiple spaces before the value, causing the markText to mark one of the spaces instead.
+            var synthesizedText = property.name + ": " + property.value + ";";
+            var start = {line: from.line, ch: from.ch + synthesizedText.indexOf(property.value)};
+            var end = {line: to.line, ch: start.ch + property.value.length};
+
+            this._codeMirror.markText(start, end, {className: "invalid"});
+        }
     }
 
     _clearTextMarkers(nonatomic, all)

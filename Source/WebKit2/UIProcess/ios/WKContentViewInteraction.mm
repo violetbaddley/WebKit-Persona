@@ -375,9 +375,6 @@ static UIWebSelectionMode toUIWebSelectionMode(WKSelectionGranularity granularit
     [_twoFingerDoubleTapGestureRecognizer setDelegate:nil];
     [self removeGestureRecognizer:_twoFingerDoubleTapGestureRecognizer.get()];
 
-    [_previewGestureRecognizer setDelegate:nil];
-    [self removeGestureRecognizer:_previewGestureRecognizer.get()];
-
     _inspectorNodeSearchEnabled = NO;
     if (_inspectorNodeSearchGestureRecognizer) {
         [_inspectorNodeSearchGestureRecognizer setDelegate:nil];
@@ -956,7 +953,7 @@ static inline bool isSamePair(UIGestureRecognizer *a, UIGestureRecognizer *b, UI
 
     if (gestureRecognizer == _previewGestureRecognizer) {
         [self ensurePositionInformationIsUpToDate:point];
-        if (_positionInformation.clickableElementName != "A")
+        if (_positionInformation.clickableElementName != "A" && _positionInformation.clickableElementName != "IMG")
             return NO;
 
         String absoluteLinkURL = _positionInformation.url;
@@ -2662,73 +2659,73 @@ static UITextAutocapitalizationType toUITextAutocapitalize(WebAutocapitalizeType
 
 - (UITextInputArrowKeyHistory *)_moveUp:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveUp"];
+    [self executeEditCommandWithCallback:extending ? @"moveUpAndModifySelection" : @"moveUp"];
     return nil;
 }
 
 - (UITextInputArrowKeyHistory *)_moveDown:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveDown"];
+    [self executeEditCommandWithCallback:extending ? @"moveDownAndModifySelection" : @"moveDown"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveLeft:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveLeft:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveLeft"];
+    [self executeEditCommandWithCallback:extending? @"moveLeftAndModifySelection" : @"moveLeft"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveRight:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveRight:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveRight"];
+    [self executeEditCommandWithCallback:extending ? @"moveRightAndModifySelection" : @"moveRight"];
     return nil;
 }
 
 - (UITextInputArrowKeyHistory *)_moveToStartOfWord:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveWordBackward"];
+    [self executeEditCommandWithCallback:extending ? @"moveWordBackwardAndModifySelection" : @"moveWordBackward"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveToStartOfParagraph:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveToStartOfParagraph:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveToStartOfParagraph"];
+    [self executeEditCommandWithCallback:extending ? @"moveToBeginningOfParagraphAndModifySelection" : @"moveToBeginningOfParagraph"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveToStartOfLine:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveToStartOfLine:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveToStartOfLine"];
+    [self executeEditCommandWithCallback:extending ? @"moveToBeginningOfLineAndModifySelection" : @"moveToBeginningOfLine"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveToStartOfDocument:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveToStartOfDocument:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveToBeginningOfDocument"];
+    [self executeEditCommandWithCallback:extending ? @"moveToBeginningOfDocumentAndModifySelection" : @"moveToBeginningOfDocument"];
     return nil;
 }
 
 - (UITextInputArrowKeyHistory *)_moveToEndOfWord:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveWordForward"];
+    [self executeEditCommandWithCallback:extending ? @"moveWordForwardAndModifySelection" : @"moveWordForward"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveToEndOfParagraph:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveToEndOfParagraph:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveToEndOfParagraph"];
+    [self executeEditCommandWithCallback:extending ? @"moveToEndOfParagraphAndModifySelection" : @"moveToEndOfParagraph"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveToEndOfLine:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveToEndOfLine:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveToEndOfLine"];
+    [self executeEditCommandWithCallback:extending ? @"moveToEndOfLineAndModifySelection" : @"moveToEndOfLine"];
     return nil;
 }
 
-- (UITextInputArrowKeyHistory *)_moveToEndOfDocument:(BOOL) extending withHistory:(UITextInputArrowKeyHistory *)history
+- (UITextInputArrowKeyHistory *)_moveToEndOfDocument:(BOOL)extending withHistory:(UITextInputArrowKeyHistory *)history
 {
-    [self executeEditCommandWithCallback:@"moveToEndOfDocument"];
+    [self executeEditCommandWithCallback:extending ? @"moveToEndOfDocumentAndModifySelection" : @"moveToEndOfDocument"];
     return nil;
 }
 
@@ -3120,7 +3117,7 @@ static bool isAssistableInputType(InputType type)
 {
     ASSERT(self == sourceView);
 
-    if (_positionInformation.clickableElementName != "A")
+    if (_positionInformation.clickableElementName != "A" && _positionInformation.clickableElementName != "IMG")
         return nil;
 
     String absoluteLinkURL = _positionInformation.url;
@@ -3155,12 +3152,16 @@ static bool isAssistableInputType(InputType type)
 
 - (void)willPresentPreviewViewController:(UIViewController *)viewController forPosition:(CGPoint)position inSourceView:(UIView *)sourceView
 {
+    [self removeGestureRecognizer:_touchEventGestureRecognizer.get()];
+
     [self _cancelInteraction];
     [[viewController presentationController] setSourceRect:_positionInformation.bounds];
 }
 
 - (void)didDismissPreviewViewController:(UIViewController *)viewController committing:(BOOL)committing
 {
+    [self addGestureRecognizer:_touchEventGestureRecognizer.get()];
+
     id<WKUIDelegatePrivate> uiDelegate = static_cast<id <WKUIDelegatePrivate>>([_webView UIDelegate]);
     if ([uiDelegate respondsToSelector:@selector(_webView:didDismissPreviewViewController:)])
         [uiDelegate _webView:_webView didDismissPreviewViewController:viewController];

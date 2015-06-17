@@ -261,7 +261,9 @@ void makeMatrixRenderable(TransformationMatrix& matrix, bool has3DRendering)
 }
 
 RenderLayer::RenderLayer(RenderLayerModelObject& rendererLayerModelObject)
-    : m_inResizeMode(false)
+    : m_isRootLayer(rendererLayerModelObject.isRenderView())
+    , m_forcedStackingContext(rendererLayerModelObject.isMedia())
+    , m_inResizeMode(false)
     , m_scrollDimensionsDirty(true)
     , m_normalFlowListDirty(true)
     , m_hasSelfPaintingLayerDescendant(false)
@@ -270,7 +272,6 @@ RenderLayer::RenderLayer(RenderLayerModelObject& rendererLayerModelObject)
     , m_hasOutOfFlowPositionedDescendantDirty(true)
     , m_needsCompositedScrolling(false)
     , m_descendantsAreContiguousInStackingOrder(false)
-    , m_isRootLayer(rendererLayerModelObject.isRenderView())
     , m_usedTransparency(false)
     , m_paintingInsideReflection(false)
     , m_inOverflowRelayout(false)
@@ -3204,6 +3205,17 @@ void RenderLayer::updateSnapOffsets()
     RenderBox* box = enclosingElement()->renderBox();
     updateSnapOffsetsForScrollableArea(*this, *downcast<HTMLElement>(enclosingElement()), *box, box->style());
 }
+
+bool RenderLayer::isScrollSnapInProgress() const
+{
+    if (!scrollsOverflow())
+        return false;
+    
+    if (ScrollAnimator* scrollAnimator = existingScrollAnimator())
+        return scrollAnimator->isScrollSnapInProgress();
+    
+    return false;
+}
 #endif
 
 int RenderLayer::verticalScrollbarWidth(OverlayScrollbarSizeRelevancy relevancy) const
@@ -3392,9 +3404,9 @@ void RenderLayer::updateScrollbarsAfterLayout()
     bool hasVerticalOverflow = this->hasVerticalOverflow();
 
     // If overflow requires a scrollbar, then we just need to enable or disable.
-    if (styleRequiresScrollbar(renderer().style(), HorizontalScrollbar))
+    if (m_hBar && styleRequiresScrollbar(renderer().style(), HorizontalScrollbar))
         m_hBar->setEnabled(hasHorizontalOverflow);
-    if (styleRequiresScrollbar(renderer().style(), VerticalScrollbar))
+    if (m_vBar && styleRequiresScrollbar(renderer().style(), VerticalScrollbar))
         m_vBar->setEnabled(hasVerticalOverflow);
 
     // Scrollbars with auto behavior may need to lay out again if scrollbars got added or removed.
@@ -4034,10 +4046,11 @@ static inline LayoutRect computeReferenceBox(const RenderObject& renderer, const
 Path RenderLayer::computeClipPath(const LayoutSize& offsetFromRoot, LayoutRect& rootRelativeBounds, WindRule& windRule) const
 {
     const RenderStyle& style = renderer().style();
+    float deviceSaleFactor = renderer().document().deviceScaleFactor();
 
     if (is<ShapeClipPathOperation>(*style.clipPath())) {
         auto& clipPath = downcast<ShapeClipPathOperation>(*style.clipPath());
-        LayoutRect referenceBox = computeReferenceBox(renderer(), clipPath, offsetFromRoot, rootRelativeBounds);
+        FloatRect referenceBox = snapRectToDevicePixels(computeReferenceBox(renderer(), clipPath, offsetFromRoot, rootRelativeBounds), deviceSaleFactor);
 
         windRule = clipPath.windRule();
         return clipPath.pathForReferenceRect(referenceBox);
@@ -4047,7 +4060,7 @@ Path RenderLayer::computeClipPath(const LayoutSize& offsetFromRoot, LayoutRect& 
 
         auto& clipPath = downcast<BoxClipPathOperation>(*style.clipPath());
 
-        RoundedRect shapeRect = computeRoundedRectForBoxShape(clipPath.referenceBox(), downcast<RenderBox>(renderer()));
+        FloatRoundedRect shapeRect = computeRoundedRectForBoxShape(clipPath.referenceBox(), downcast<RenderBox>(renderer())).pixelSnappedRoundedRectForPainting(deviceSaleFactor);
         shapeRect.move(offsetFromRoot);
 
         windRule = RULE_NONZERO;
@@ -4071,7 +4084,8 @@ bool RenderLayer::setupClipPath(GraphicsContext* context, const LayerPaintingInf
     ASSERT(style.clipPath());
     if (is<ShapeClipPathOperation>(*style.clipPath()) || (is<BoxClipPathOperation>(*style.clipPath()) && is<RenderBox>(renderer()))) {
         WindRule windRule;
-        Path path = computeClipPath(offsetFromRoot, rootRelativeBounds, windRule);
+        LayoutSize paintingOffsetFromRoot = LayoutSize(snapSizeToDevicePixel(offsetFromRoot + paintingInfo.subpixelAccumulation, LayoutPoint(), renderer().document().deviceScaleFactor()));
+        Path path = computeClipPath(paintingOffsetFromRoot, rootRelativeBounds, windRule);
         context->save();
         context->clipPath(path, windRule);
         return true;
@@ -5800,7 +5814,7 @@ LayoutRect RenderLayer::localBoundingBox(CalculateLayerBoundsFlags flags) const
         RenderBox* box = renderBox();
         ASSERT(box);
         if (!(flags & DontConstrainForMask) && box->hasMask()) {
-            result = box->maskClipRect();
+            result = box->maskClipRect(LayoutPoint());
             box->flipForWritingMode(result); // The mask clip rect is in physical coordinates, so we have to flip, since localBoundingBox is not.
         } else {
             LayoutRect bbox = box->borderBoxRect();
@@ -6697,7 +6711,7 @@ void RenderLayer::styleChanged(StyleDifference diff, const RenderStyle* oldStyle
     updateBlendMode();
 #endif
     updateOrRemoveFilterClients();
-    updateOrRemoveMaskImageClients(oldStyle);
+    updateOrRemoveMaskImageClients();
 
     updateNeedsCompositedScrolling();
 
@@ -6852,17 +6866,12 @@ void RenderLayer::updateOrRemoveFilterClients()
         filterInfo->removeReferenceFilterClients();
 }
 
-void RenderLayer::updateOrRemoveMaskImageClients(const RenderStyle* oldStyle)
+void RenderLayer::updateOrRemoveMaskImageClients()
 {
-    if (oldStyle && oldStyle->maskImage().get()) {
-        if (MaskImageInfo* maskImageInfo = MaskImageInfo::getIfExists(*this))
-            maskImageInfo->removeMaskImageClients(*oldStyle);
-    }
-
     if (renderer().style().maskImage().get())
         MaskImageInfo::get(*this).updateMaskImageClients();
     else if (MaskImageInfo* maskImageInfo = MaskImageInfo::getIfExists(*this))
-        maskImageInfo->removeMaskImageClients(renderer().style());
+        maskImageInfo->removeMaskImageClients();
 }
 
 void RenderLayer::updateOrRemoveFilterEffectRenderer()

@@ -70,7 +70,11 @@ static void invalidateAfterGenericFamilyChange(Page* page)
 }
 
 #if USE(AVFOUNDATION)
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED <= 101000
 bool Settings::gAVFoundationEnabled = false;
+#else
+bool Settings::gAVFoundationEnabled = true;
+#endif
 #endif
 
 #if PLATFORM(COCOA)
@@ -125,8 +129,8 @@ static EditingBehaviorType editingBehaviorTypeForPlatform()
 static const bool defaultFixedPositionCreatesStackingContext = true;
 static const bool defaultFixedBackgroundsPaintRelativeToDocument = true;
 static const bool defaultAcceleratedCompositingForFixedPositionEnabled = true;
-static const bool defaultMediaPlaybackAllowsInline = false;
-static const bool defaultMediaPlaybackRequiresUserGesture = true;
+static const bool defaultAllowsInlineMediaPlayback = false;
+static const bool defaultRequiresUserGestureForMediaPlayback = true;
 static const bool defaultAudioPlaybackRequiresUserGesture = true;
 static const bool defaultShouldRespectImageOrientation = true;
 static const bool defaultImageSubsamplingEnabled = true;
@@ -135,8 +139,8 @@ static const bool defaultScrollingTreeIncludesFrames = true;
 static const bool defaultFixedPositionCreatesStackingContext = false;
 static const bool defaultFixedBackgroundsPaintRelativeToDocument = false;
 static const bool defaultAcceleratedCompositingForFixedPositionEnabled = false;
-static const bool defaultMediaPlaybackAllowsInline = true;
-static const bool defaultMediaPlaybackRequiresUserGesture = false;
+static const bool defaultAllowsInlineMediaPlayback = true;
+static const bool defaultRequiresUserGestureForMediaPlayback = false;
 static const bool defaultAudioPlaybackRequiresUserGesture = false;
 static const bool defaultShouldRespectImageOrientation = false;
 static const bool defaultImageSubsamplingEnabled = false;
@@ -160,7 +164,7 @@ static const bool defaultSelectTrailingWhitespaceEnabled = false;
 static const auto layoutScheduleThreshold = std::chrono::milliseconds(250);
 
 Settings::Settings(Page* page)
-    : m_page(0)
+    : m_page(nullptr)
     , m_mediaTypeOverride("screen")
     , m_fontGenericFamilies(std::make_unique<FontGenericFamilies>())
     , m_storageBlockingPolicy(SecurityOrigin::AllowAllStorage)
@@ -201,6 +205,7 @@ Settings::Settings(Page* page)
 #endif
     , m_hiddenPageCSSAnimationSuspensionEnabled(false)
     , m_fontFallbackPrefersPictographs(false)
+    , m_forcePendingWebGLPolicy(false)
 {
     // A Frame may not have been created yet, so we initialize the AtomicString
     // hash before trying to use it.
@@ -422,6 +427,11 @@ void Settings::setImagesEnabled(bool areImagesEnabled)
 
     // See comment in setLoadsImagesAutomatically.
     m_setImageLoadingSettingsTimer.startOneShot(0);
+}
+
+void Settings::setForcePendingWebGLPolicy(bool forced)
+{
+    m_forcePendingWebGLPolicy = forced;
 }
 
 void Settings::setPluginsEnabled(bool arePluginsEnabled)

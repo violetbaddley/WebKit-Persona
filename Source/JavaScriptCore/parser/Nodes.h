@@ -76,7 +76,7 @@ namespace JSC {
     };
     inline FallThroughMode invert(FallThroughMode fallThroughMode) { return static_cast<FallThroughMode>(!fallThroughMode); }
 
-    typedef HashSet<RefPtr<StringImpl>, IdentifierRepHash> IdentifierSet;
+    typedef HashSet<RefPtr<UniquedStringImpl>, IdentifierRepHash> IdentifierSet;
 
     namespace DeclarationStacks {
         enum VarAttrs { IsConstant = 1, HasInitializer = 2 };
@@ -580,7 +580,7 @@ namespace JSC {
 
     class PropertyNode : public ParserArenaFreeable {
     public:
-        enum Type { Constant = 1, Getter = 2, Setter = 4, Computed = 8 };
+        enum Type { Constant = 1, Getter = 2, Setter = 4, Computed = 8, Shorthand = 16 };
         enum PutType { Unknown, KnownDirect };
 
         PropertyNode(const Identifier&, ExpressionNode*, Type, PutType, SuperBinding);
@@ -598,7 +598,7 @@ namespace JSC {
         const Identifier* m_name;
         ExpressionNode* m_expression;
         ExpressionNode* m_assign;
-        unsigned m_type : 4;
+        unsigned m_type : 5;
         unsigned m_needsSuperBinding : 1;
         unsigned m_putType : 1;
     };
@@ -1511,7 +1511,7 @@ namespace JSC {
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
         StatementNode* m_tryBlock;
-        const Identifier& m_exceptionIdent;
+        const Identifier& m_thrownValueIdent;
         StatementNode* m_catchBlock;
         StatementNode* m_finallyBlock;
     };
@@ -1562,7 +1562,7 @@ namespace JSC {
         bool hasCapturedVariables() const { return !!m_capturedVariables.size(); }
         size_t capturedVariableCount() const { return m_capturedVariables.size(); }
         const IdentifierSet& capturedVariables() const { return m_capturedVariables; }
-        bool captures(StringImpl* uid) { return m_capturedVariables.contains(uid); }
+        bool captures(UniquedStringImpl* uid) { return m_capturedVariables.contains(uid); }
         bool captures(const Identifier& ident) { return captures(ident.impl()); }
 
         VarStack& varStack() { return m_varStack; }
@@ -1579,7 +1579,7 @@ namespace JSC {
 
         void emitStatementsBytecode(BytecodeGenerator&, RegisterID* destination);
         
-        void setClosedVariables(Vector<RefPtr<StringImpl>>&&) { }
+        void setClosedVariables(Vector<RefPtr<UniquedStringImpl>>&&) { }
 
     protected:
         int m_startLineNumber;
@@ -1605,12 +1605,12 @@ namespace JSC {
 
         static const bool scopeIsFunction = false;
 
-        void setClosedVariables(Vector<RefPtr<StringImpl>>&&);
-        const Vector<RefPtr<StringImpl>>& closedVariables() const { return m_closedVariables; }
+        void setClosedVariables(Vector<RefPtr<UniquedStringImpl>>&&);
+        const Vector<RefPtr<UniquedStringImpl>>& closedVariables() const { return m_closedVariables; }
 
     private:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
-        Vector<RefPtr<StringImpl>> m_closedVariables;
+        Vector<RefPtr<UniquedStringImpl>> m_closedVariables;
         unsigned m_startColumn;
         unsigned m_endColumn;
     };
@@ -1634,7 +1634,7 @@ namespace JSC {
         WTF_MAKE_FAST_ALLOCATED;
         WTF_MAKE_NONCOPYABLE(FunctionParameters);
     public:
-        static PassRefPtr<FunctionParameters> create(ParameterNode*);
+        static Ref<FunctionParameters> create(ParameterNode*);
         ~FunctionParameters();
 
         unsigned size() const { return m_size; }
@@ -1782,7 +1782,7 @@ namespace JSC {
 
     class ArrayPatternNode : public DeconstructionPatternNode {
     public:
-        static PassRefPtr<ArrayPatternNode> create();
+        static Ref<ArrayPatternNode> create();
         void appendIndex(const JSTokenLocation&, DeconstructionPatternNode* node)
         {
             m_targetPatterns.append(node);
@@ -1800,7 +1800,7 @@ namespace JSC {
     
     class ObjectPatternNode : public DeconstructionPatternNode {
     public:
-        static PassRefPtr<ObjectPatternNode> create();
+        static Ref<ObjectPatternNode> create();
         void appendEntry(const JSTokenLocation&, const Identifier& identifier, bool wasString, DeconstructionPatternNode* pattern)
         {
             m_targetPatterns.append(Entry(identifier, wasString, pattern));
@@ -1827,7 +1827,7 @@ namespace JSC {
 
     class BindingNode : public DeconstructionPatternNode {
     public:
-        static PassRefPtr<BindingNode> create(const Identifier& boundProperty, const JSTextPosition& start, const JSTextPosition& end);
+        static Ref<BindingNode> create(const Identifier& boundProperty, const JSTextPosition& start, const JSTextPosition& end);
         const Identifier& boundProperty() const { return m_boundProperty; }
 
         const JSTextPosition& divotStart() const { return m_divotStart; }

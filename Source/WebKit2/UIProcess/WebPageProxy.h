@@ -65,6 +65,7 @@
 #include "WebProcessLifetimeTracker.h"
 #include <WebCore/Color.h>
 #include <WebCore/DragActions.h>
+#include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/HitTestResult.h>
 #include <WebCore/MediaProducer.h>
 #include <WebCore/Page.h>
@@ -212,7 +213,7 @@ class QuickLookDocumentData;
 typedef GenericCallback<uint64_t> UnsignedCallback;
 typedef GenericCallback<EditingRange> EditingRangeCallback;
 typedef GenericCallback<const String&> StringCallback;
-typedef GenericCallback<API::SerializedScriptValue*> ScriptValueCallback;
+typedef GenericCallback<API::SerializedScriptValue*, bool> ScriptValueCallback;
 
 #if PLATFORM(GTK)
 typedef GenericCallback<API::Error*> PrintFinishedCallback;
@@ -260,6 +261,10 @@ struct WebPageConfiguration {
     WebPageProxy* relatedPage = nullptr;
 
     bool treatsSHA1SignedCertificatesAsInsecure = false;
+
+#if PLATFORM(IOS)
+    bool alwaysRunsAtForegroundPriority = false;
+#endif
 
     WebPreferencesStore::ValueMap preferenceValues;
 };
@@ -351,14 +356,14 @@ public:
     bool tryClose();
     bool isClosed() const { return m_isClosed; }
 
-    RefPtr<API::Navigation> loadRequest(const WebCore::ResourceRequest&, API::Object* userData = nullptr);
+    RefPtr<API::Navigation> loadRequest(const WebCore::ResourceRequest&, WebCore::ShouldOpenExternalURLsPolicy = WebCore::ShouldOpenExternalURLsPolicy::ShouldNotAllow, API::Object* userData = nullptr);
     RefPtr<API::Navigation> loadFile(const String& fileURL, const String& resourceDirectoryURL, API::Object* userData = nullptr);
     RefPtr<API::Navigation> loadData(API::Data*, const String& MIMEType, const String& encoding, const String& baseURL, API::Object* userData = nullptr);
     RefPtr<API::Navigation> loadHTMLString(const String& htmlString, const String& baseURL, API::Object* userData = nullptr);
     void loadAlternateHTMLString(const String& htmlString, const String& baseURL, const String& unreachableURL, API::Object* userData = nullptr);
     void loadPlainTextString(const String&, API::Object* userData = nullptr);
     void loadWebArchiveData(API::Data*, API::Object* userData = nullptr);
-    void navigateToURLWithSimulatedClick(const String& url, WebCore::IntPoint documentPoint, WebCore::IntPoint screenPoint);
+    void navigateToPDFLinkWithSimulatedClick(const String& url, WebCore::IntPoint documentPoint, WebCore::IntPoint screenPoint);
 
     void stopLoading();
     RefPtr<API::Navigation> reload(bool reloadFromOrigin);
@@ -497,12 +502,10 @@ public:
     void setAssistedNodeValue(const String&);
     void setAssistedNodeValueAsNumber(double);
     void setAssistedNodeSelectedIndex(uint32_t index, bool allowMultipleSelection = false);
-
-    void applicationWillEnterForeground();
     void applicationDidEnterBackground();
+    void applicationWillEnterForeground();
     void applicationWillResignActive();
     void applicationDidBecomeActive();
-
     void zoomToRect(WebCore::FloatRect, double minimumScale, double maximumScale);
     void commitPotentialTapFailed();
     void didNotHandleTapAsClick(const WebCore::IntPoint&);
@@ -655,6 +658,7 @@ public:
 #if PLATFORM(COCOA)
     void scaleViewAndUpdateGeometryFenced(double scale, WebCore::IntSize viewSize, std::function<void (const WebCore::MachSendRight&, CallbackBase::Error)>);
 #endif
+    void setShouldScaleViewToFitDocument(bool);
 
     float deviceScaleFactor() const;
     void setIntrinsicDeviceScaleFactor(float);
@@ -759,7 +763,7 @@ public:
     void getSelectionAsWebArchiveData(std::function<void (API::Data*, CallbackBase::Error)>);
     void getSourceForFrame(WebFrameProxy*, std::function<void (const String&, CallbackBase::Error)>);
     void getWebArchiveOfFrame(WebFrameProxy*, std::function<void (API::Data*, CallbackBase::Error)>);
-    void runJavaScriptInMainFrame(const String&, std::function<void (API::SerializedScriptValue*, CallbackBase::Error)> callbackFunction);
+    void runJavaScriptInMainFrame(const String&, std::function<void (API::SerializedScriptValue*, bool hadException, CallbackBase::Error)> callbackFunction);
     void forceRepaint(PassRefPtr<VoidCallback>);
 
     float headerHeight(WebFrameProxy*);
@@ -922,6 +926,10 @@ public:
     void setMayStartMediaWhenInWindow(bool);
     bool mayStartMediaWhenInWindow() const { return m_mayStartMediaWhenInWindow; }
         
+#if ENABLE(MEDIA_SESSION)
+    void handleMediaEvent(WebCore::MediaEventType);
+#endif
+
     // WebPopupMenuProxy::Client
     virtual NativeWebMouseEvent* currentlyProcessedMouseDownEvent() override;
 
@@ -963,7 +971,7 @@ public:
     void didCancelCheckingText(uint64_t requestID);
 
     void connectionWillOpen(IPC::Connection&);
-    void connectionDidClose(IPC::Connection&);
+    void webProcessWillShutDown();
 
     void processDidFinishLaunching();
 
@@ -1006,9 +1014,7 @@ public:
     void removeNavigationGestureSnapshot();
 
     WebHitTestResult* lastMouseMoveHitTestResult() const { return m_lastMouseMoveHitTestResult.get(); }
-    void performActionMenuHitTestAtLocation(WebCore::FloatPoint, bool forImmediateAction);
-    void selectLastActionMenuRange();
-    void focusAndSelectLastActionMenuHitTestResult();
+    void performImmediateActionHitTestAtLocation(WebCore::FloatPoint);
 
     void immediateActionDidUpdate();
     void immediateActionDidCancel();
@@ -1316,7 +1322,7 @@ private:
     void dataCallback(const IPC::DataReference&, uint64_t);
     void imageCallback(const ShareableBitmap::Handle&, uint64_t);
     void stringCallback(const String&, uint64_t);
-    void scriptValueCallback(const IPC::DataReference&, uint64_t);
+    void scriptValueCallback(const IPC::DataReference&, bool hadException, uint64_t);
     void computedPagesCallback(const Vector<WebCore::IntRect>&, double totalScaleFactorForPrinting, uint64_t);
     void validateCommandCallback(const String&, bool, int, uint64_t);
     void unsignedCallback(uint64_t, uint64_t);
@@ -1393,8 +1399,6 @@ private:
 
     void enableInspectorNodeSearch();
     void disableInspectorNodeSearch();
-
-    void notifyRevealedSelection();
 #endif // PLATFORM(IOS)
 
     void clearLoadDependentCallbacks();
@@ -1440,7 +1444,7 @@ private:
     void viewDidEnterWindow();
 
 #if PLATFORM(MAC)
-    void didPerformActionMenuHitTest(const WebHitTestResult::Data&, bool forImmediateAction, bool contentPreventsDefault, const UserData&);
+    void didPerformImmediateActionHitTest(const WebHitTestResult::Data&, bool contentPreventsDefault, const UserData&);
 #endif
 
     void handleAutoFillButtonClick(const UserData&);
@@ -1541,8 +1545,8 @@ private:
 
     WebCore::ViewState::Flags m_viewState;
     bool m_viewWasEverInWindow;
-
 #if PLATFORM(IOS)
+    bool m_alwaysRunsAtForegroundPriority;
     ProcessThrottler::ForegroundActivityToken m_activityToken;
 #endif
         
@@ -1710,7 +1714,9 @@ private:
     bool m_mayStartMediaWhenInWindow;
 
     bool m_waitingForDidUpdateViewState;
-        
+
+    bool m_shouldScaleViewToFitDocument { false };
+
 #if PLATFORM(COCOA)
     HashMap<String, String> m_temporaryPDFFiles;
     std::unique_ptr<WebCore::RunLoopObserver> m_viewStateChangeDispatcher;

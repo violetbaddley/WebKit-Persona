@@ -59,9 +59,9 @@ static uint64_t generateCallbackID()
     return ++callbackID;
 }
 
-PassRefPtr<NetworkProcessProxy> NetworkProcessProxy::create(WebProcessPool& processPool)
+Ref<NetworkProcessProxy> NetworkProcessProxy::create(WebProcessPool& processPool)
 {
-    return adoptRef(new NetworkProcessProxy(processPool));
+    return adoptRef(*new NetworkProcessProxy(processPool));
 }
 
 NetworkProcessProxy::NetworkProcessProxy(WebProcessPool& processPool)
@@ -93,6 +93,11 @@ void NetworkProcessProxy::connectionWillOpen(IPC::Connection& connection)
 #else
     UNUSED_PARAM(connection);
 #endif
+}
+
+void NetworkProcessProxy::processWillShutDown(IPC::Connection& connection)
+{
+    ASSERT_UNUSED(connection, this->connection() == &connection);
 }
 
 void NetworkProcessProxy::getNetworkProcessConnection(PassRefPtr<Messages::WebProcessProxy::GetNetworkProcessConnection::DelayedReply> reply)
@@ -351,6 +356,10 @@ void NetworkProcessProxy::processReadyToSuspend()
     m_throttler.processReadyToSuspend();
 }
 
+void NetworkProcessProxy::didSetAssertionState(AssertionState)
+{
+}
+    
 void NetworkProcessProxy::setIsHoldingLockedFiles(bool isHoldingLockedFiles)
 {
     if (!isHoldingLockedFiles) {

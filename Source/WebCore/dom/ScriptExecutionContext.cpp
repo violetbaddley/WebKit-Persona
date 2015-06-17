@@ -347,7 +347,7 @@ void ScriptExecutionContext::willDestroyDestructionObserver(ContextDestructionOb
 bool ScriptExecutionContext::sanitizeScriptError(String& errorMessage, int& lineNumber, int& columnNumber, String& sourceURL, CachedScript* cachedScript)
 {
     URL targetURL = completeURL(sourceURL);
-    if (securityOrigin()->canRequest(targetURL) || (cachedScript && cachedScript->passesAccessControlCheck(securityOrigin())))
+    if (securityOrigin()->canRequest(targetURL) || (cachedScript && cachedScript->passesAccessControlCheck(*securityOrigin())))
         return false;
     errorMessage = "Script error.";
     sourceURL = String();
@@ -449,7 +449,7 @@ void ScriptExecutionContext::didChangeTimerAlignmentInterval()
         timer->didChangeAlignmentInterval();
 }
 
-double ScriptExecutionContext::timerAlignmentInterval() const
+double ScriptExecutionContext::timerAlignmentInterval(bool) const
 {
     return DOMTimer::defaultAlignmentInterval();
 }

@@ -41,6 +41,7 @@
 #include "Frame.h"
 #include "FrameLoader.h"
 #include "FrameSelection.h"
+#include "HTMLDetailsElement.h"
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
@@ -610,7 +611,15 @@ void AccessibilityObject::findMatchingObjects(AccessibilitySearchCriteria* crite
 static PassRefPtr<Range> rangeClosestToRange(Range* referenceRange, PassRefPtr<Range> afterRange, PassRefPtr<Range> beforeRange)
 {
     ASSERT(referenceRange);
+    
+    // The treeScope for shadow nodes may not be the same scope as another element in a document.
+    // Comparisons may fail in that case, which are expected behavior and should not assert.
+    if (afterRange && ((afterRange->startPosition().anchorNode()->compareDocumentPosition(referenceRange->endPosition().anchorNode()) & Node::DOCUMENT_POSITION_DISCONNECTED) == Node::DOCUMENT_POSITION_DISCONNECTED))
+        return nullptr;
     ASSERT(!afterRange || afterRange->startPosition() >= referenceRange->endPosition());
+    
+    if (beforeRange && ((beforeRange->endPosition().anchorNode()->compareDocumentPosition(referenceRange->startPosition().anchorNode()) & Node::DOCUMENT_POSITION_DISCONNECTED) == Node::DOCUMENT_POSITION_DISCONNECTED))
+        return nullptr;
     ASSERT(!beforeRange || beforeRange->endPosition() <= referenceRange->startPosition());
     
     if (!referenceRange || (!afterRange && !beforeRange))
@@ -710,6 +719,12 @@ String AccessibilityObject::selectText(AccessibilitySelectTextCriteria* criteria
     
     // Determine which candidate is closest to the selection and perform the activity.
     if (RefPtr<Range> closestStringRange = rangeClosestToRange(selectedStringRange.get(), closestAfterStringRange, closestBeforeStringRange)) {
+        // If the search started within a text control, ensure that the result is inside that element.
+        if (element() && element()->isTextFormControl()) {
+            if (!closestStringRange->startContainer()->isDescendantOrShadowDescendantOf(element()) || !closestStringRange->endContainer()->isDescendantOrShadowDescendantOf(element()))
+                return String();
+        }
+        
         String closestString = closestStringRange->text();
         bool replaceSelection = false;
         if (frame->selection().setSelectedRange(closestStringRange.get(), DOWNSTREAM, true)) {
@@ -2199,8 +2214,13 @@ void AccessibilityObject::classList(Vector<String>& classList) const
         classList.append(list.item(k).string());
 }
 
+bool AccessibilityObject::supportsARIAPressed() const
+{
+    const AtomicString& expanded = getAttribute(aria_pressedAttr);
+    return equalIgnoringCase(expanded, "true") || equalIgnoringCase(expanded, "false");
+}
     
-bool AccessibilityObject::supportsARIAExpanded() const
+bool AccessibilityObject::supportsExpanded() const
 {
     // Undefined values should not result in this attribute being exposed to ATs according to ARIA.
     const AtomicString& expanded = getAttribute(aria_expandedAttr);
@@ -2209,6 +2229,7 @@ bool AccessibilityObject::supportsARIAExpanded() const
     switch (roleValue()) {
     case ComboBoxRole:
     case DisclosureTriangleRole:
+    case DetailsRole:
         return true;
     default:
         return false;
@@ -2219,6 +2240,9 @@ bool AccessibilityObject::isExpanded() const
 {
     if (equalIgnoringCase(getAttribute(aria_expandedAttr), "true"))
         return true;
+    
+    if (is<HTMLDetailsElement>(node()))
+        return downcast<HTMLDetailsElement>(node())->isOpen();
     
     return false;  
 }
@@ -2297,10 +2321,8 @@ AccessibilityButtonState AccessibilityObject::checkboxOrRadioValue() const
 // Note that the return value represents the ideal new scroll offset.
 // This may be out of range - the calling function should clip this
 // to the available range.
-static int computeBestScrollOffset(int currentScrollOffset,
-                                   int subfocusMin, int subfocusMax,
-                                   int objectMin, int objectMax,
-                                   int viewportMin, int viewportMax) {
+static int computeBestScrollOffset(int currentScrollOffset, int subfocusMin, int objectMin, int objectMax, int viewportMin, int viewportMax)
+{
     int viewportSize = viewportMax - viewportMin;
 
     // If the focus size is larger than the viewport size, shrink it in the
@@ -2308,12 +2330,8 @@ static int computeBestScrollOffset(int currentScrollOffset,
     if (objectMax - objectMin > viewportSize) {
         // Subfocus must be within focus:
         subfocusMin = std::max(subfocusMin, objectMin);
-        subfocusMax = std::min(subfocusMax, objectMax);
 
         // Subfocus must be no larger than the viewport size; favor top/left.
-        if (subfocusMax - subfocusMin > viewportSize)
-            subfocusMax = subfocusMin + viewportSize;
-
         if (subfocusMin + viewportSize > objectMax)
             objectMin = objectMax - viewportSize;
         else {
@@ -2400,12 +2418,12 @@ void AccessibilityObject::scrollToMakeVisibleWithSubFocus(const IntRect& subfocu
 
     int desiredX = computeBestScrollOffset(
         scrollPosition.x(),
-        objectRect.x() + subfocus.x(), objectRect.x() + subfocus.maxX(),
+        objectRect.x() + subfocus.x(),
         objectRect.x(), objectRect.maxX(),
         0, scrollVisibleRect.width());
     int desiredY = computeBestScrollOffset(
         scrollPosition.y(),
-        objectRect.y() + subfocus.y(), objectRect.y() + subfocus.maxY(),
+        objectRect.y() + subfocus.y(),
         objectRect.y(), objectRect.maxY(),
         0, scrollVisibleRect.height());
 
@@ -2452,12 +2470,12 @@ void AccessibilityObject::scrollToGlobalPoint(const IntPoint& globalPoint) const
 
         int desiredX = computeBestScrollOffset(
             0,
-            objectRect.x(), objectRect.maxX(),
+            objectRect.x(),
             objectRect.x(), objectRect.maxX(),
             point.x(), point.x());
         int desiredY = computeBestScrollOffset(
             0,
-            objectRect.y(), objectRect.maxY(),
+            objectRect.y(),
             objectRect.y(), objectRect.maxY(),
             point.y(), point.y());
         outer->scrollTo(IntPoint(desiredX, desiredY));

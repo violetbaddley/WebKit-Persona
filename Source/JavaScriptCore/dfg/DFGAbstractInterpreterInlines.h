@@ -257,6 +257,14 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             }
             break;
         }
+        
+        if (node->op() == BitAnd
+            && (isBoolInt32Speculation(forNode(node->child1()).m_type) ||
+                isBoolInt32Speculation(forNode(node->child2()).m_type))) {
+            forNode(node).setType(SpecBoolInt32);
+            break;
+        }
+        
         forNode(node).setType(SpecInt32);
         break;
     }
@@ -297,7 +305,7 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         if (node->child1().useKind() == UntypedUse && !(value.m_type & ~SpecBoolean))
             m_state.setFoundConstants(true);
         if (value.m_type & SpecBoolean) {
-            value.merge(SpecInt32);
+            value.merge(SpecBoolInt32);
             value.filter(~SpecBoolean);
         }
         break;
@@ -337,6 +345,11 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             }
         }
         
+        if (isBooleanSpeculation(forNode(node->child1()).m_type)) {
+            forNode(node).setType(SpecBoolInt32);
+            break;
+        }
+        
         forNode(node).setType(SpecInt32);
         break;
     }
@@ -347,7 +360,31 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
             setConstant(node, jsDoubleNumber(child.asNumber()));
             break;
         }
-        forNode(node).setType(m_graph, forNode(node->child1()).m_type);
+
+        SpeculatedType type = forNode(node->child1()).m_type;
+        switch (node->child1().useKind()) {
+        case NotCellUse: {
+            if (type & SpecOther) {
+                type &= ~SpecOther;
+                type |= SpecDoublePureNaN | SpecBoolInt32; // Null becomes zero, undefined becomes NaN.
+            }
+            if (type & SpecBoolean) {
+                type &= ~SpecBoolean;
+                type |= SpecBoolInt32; // True becomes 1, false becomes 0.
+            }
+            type &= SpecBytecodeNumber;
+            break;
+        }
+
+        case Int52RepUse:
+        case NumberUse:
+        case RealNumberUse:
+            break;
+
+        default:
+            RELEASE_ASSERT_NOT_REACHED();
+        }
+        forNode(node).setType(type);
         forNode(node).fixTypeForRepresentation(m_graph, node);
         break;
     }
@@ -2270,11 +2307,8 @@ bool AbstractInterpreter<AbstractStateType>::executeEffects(unsigned clobberLimi
         break;
     }
 
-    case StoreBarrierWithNullCheck: {
-        break;
-    }
-
     case CheckTierUpAndOSREnter:
+    case CheckTierUpWithNestedTriggerAndOSREnter:
     case LoopHint:
     case ZombieHint:
         break;

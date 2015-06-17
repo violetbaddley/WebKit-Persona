@@ -195,12 +195,18 @@ static inline FilterOperations blendFilterOperations(const AnimationBase* anim, 
     return result;
 }
 
-static inline FilterOperations blendFunc(const AnimationBase* anim, const FilterOperations& from, const FilterOperations& to, double progress)
+static inline FilterOperations blendFunc(const AnimationBase* anim, const FilterOperations& from, const FilterOperations& to, double progress, bool animatingBackdropFilter = false)
 {
     FilterOperations result;
 
     // If we have a filter function list, use that to do a per-function animation.
+#if ENABLE(FILTERS_LEVEL_2)
+    if ((!animatingBackdropFilter && anim->filterFunctionListsMatch()) || (animatingBackdropFilter && anim->backdropFilterFunctionListsMatch()))
+#else
+    UNUSED_PARAM(animatingBackdropFilter);
     if (anim->filterFunctionListsMatch())
+#endif
+
         result = blendFilterOperations(anim, from, to, progress);
     else {
         // If the filter function lists don't match, we could try to cross-fade, but don't yet have a way to represent that in CSS.
@@ -218,7 +224,7 @@ static inline PassRefPtr<StyleImage> blendFilter(const AnimationBase* anim, Cach
 
     RefPtr<StyleCachedImage> styledImage = StyleCachedImage::create(image);
     auto imageValue = CSSImageValue::create(image->url(), styledImage.get());
-    auto filterValue = ComputedStyleExtractor::valueForFilter(&anim->renderer()->style(), filterResult, DoNotAdjustPixelValues);
+    auto filterValue = ComputedStyleExtractor::valueForFilter(anim->renderer()->style(), filterResult, DoNotAdjustPixelValues);
 
     auto result = CSSFilterImageValue::create(WTF::move(imageValue), WTF::move(filterValue));
     result.get().setFilterOperations(filterResult);
@@ -615,6 +621,24 @@ public:
         dst->setFilter(blendFunc(anim, a->filter(), b->filter(), progress));
     }
 };
+
+#if ENABLE(FILTERS_LEVEL_2)
+class PropertyWrapperAcceleratedBackdropFilter : public PropertyWrapper<const FilterOperations&> {
+    WTF_MAKE_FAST_ALLOCATED;
+public:
+    PropertyWrapperAcceleratedBackdropFilter()
+        : PropertyWrapper<const FilterOperations&>(CSSPropertyWebkitBackdropFilter, &RenderStyle::backdropFilter, &RenderStyle::setBackdropFilter)
+    {
+    }
+
+    virtual bool animationIsAccelerated() const { return true; }
+
+    virtual void blend(const AnimationBase* anim, RenderStyle* dst, const RenderStyle* a, const RenderStyle* b, double progress) const
+    {
+        dst->setBackdropFilter(blendFunc(anim, a->backdropFilter(), b->backdropFilter(), progress, true));
+    }
+};
+#endif
 
 static inline size_t shadowListLength(const ShadowData* shadow)
 {
@@ -1020,9 +1044,8 @@ public:
 
     virtual bool equals(const RenderStyle* a, const RenderStyle* b) const
     {
-        Vector<AnimationPropertyWrapperBase*>::const_iterator end = m_propertyWrappers.end();
-        for (Vector<AnimationPropertyWrapperBase*>::const_iterator it = m_propertyWrappers.begin(); it != end; ++it) {
-            if (!(*it)->equals(a, b))
+        for (auto& wrapper : m_propertyWrappers) {
+            if (!wrapper->equals(a, b))
                 return false;
         }
         return true;
@@ -1030,9 +1053,8 @@ public:
 
     virtual void blend(const AnimationBase* anim, RenderStyle* dst, const RenderStyle* a, const RenderStyle* b, double progress) const
     {
-        Vector<AnimationPropertyWrapperBase*>::const_iterator end = m_propertyWrappers.end();
-        for (Vector<AnimationPropertyWrapperBase*>::const_iterator it = m_propertyWrappers.begin(); it != end; ++it)
-            (*it)->blend(anim, dst, a, b, progress);
+        for (auto& wrapper : m_propertyWrappers)
+            wrapper->blend(anim, dst, a, b, progress);
     }
 
     const Vector<AnimationPropertyWrapperBase*>& propertyWrappers() const { return m_propertyWrappers; }
@@ -1280,6 +1302,9 @@ CSSPropertyAnimationWrapperMap::CSSPropertyAnimationWrapperMap()
         new PropertyWrapperAcceleratedOpacity(),
         new PropertyWrapperAcceleratedTransform(),
         new PropertyWrapperAcceleratedFilter(),
+#if ENABLE(FILTERS_LEVEL_2)
+        new PropertyWrapperAcceleratedBackdropFilter(),
+#endif
         new PropertyWrapperClipPath(CSSPropertyWebkitClipPath, &RenderStyle::clipPath, &RenderStyle::setClipPath),
 
 #if ENABLE(CSS_SHAPES)

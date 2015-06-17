@@ -79,6 +79,7 @@
 #import <JavaScriptCore/JSContext.h>
 #import <JavaScriptCore/JSValue.h>
 #import <WebCore/IOSurface.h>
+#import <WebCore/WebCoreSystemInterface.h>
 #import <wtf/HashMap.h>
 #import <wtf/MathExtras.h>
 #import <wtf/NeverDestroyed.h>
@@ -100,6 +101,7 @@
 #import "WebVideoFullscreenManagerProxy.h"
 #import <UIKit/UIApplication.h>
 #import <WebCore/CoreGraphicsSPI.h>
+#import <WebCore/FrameLoaderTypes.h>
 #import <WebCore/InspectorOverlay.h>
 #import <WebCore/QuartzCoreSPI.h>
 
@@ -139,6 +141,7 @@ enum class DynamicViewportUpdateMode {
 #import <WebCore/ColorMac.h>
 #endif
 
+NSString * const _WKShouldOpenExternalURLsKey = @"_WKShouldOpenExternalURLsKey";
 
 static HashMap<WebKit::WebPageProxy*, WKWebView *>& pageToViewMap()
 {
@@ -244,7 +247,7 @@ static int32_t deviceOrientation()
     if (!_page || !_page->videoFullscreenManager())
         return false;
     
-    return _page->videoFullscreenManager()->hasMode(WebCore::HTMLMediaElement::VideoFullscreenModeOptimized);
+    return _page->videoFullscreenManager()->hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenModeOptimized);
 }
 
 - (BOOL)_mayAutomaticallyShowVideoOptimized
@@ -256,6 +259,16 @@ static int32_t deviceOrientation()
         return false;
 
     return _page->videoFullscreenManager()->mayAutomaticallyShowVideoOptimized();
+#endif
+}
+
+static bool shouldAllowAlternateFullscreen()
+{
+#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000
+    static bool shouldAllowAlternateFullscreen = iosExecutableWasLinkedOnOrAfterVersion(wkIOSSystemVersion_9_0);
+    return shouldAllowAlternateFullscreen;
+#else
+    return false;
 #endif
 }
 
@@ -307,10 +320,14 @@ static int32_t deviceOrientation()
     webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::suppressesIncrementalRenderingKey(), WebKit::WebPreferencesStore::Value(!![_configuration suppressesIncrementalRendering]));
 
 #if PLATFORM(IOS)
-    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::mediaPlaybackAllowsInlineKey(), WebKit::WebPreferencesStore::Value(!![_configuration allowsInlineMediaPlayback]));
-    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::allowsAlternateFullscreenKey(), WebKit::WebPreferencesStore::Value(!![_configuration _allowsAlternateFullscreen]));
-    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::mediaPlaybackRequiresUserGestureKey(), WebKit::WebPreferencesStore::Value(!![_configuration mediaPlaybackRequiresUserAction]));
-    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::mediaPlaybackAllowsAirPlayKey(), WebKit::WebPreferencesStore::Value(!![_configuration mediaPlaybackAllowsAirPlay]));
+    webPageConfiguration.alwaysRunsAtForegroundPriority = [_configuration _alwaysRunsAtForegroundPriority];
+
+    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::allowsInlineMediaPlaybackKey(), WebKit::WebPreferencesStore::Value(!![_configuration allowsInlineMediaPlayback]));
+    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::allowsAlternateFullscreenKey(), WebKit::WebPreferencesStore::Value(!![_configuration allowsPictureInPictureMediaPlayback] && shouldAllowAlternateFullscreen()));
+    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::requiresUserGestureForMediaPlaybackKey(), WebKit::WebPreferencesStore::Value(!![_configuration requiresUserActionForMediaPlayback]));
+#endif
+#if ENABLE(WIRELESS_PLAYBACK_TARGET)
+    webPageConfiguration.preferenceValues.set(WebKit::WebPreferencesKey::allowsAirPlayForMediaPlaybackKey(), WebKit::WebPreferencesStore::Value(!![_configuration allowsAirPlayForMediaPlayback]));
 #endif
 
 #if PLATFORM(IOS)
@@ -432,11 +449,7 @@ static int32_t deviceOrientation()
 
 - (WKNavigation *)loadRequest:(NSURLRequest *)request
 {
-    auto navigation = _page->loadRequest(request);
-    if (!navigation)
-        return nil;
-
-    return [wrapper(*navigation.release().leakRef()) autorelease];
+    return [self _loadRequest:request withOptions:nil];
 }
 
 - (WKNavigation *)loadFileURL:(NSURL *)URL allowingReadAccessToURL:(NSURL *)readAccessURL
@@ -577,7 +590,7 @@ static WKErrorCode callbackErrorCode(WebKit::CallbackBase::Error error)
 {
     auto handler = adoptNS([completionHandler copy]);
 
-    _page->runJavaScriptInMainFrame(javaScriptString, [handler](API::SerializedScriptValue* serializedScriptValue, WebKit::ScriptValueCallback::Error errorCode) {
+    _page->runJavaScriptInMainFrame(javaScriptString, [handler](API::SerializedScriptValue* serializedScriptValue, bool hadException, WebKit::ScriptValueCallback::Error errorCode) {
         if (!handler)
             return;
 
@@ -600,8 +613,14 @@ static WKErrorCode callbackErrorCode(WebKit::CallbackBase::Error error)
         }
 
         auto rawHandler = (void (^)(id, NSError *))handler.get();
-        if (!serializedScriptValue) {
+        if (hadException) {
+            ASSERT(!serializedScriptValue);
             rawHandler(nil, createNSError(WKErrorJavaScriptExceptionOccurred).get());
+            return;
+        }
+
+        if (!serializedScriptValue) {
+            rawHandler(nil, createNSError(WKErrorJavaScriptResultTypeIsUnsupported).get());
             return;
         }
 
@@ -668,6 +687,12 @@ static WKErrorCode callbackErrorCode(WebKit::CallbackBase::Error error)
 static inline CGFloat floorToDevicePixel(CGFloat input, float deviceScaleFactor)
 {
     return CGFloor(input * deviceScaleFactor) / deviceScaleFactor;
+}
+
+static inline bool pointsEqualInDevicePixels(CGPoint a, CGPoint b, float deviceScaleFactor)
+{
+    return fabs(a.x * deviceScaleFactor - b.x * deviceScaleFactor) < std::numeric_limits<float>::epsilon()
+        && fabs(a.y * deviceScaleFactor - b.y * deviceScaleFactor) < std::numeric_limits<float>::epsilon();
 }
 
 static CGSize roundScrollViewContentSize(const WebKit::WebPageProxy& page, CGSize contentSize)
@@ -1309,7 +1334,7 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
 
 - (void)didMoveToWindow
 {
-    _page->viewStateDidChange(WebCore::ViewState::IsInWindow);
+    _page->viewStateDidChange(WebCore::ViewState::AllFlags);
 }
 
 - (void)setOpaque:(BOOL)opaque
@@ -1402,7 +1427,11 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     if (WebKit::RemoteScrollingCoordinatorProxy* coordinator = _page->scrollingCoordinatorProxy()) {
         // FIXME: Here, I'm finding the maximum horizontal/vertical scroll offsets. There's probably a better way to do this.
         CGSize maxScrollOffsets = CGSizeMake(scrollView.contentSize.width - scrollView.bounds.size.width, scrollView.contentSize.height - scrollView.bounds.size.height);
-        coordinator->adjustTargetContentOffsetForSnapping(maxScrollOffsets, velocity, targetContentOffset);
+        
+        CGRect fullViewRect = self.bounds;
+        CGRect unobscuredRect = UIEdgeInsetsInsetRect(fullViewRect, [self _computedContentInset]);
+        
+        coordinator->adjustTargetContentOffsetForSnapping(maxScrollOffsets, velocity, unobscuredRect.origin.y, targetContentOffset);
     }
 #endif
 }
@@ -1490,6 +1519,16 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
     return [self convertRect:unobscuredRect toView:self._currentContentView];
 }
 
+// Ideally UIScrollView would expose this for us: <rdar://problem/21394567>.
+- (BOOL)_scrollViewIsRubberBanding
+{
+    float deviceScaleFactor = _page->deviceScaleFactor();
+
+    CGPoint contentOffset = [_scrollView contentOffset];
+    CGPoint boundedOffset = contentOffsetBoundedInValidRange(_scrollView.get(), contentOffset);
+    return !pointsEqualInDevicePixels(contentOffset, boundedOffset, deviceScaleFactor);
+}
+
 - (void)_updateVisibleContentRects
 {
     if (![self usesStandardContentView]) {
@@ -1516,12 +1555,32 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
 
     CGFloat scaleFactor = contentZoomScale(self);
 
-    BOOL isStableState = !(_isChangingObscuredInsetsInteractively || [_scrollView isDragging] || [_scrollView isDecelerating] || [_scrollView isZooming] || [_scrollView isZoomBouncing] || [_scrollView _isAnimatingZoom] || [_scrollView _isScrollingToTop]);
+    BOOL isStableState = !(_isChangingObscuredInsetsInteractively || [_scrollView isDragging] || [_scrollView isDecelerating] || [_scrollView isZooming] || [_scrollView isZoomBouncing] || [_scrollView _isAnimatingZoom] || [_scrollView _isScrollingToTop] || [self _scrollViewIsRubberBanding]);
 
     // FIXME: this can be made static after we stop supporting iOS 8.x.
     if (isStableState && [_scrollView respondsToSelector:@selector(_isInterruptingDeceleration)])
         isStableState = ![_scrollView performSelector:@selector(_isInterruptingDeceleration)];
 
+#if ENABLE(CSS_SCROLL_SNAP) && ENABLE(ASYNC_SCROLLING)
+    if (isStableState) {
+        WebKit::RemoteScrollingCoordinatorProxy* coordinator = _page->scrollingCoordinatorProxy();
+        if (coordinator && coordinator->hasActiveSnapPoint()) {
+            CGRect fullViewRect = self.bounds;
+            CGRect unobscuredRect = UIEdgeInsetsInsetRect(fullViewRect, [self _computedContentInset]);
+            
+            CGPoint currentPoint = [_scrollView contentOffset];
+            CGPoint activePoint = coordinator->nearestActiveContentInsetAdjustedSnapPoint(unobscuredRect.origin.y, currentPoint);
+
+            if (!CGPointEqualToPoint(activePoint, currentPoint)) {
+                RetainPtr<WKScrollView> strongScrollView = _scrollView;
+                dispatch_async(dispatch_get_main_queue(), [strongScrollView, activePoint] {
+                    [strongScrollView setContentOffset:activePoint animated:NO];
+                });
+            }
+        }
+    }
+#endif
+    
     [_contentView didUpdateVisibleRect:visibleRectInContentCoordinates
         unobscuredRect:unobscuredRectInContentCoordinates
         unobscuredRectInScrollViewCoordinates:unobscuredRect
@@ -1714,7 +1773,6 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
 - (NSDragOperation)draggingUpdated:(id <NSDraggingInfo>)sender
 {
     return [_wkView draggingUpdated:sender];
-    
 }
 
 - (void)draggingExited:(id <NSDraggingInfo>)sender
@@ -1736,6 +1794,18 @@ static WebCore::FloatPoint constrainContentOffset(WebCore::FloatPoint contentOff
 @end
 
 @implementation WKWebView (WKPrivate)
+
+- (WKNavigation *)_loadRequest:(NSURLRequest *)request withOptions:(NSDictionary *)loadOptions
+{
+    bool shouldOpenExternalURLs = [loadOptions[_WKShouldOpenExternalURLsKey] boolValue];
+    WebCore::ShouldOpenExternalURLsPolicy shouldOpenExternalURLsPolicy = shouldOpenExternalURLs ? WebCore::ShouldOpenExternalURLsPolicy::ShouldAllow : WebCore::ShouldOpenExternalURLsPolicy::ShouldNotAllow;
+
+    auto navigation = _page->loadRequest(request, shouldOpenExternalURLsPolicy);
+    if (!navigation)
+        return nil;
+
+    return [wrapper(*navigation.release().leakRef()) autorelease];
+}
 
 - (BOOL)_isEditable
 {
@@ -1890,6 +1960,17 @@ static int32_t activeOrientation(WKWebView *webView)
         completionHandlerCopy(didBecomeFirstResponder);
         Block_release(completionHandlerCopy);
     }];
+}
+
+- (id)_snapshotLayerContentsForBackForwardListItem:(WKBackForwardListItem *)item
+{
+    if (_page->backForwardList().currentItem() == &item._item)
+        _page->recordNavigationSnapshot(*_page->backForwardList().currentItem());
+
+    if (auto* viewSnapshot = item._item.snapshot())
+        return viewSnapshot->asLayerContents();
+
+    return nil;
 }
 
 #endif
@@ -2301,6 +2382,8 @@ static inline WebKit::FindOptions toFindOptions(_WKFindOptions wkFindOptions)
         return _WKLayoutModeDynamicSizeComputedFromViewScale;
     case kWKLayoutModeDynamicSizeWithMinimumViewSize:
         return _WKLayoutModeDynamicSizeWithMinimumViewSize;
+    case kWKLayoutModeDynamicSizeComputedFromMinimumDocumentSize:
+        return _WKLayoutModeDynamicSizeComputedFromMinimumDocumentSize;
     case kWKLayoutModeViewSize:
     default:
         return _WKLayoutModeViewSize;
@@ -2323,6 +2406,9 @@ static inline WebKit::FindOptions toFindOptions(_WKFindOptions wkFindOptions)
         break;
     case _WKLayoutModeDynamicSizeWithMinimumViewSize:
         wkViewLayoutMode = kWKLayoutModeDynamicSizeWithMinimumViewSize;
+        break;
+    case _WKLayoutModeDynamicSizeComputedFromMinimumDocumentSize:
+        wkViewLayoutMode = kWKLayoutModeDynamicSizeComputedFromMinimumDocumentSize;
         break;
     case _WKLayoutModeViewSize:
     default:
@@ -2678,6 +2764,20 @@ static inline WebKit::FindOptions toFindOptions(_WKFindOptions wkFindOptions)
     CGFloat imageHeight = imageScale * snapshotRectInContentCoordinates.size.height;
     CGSize imageSize = CGSizeMake(imageWidth, imageHeight);
 
+#if USE(IOSURFACE)
+    // If we are parented and thus won't incur a significant penalty from paging in tiles, snapshot the view hierarchy directly.
+    if (self.window) {
+        auto surface = WebCore::IOSurface::create(WebCore::expandedIntSize(WebCore::FloatSize(imageSize)), WebCore::ColorSpaceDeviceRGB);
+        CGFloat imageScaleInViewCoordinates = imageWidth / rectInViewCoordinates.size.width;
+        CATransform3D transform = CATransform3DMakeScale(imageScaleInViewCoordinates, imageScaleInViewCoordinates, 1);
+        transform = CATransform3DTranslate(transform, -rectInViewCoordinates.origin.x, -rectInViewCoordinates.origin.y, 0);
+        CARenderServerRenderLayerWithTransform(MACH_PORT_NULL, self.layer.context.contextId, reinterpret_cast<uint64_t>(self.layer), surface->surface(), 0, 0, &transform);
+        completionHandler(surface->createImage().get());
+
+        return;
+    }
+#endif
+    
     if (_customContentView) {
         UIGraphicsBeginImageContextWithOptions(imageSize, YES, 1);
 
@@ -2685,20 +2785,10 @@ static inline WebKit::FindOptions toFindOptions(_WKFindOptions wkFindOptions)
         [customContentView.backgroundColor set];
         UIRectFill(CGRectMake(0, 0, imageWidth, imageHeight));
 
-        CGRect destinationRect = customContentView.bounds;
-        destinationRect.origin.x = -snapshotRectInContentCoordinates.origin.x * imageScale;
-        destinationRect.origin.y = -snapshotRectInContentCoordinates.origin.y * imageScale;
-        destinationRect.size.width *= imageScale;
-        destinationRect.size.height *= imageScale;
-
-        if ([_customContentView window])
-            [customContentView drawViewHierarchyInRect:destinationRect afterScreenUpdates:NO];
-        else {
-            CGContextRef context = UIGraphicsGetCurrentContext();
-            CGContextTranslateCTM(context, destinationRect.origin.x, destinationRect.origin.y);
-            CGContextScaleCTM(context, imageScale, imageScale);
-            [customContentView.layer renderInContext:context];
-        }
+        CGContextRef context = UIGraphicsGetCurrentContext();
+        CGContextTranslateCTM(context, -snapshotRectInContentCoordinates.origin.x * imageScale, -snapshotRectInContentCoordinates.origin.y * imageScale);
+        CGContextScaleCTM(context, imageScale, imageScale);
+        [customContentView.layer renderInContext:context];
 
         completionHandler([UIGraphicsGetImageFromCurrentImageContext() CGImage]);
 
@@ -2706,25 +2796,6 @@ static inline WebKit::FindOptions toFindOptions(_WKFindOptions wkFindOptions)
         return;
     }
 
-#if USE(IOSURFACE)
-    // If we are parented and thus won't incur a significant penalty from paging in tiles, snapshot the view hierarchy directly.
-    if (self.window) {
-        float deviceScaleFactor = _page->deviceScaleFactor();
-
-        CGRect imageRectInPoints;
-        imageRectInPoints.size.width = imageWidth / deviceScaleFactor;
-        imageRectInPoints.size.height = imageRectInPoints.size.width / rectInViewCoordinates.size.width * rectInViewCoordinates.size.height;
-        imageRectInPoints.origin.x = rectInViewCoordinates.origin.x / deviceScaleFactor;
-        imageRectInPoints.origin.y = rectInViewCoordinates.origin.y / deviceScaleFactor;
-
-        auto surface = WebCore::IOSurface::create(WebCore::expandedIntSize(WebCore::FloatSize(imageSize)), WebCore::ColorSpaceDeviceRGB);
-        CATransform3D transform = CATransform3DMakeScale(deviceScaleFactor, deviceScaleFactor, 1);
-        CARenderServerRenderLayerWithTransform(MACH_PORT_NULL, self.layer.context.contextId, reinterpret_cast<uint64_t>(self.layer), surface->surface(), 0, 0, &transform);
-        completionHandler(surface->createImage().get());
-
-        return;
-    }
-#endif
 
     void(^copiedCompletionHandler)(CGImageRef) = [completionHandler copy];
     _page->takeSnapshot(WebCore::enclosingIntRect(snapshotRectInContentCoordinates), WebCore::expandedIntSize(WebCore::FloatSize(imageSize)), WebKit::SnapshotOptionsExcludeDeviceScaleFactor, [=](const WebKit::ShareableBitmap::Handle& imageHandle, WebKit::CallbackBase::Error) {

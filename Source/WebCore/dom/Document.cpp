@@ -1738,6 +1738,7 @@ void Document::recalcStyle(Style::Change change)
         return;
 
     FrameView& frameView = m_renderView->frameView();
+    Ref<FrameView> protect(frameView);
     if (frameView.isPainting())
         return;
     
@@ -1767,6 +1768,7 @@ void Document::recalcStyle(Style::Change change)
     // i.e. updating the flag here would be too late.
 
     m_inStyleRecalc = true;
+    bool updatedCompositingLayers = false;
     {
         Style::PostResolutionCallbackDisabler disabler(*this);
         WidgetHierarchyUpdatesSuspensionScope suspendWidgetHierarchyUpdates;
@@ -1781,7 +1783,7 @@ void Document::recalcStyle(Style::Change change)
 
         Style::resolveTree(*this, change);
 
-        frameView.updateCompositingLayersAfterStyleChange();
+        updatedCompositingLayers = frameView.updateCompositingLayersAfterStyleChange();
 
         clearNeedsStyleRecalc();
         clearChildNeedsStyleRecalc();
@@ -1807,8 +1809,11 @@ void Document::recalcStyle(Style::Change change)
     // Some animated images may now be inside the viewport due to style recalc,
     // resume them if necessary if there is no layout pending. Otherwise, we'll
     // check if they need to be resumed after layout.
-    if (!frameView.needsLayout())
+    if (updatedCompositingLayers && !frameView.needsLayout())
         frameView.viewportContentsChanged();
+
+    if (!frameView.needsLayout())
+        frameView.frame().selection().updateAppearanceAfterLayout();
 
     // As a result of the style recalculation, the currently hovered element might have been
     // detached (for example, by setting display:none in the :hover style), schedule another mouseMove event
@@ -2750,11 +2755,24 @@ double Document::minimumTimerInterval() const
     return page->settings().minimumDOMTimerInterval();
 }
 
-double Document::timerAlignmentInterval() const
+void Document::setTimerThrottlingEnabled(bool shouldThrottle)
 {
+    if (m_isTimerThrottlingEnabled == shouldThrottle)
+        return;
+
+    m_isTimerThrottlingEnabled = shouldThrottle;
+    didChangeTimerAlignmentInterval();
+}
+
+double Document::timerAlignmentInterval(bool hasReachedMaxNestingLevel) const
+{
+    // Apply Document-level DOMTimer throttling only if timers have reached their maximum nesting level as the Page may still be visible.
+    if (m_isTimerThrottlingEnabled && hasReachedMaxNestingLevel)
+        return DOMTimer::hiddenPageAlignmentInterval();
+
     Page* page = this->page();
     if (!page)
-        return ScriptExecutionContext::timerAlignmentInterval();
+        return ScriptExecutionContext::timerAlignmentInterval(hasReachedMaxNestingLevel);
     return page->settings().domTimerAlignmentInterval();
 }
 
@@ -3033,7 +3051,7 @@ void Document::processHttpEquiv(const String& equiv, const String& content)
             else
                 completedURL = completeURL(urlString);
             if (!protocolIsJavaScript(completedURL))
-                frame->navigationScheduler().scheduleRedirect(delay, completedURL);
+                frame->navigationScheduler().scheduleRedirect(this, delay, completedURL);
             else {
                 String message = "Refused to refresh " + m_url.stringCenterEllipsizedToLength() + " to a javascript: URL";
                 addConsoleMessage(MessageSource::Security, MessageLevel::Error, message);
@@ -3071,7 +3089,7 @@ void Document::processHttpEquiv(const String& equiv, const String& content)
                 // Stopping the loader isn't enough, as we're already parsing the document; to honor the header's
                 // intent, we must navigate away from the possibly partially-rendered document to a location that
                 // doesn't inherit the parent's SecurityOrigin.
-                frame->navigationScheduler().scheduleLocationChange(securityOrigin(), SecurityOrigin::urlWithUniqueSecurityOrigin(), String());
+                frame->navigationScheduler().scheduleLocationChange(this, securityOrigin(), SecurityOrigin::urlWithUniqueSecurityOrigin(), String());
                 addConsoleMessage(MessageSource::Security, MessageLevel::Error, message, requestIdentifier);
             }
         }
@@ -6490,7 +6508,7 @@ void Document::ensurePlugInsInjectedScript(DOMWrapperWorld& world)
     if (!jsString)
         jsString = String(plugInsJavaScript, sizeof(plugInsJavaScript));
 
-    m_frame->mainFrame().script().evaluateInWorld(ScriptSourceCode(jsString), world);
+    frame()->script().evaluateInWorld(ScriptSourceCode(jsString), world);
 
     m_hasInjectedPlugInsScript = true;
 }
@@ -6631,5 +6649,13 @@ void Document::setShouldPlayToPlaybackTarget(uint64_t clientId, bool shouldPlay)
     it->value->setShouldPlayToPlaybackTarget(shouldPlay);
 }
 #endif // ENABLE(WIRELESS_PLAYBACK_TARGET)
+
+ShouldOpenExternalURLsPolicy Document::shouldOpenExternalURLsPolicyToPropagate() const
+{
+    if (DocumentLoader* documentLoader = loader())
+        return documentLoader->shouldOpenExternalURLsPolicyToPropagate();
+
+    return ShouldOpenExternalURLsPolicy::ShouldNotAllow;
+}
 
 } // namespace WebCore

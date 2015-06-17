@@ -39,6 +39,8 @@ typedef NS_ENUM(NSInteger, _WKPaginationMode) {
     _WKPaginationModeBottomToTop,
 } WK_ENUM_AVAILABLE(10_10, 8_0);
 
+WK_EXTERN NSString * const _WKShouldOpenExternalURLsKey WK_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA);
+
 @class WKBrowsingContextHandle;
 @class _WKRemoteObjectRegistry;
 @class _WKSessionState;
@@ -158,6 +160,8 @@ typedef NS_ENUM(NSInteger, _WKPaginationMode) {
 
 - (void)_becomeFirstResponderWithSelectionMovingForward:(BOOL)selectingForward completionHandler:(void (^)(BOOL didBecomeFirstResponder))completionHandler WK_AVAILABLE(NA, WK_IOS_TBA);
 
+- (id)_snapshotLayerContentsForBackForwardListItem:(WKBackForwardListItem *)item WK_AVAILABLE(NA, WK_IOS_TBA);
+
 #else
 @property (readonly) NSColor *_pageExtendedBackgroundColor;
 @property (nonatomic, setter=_setDrawsTransparentBackground:) BOOL _drawsTransparentBackground;
@@ -199,6 +203,8 @@ typedef NS_ENUM(NSInteger, _WKPaginationMode) {
 
 @property (nonatomic, setter=_setScrollPerformanceDataCollectionEnabled:) BOOL _scrollPerformanceDataCollectionEnabled WK_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA);
 @property (nonatomic, readonly) NSArray *_scrollPerformanceData WK_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA);
+
+- (WKNavigation *)_loadRequest:(NSURLRequest *)request withOptions:(NSDictionary *)loadOptions WK_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA);
 
 @end
 

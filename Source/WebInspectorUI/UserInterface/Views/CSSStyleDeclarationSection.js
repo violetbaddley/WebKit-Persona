@@ -23,35 +23,37 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-WebInspector.CSSStyleDeclarationSection = function(style)
+WebInspector.CSSStyleDeclarationSection = function(delegate, style)
 {
     // FIXME: Convert this to a WebInspector.Object subclass, and call super().
     // WebInspector.Object.call(this);
+
+    this._delegate = delegate || null;
 
     console.assert(style);
     this._style = style || null;
 
     this._element = document.createElement("div");
-    this._element.className = WebInspector.CSSStyleDeclarationSection.StyleClassName;
+    this._element.className = "style-declaration-section";
 
     this._headerElement = document.createElement("div");
-    this._headerElement.className = WebInspector.CSSStyleDeclarationSection.HeaderElementStyleClassName;
+    this._headerElement.className = "header";
 
     this._iconElement = document.createElement("img");
-    this._iconElement.className = WebInspector.CSSStyleDeclarationSection.IconElementStyleClassName;
+    this._iconElement.className = "icon";
     this._headerElement.appendChild(this._iconElement);
 
     this._selectorElement = document.createElement("span");
-    this._selectorElement.className = WebInspector.CSSStyleDeclarationSection.SelectorElementStyleClassName;
+    this._selectorElement.className = "selector";
     this._selectorElement.setAttribute("spellcheck", "false");
     this._headerElement.appendChild(this._selectorElement);
 
     this._originElement = document.createElement("span");
-    this._originElement.className = WebInspector.CSSStyleDeclarationSection.OriginElementStyleClassName;
+    this._originElement.className = "origin";
     this._headerElement.appendChild(this._originElement);
 
     this._propertiesElement = document.createElement("div");
-    this._propertiesElement.className = WebInspector.CSSStyleDeclarationSection.PropertiesElementStyleClassName;
+    this._propertiesElement.className = "properties";
 
     this._propertiesTextEditor = new WebInspector.CSSStyleDeclarationTextEditor(this, style);
     this._propertiesElement.appendChild(this._propertiesTextEditor.element);
@@ -106,15 +108,9 @@ WebInspector.CSSStyleDeclarationSection = function(style)
     this.refresh();
 };
 
-WebInspector.CSSStyleDeclarationSection.StyleClassName = "style-declaration-section";
 WebInspector.CSSStyleDeclarationSection.LockedStyleClassName = "locked";
 WebInspector.CSSStyleDeclarationSection.SelectorLockedStyleClassName = "selector-locked";
 WebInspector.CSSStyleDeclarationSection.LastInGroupStyleClassName = "last-in-group";
-WebInspector.CSSStyleDeclarationSection.HeaderElementStyleClassName = "header";
-WebInspector.CSSStyleDeclarationSection.IconElementStyleClassName = "icon";
-WebInspector.CSSStyleDeclarationSection.SelectorElementStyleClassName = "selector";
-WebInspector.CSSStyleDeclarationSection.OriginElementStyleClassName = "origin";
-WebInspector.CSSStyleDeclarationSection.PropertiesElementStyleClassName = "properties";
 WebInspector.CSSStyleDeclarationSection.MatchedSelectorElementStyleClassName = "matched";
 
 WebInspector.CSSStyleDeclarationSection.AuthorStyleRuleIconStyleClassName = "author-style-rule-icon";
@@ -266,9 +262,30 @@ WebInspector.CSSStyleDeclarationSection.prototype = {
         }
     },
 
+    highlightProperty: function(property)
+    {
+        if (this._propertiesTextEditor.highlightProperty(property)) {
+            this._element.scrollIntoView();
+            return true;
+        }
+
+        return false;
+    },
+
     updateLayout: function()
     {
         this._propertiesTextEditor.updateLayout();
+    },
+
+    clearSelection: function()
+    {
+        this._propertiesTextEditor.clearSelection();
+    },
+
+    cssStyleDeclarationTextEditorFocused: function()
+    {
+        if (typeof this._delegate.cssStyleDeclarationSectionEditorFocused === "function")
+            this._delegate.cssStyleDeclarationSectionEditorFocused(this);
     },
 
     // Private

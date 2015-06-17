@@ -362,8 +362,10 @@ std::unique_ptr<WebGLRenderingContextBase> WebGLRenderingContextBase::create(HTM
     bool isPendingPolicyResolution = false;
     Document& topDocument = document.topDocument();
     Page* page = topDocument.page();
-    if (page && !topDocument.url().isLocalFile()) {
-        WebGLLoadPolicy policy = page->mainFrame().loader().client().webGLPolicyForURL(topDocument.url());
+    bool forcingPendingPolicy = frame->settings().isForcePendingWebGLPolicy();
+
+    if (forcingPendingPolicy || (page && !topDocument.url().isLocalFile())) {
+        WebGLLoadPolicy policy = forcingPendingPolicy ? WebGLPendingCreation : page->mainFrame().loader().client().webGLPolicyForURL(topDocument.url());
 
         if (policy == WebGLBlockCreation) {
             LOG(WebGL, "The policy for this URL (%s) is to block WebGL.", topDocument.url().host().utf8().data());
@@ -400,6 +402,7 @@ std::unique_ptr<WebGLRenderingContextBase> WebGLRenderingContextBase::create(HTM
             renderingContext = std::unique_ptr<WebGL2RenderingContext>(new WebGL2RenderingContext(canvas, attributes));
         else
             renderingContext = std::unique_ptr<WebGLRenderingContext>(new WebGLRenderingContext(canvas, attributes));
+        renderingContext->suspendIfNeeded();
         return renderingContext;
     }
 
@@ -779,11 +782,17 @@ void WebGLRenderingContextBase::reshape(int width, int height)
 
 int WebGLRenderingContextBase::drawingBufferWidth() const
 {
+    if (m_isPendingPolicyResolution && !m_hasRequestedPolicyResolution)
+        return 0;
+
     return m_context->getInternalFramebufferSize().width();
 }
 
 int WebGLRenderingContextBase::drawingBufferHeight() const
 {
+    if (m_isPendingPolicyResolution && !m_hasRequestedPolicyResolution)
+        return 0;
+
     return m_context->getInternalFramebufferSize().height();
 }
 
@@ -1804,7 +1813,7 @@ bool WebGLRenderingContextBase::validateDrawElements(const char* functionName, G
     case GraphicsContext3D::UNSIGNED_SHORT:
         break;
     case GraphicsContext3D::UNSIGNED_INT:
-        if (m_oesElementIndexUint && !isWebGL2())
+        if (m_oesElementIndexUint || isWebGL2())
             break;
         synthesizeGLError(GraphicsContext3D::INVALID_ENUM, functionName, "invalid type");
         return false;
@@ -2489,7 +2498,7 @@ WebGLGetInfo WebGLRenderingContextBase::getUniform(WebGLProgram* program, const 
             m_context->getUniformfv(objectOrZero(program), location, value);
         if (length == 1)
             return WebGLGetInfo(value[0]);
-        return WebGLGetInfo(Float32Array::create(value, length));
+        return WebGLGetInfo(Float32Array::create(value, length).release());
     }
     case GraphicsContext3D::INT: {
         GC3Dint value[4] = {0};
@@ -2499,7 +2508,7 @@ WebGLGetInfo WebGLRenderingContextBase::getUniform(WebGLProgram* program, const 
             m_context->getUniformiv(objectOrZero(program), location, value);
         if (length == 1)
             return WebGLGetInfo(value[0]);
-        return WebGLGetInfo(Int32Array::create(value, length));
+        return WebGLGetInfo(Int32Array::create(value, length).release());
     }
     case GraphicsContext3D::BOOL: {
         GC3Dint value[4] = {0};
@@ -2598,7 +2607,7 @@ WebGLGetInfo WebGLRenderingContextBase::getVertexAttrib(GC3Duint index, GC3Denum
     case GraphicsContext3D::VERTEX_ATTRIB_ARRAY_TYPE:
         return WebGLGetInfo(state.type);
     case GraphicsContext3D::CURRENT_VERTEX_ATTRIB:
-        return WebGLGetInfo(Float32Array::create(m_vertexAttribValue[index].value, 4));
+        return WebGLGetInfo(Float32Array::create(m_vertexAttribValue[index].value, 4).release());
     default:
         synthesizeGLError(GraphicsContext3D::INVALID_ENUM, "getVertexAttrib", "invalid parameter name");
         return WebGLGetInfo();
@@ -3977,7 +3986,7 @@ WebGLGetInfo WebGLRenderingContextBase::getWebGLFloatArrayParameter(GC3Denum pna
     default:
         notImplemented();
     }
-    return WebGLGetInfo(Float32Array::create(value, length));
+    return WebGLGetInfo(Float32Array::create(value, length).release());
 }
 
 WebGLGetInfo WebGLRenderingContextBase::getWebGLIntArrayParameter(GC3Denum pname)
@@ -3996,7 +4005,7 @@ WebGLGetInfo WebGLRenderingContextBase::getWebGLIntArrayParameter(GC3Denum pname
     default:
         notImplemented();
     }
-    return WebGLGetInfo(Int32Array::create(value, length));
+    return WebGLGetInfo(Int32Array::create(value, length).release());
 }
 
 void WebGLRenderingContextBase::checkTextureCompleteness(const char* functionName, bool prepareToDraw)

@@ -546,7 +546,7 @@ HRESULT STDMETHODCALLTYPE WebFrame::loadRequest(
     if (!coreFrame)
         return E_FAIL;
 
-    coreFrame->loader().load(FrameLoadRequest(coreFrame, requestImpl->resourceRequest()));
+    coreFrame->loader().load(FrameLoadRequest(coreFrame, requestImpl->resourceRequest(), ShouldOpenExternalURLsPolicy::ShouldNotAllow));
     return S_OK;
 }
 
@@ -561,16 +561,17 @@ void WebFrame::loadData(PassRefPtr<WebCore::SharedBuffer> data, BSTR mimeType, B
     // FIXME: We should really be using MarshallingHelpers::BSTRToKURL here,
     // but that would turn a null BSTR into a null URL, and we crash inside of
     // WebCore if we use a null URL in constructing the ResourceRequest.
-    URL baseKURL = URL(URL(), String(baseURL ? baseURL : L"", SysStringLen(baseURL)));
+    URL baseCoreURL = URL(URL(), String(baseURL ? baseURL : L"", SysStringLen(baseURL)));
 
-    URL failingKURL = MarshallingHelpers::BSTRToKURL(failingURL);
+    URL failingCoreURL = MarshallingHelpers::BSTRToKURL(failingURL);
 
-    ResourceRequest request(baseKURL);
-    SubstituteData substituteData(data, mimeTypeString, encodingString, failingKURL);
+    ResourceRequest request(baseCoreURL);
+    ResourceResponse response(URL(), mimeTypeString, data->size(), encodingString);
+    SubstituteData substituteData(data, failingCoreURL, response, SubstituteData::SessionHistoryVisibility::Hidden);
 
     // This method is only called from IWebFrame methods, so don't ASSERT that the Frame pointer isn't null.
     if (Frame* coreFrame = core(this))
-        coreFrame->loader().load(FrameLoadRequest(coreFrame, request, substituteData));
+        coreFrame->loader().load(FrameLoadRequest(coreFrame, request, ShouldOpenExternalURLsPolicy::ShouldNotAllow, substituteData));
 }
 
 

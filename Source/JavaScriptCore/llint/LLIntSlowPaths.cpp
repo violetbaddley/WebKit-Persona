@@ -728,8 +728,8 @@ inline JSValue getByVal(ExecState* exec, JSValue baseValue, JSValue subscript)
         VM& vm = exec->vm();
         Structure& structure = *baseValue.asCell()->structure(vm);
         if (JSCell::canUseFastGetOwnProperty(structure)) {
-            if (AtomicStringImpl* existingAtomicString = asString(subscript)->toExistingAtomicString(exec)) {
-                if (JSValue result = baseValue.asCell()->fastGetOwnProperty(vm, structure, existingAtomicString))
+            if (RefPtr<AtomicStringImpl> existingAtomicString = asString(subscript)->toExistingAtomicString(exec)) {
+                if (JSValue result = baseValue.asCell()->fastGetOwnProperty(vm, structure, existingAtomicString.get()))
                     return result;
             }
         }
@@ -1375,8 +1375,7 @@ LLINT_SLOW_PATH_DECL(slow_path_profile_did_call)
 LLINT_SLOW_PATH_DECL(slow_path_handle_exception)
 {
     LLINT_BEGIN_NO_SET_PC();
-    ASSERT(vm.exception());
-    genericUnwind(&vm, exec, vm.exception());
+    genericUnwind(&vm, exec);
     LLINT_END_IMPL();
 }
 

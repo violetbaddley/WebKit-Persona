@@ -607,6 +607,8 @@ private:
 
     NodeOrigin currentNodeOrigin()
     {
+        // FIXME: We should set the forExit origin only on those nodes that can exit.
+        // https://bugs.webkit.org/show_bug.cgi?id=145204
         if (m_currentSemanticOrigin.isSet())
             return NodeOrigin(m_currentSemanticOrigin, currentCodeOrigin());
         return NodeOrigin(currentCodeOrigin());
@@ -743,27 +745,13 @@ private:
     {
         ConcurrentJITLocker locker(m_inlineStackTop->m_profiledBlock->m_lock);
         profile->computeUpdatedPrediction(locker, m_inlineStackTop->m_profiledBlock);
-        return ArrayMode::fromObserved(locker, profile, action, false);
+        bool makeSafe = profile->outOfBounds(locker);
+        return ArrayMode::fromObserved(locker, profile, action, makeSafe);
     }
     
     ArrayMode getArrayMode(ArrayProfile* profile)
     {
         return getArrayMode(profile, Array::Read);
-    }
-    
-    ArrayMode getArrayModeConsideringSlowPath(ArrayProfile* profile, Array::Action action)
-    {
-        ConcurrentJITLocker locker(m_inlineStackTop->m_profiledBlock->m_lock);
-        
-        profile->computeUpdatedPrediction(locker, m_inlineStackTop->m_profiledBlock);
-        
-        bool makeSafe =
-            m_inlineStackTop->m_profiledBlock->likelyToTakeSlowCase(m_currentIndex)
-            || profile->outOfBounds(locker);
-        
-        ArrayMode result = ArrayMode::fromObserved(locker, profile, action, makeSafe);
-        
-        return result;
     }
     
     Node* makeSafe(Node* node)
@@ -1251,6 +1239,11 @@ unsigned ByteCodeParser::inliningCost(CallVariant callee, int argumentCountInclu
     // this function.
     // https://bugs.webkit.org/show_bug.cgi?id=127627
     
+    // FIXME: We currently inline functions that have run in LLInt but not in Baseline. These
+    // functions have very low fidelity profiling, and presumably they weren't very hot if they
+    // haven't gotten to Baseline yet. Consider not inlining these functions.
+    // https://bugs.webkit.org/show_bug.cgi?id=145503
+    
     // Have we exceeded inline stack depth, or are we trying to inline a recursive call to
     // too many levels? If either of these are detected, then don't inline. We adjust our
     // heuristics if we are dealing with a function that cannot otherwise be compiled.
@@ -1494,8 +1487,10 @@ bool ByteCodeParser::attemptToInlineCall(Node* callTargetNode, int resultOperand
     if (myInliningCost > inliningBalance)
         return false;
 
+    Instruction* savedCurrentInstruction = m_currentInstruction;
     inlineCall(callTargetNode, resultOperand, callee, registerOffset, argumentCountIncludingThis, nextOffset, kind, callerLinkability, insertChecks);
     inliningBalance -= myInliningCost;
+    m_currentInstruction = savedCurrentInstruction;
     return true;
 }
 
@@ -3092,7 +3087,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             SpeculatedType prediction = getPredictionWithoutOSRExit();
             
             Node* base = get(VirtualRegister(currentInstruction[2].u.operand));
-            ArrayMode arrayMode = getArrayModeConsideringSlowPath(currentInstruction[4].u.arrayProfile, Array::Read);
+            ArrayMode arrayMode = getArrayMode(currentInstruction[4].u.arrayProfile, Array::Read);
             Node* property = get(VirtualRegister(currentInstruction[3].u.operand));
             Node* getByVal = addToGraph(GetByVal, OpInfo(arrayMode.asWord()), OpInfo(prediction), base, property);
             set(VirtualRegister(currentInstruction[1].u.operand), getByVal);
@@ -3104,7 +3099,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         case op_put_by_val: {
             Node* base = get(VirtualRegister(currentInstruction[1].u.operand));
 
-            ArrayMode arrayMode = getArrayModeConsideringSlowPath(currentInstruction[4].u.arrayProfile, Array::Write);
+            ArrayMode arrayMode = getArrayMode(currentInstruction[4].u.arrayProfile, Array::Write);
             
             Node* property = get(VirtualRegister(currentInstruction[2].u.operand));
             Node* value = get(VirtualRegister(currentInstruction[3].u.operand));
@@ -3127,7 +3122,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             Node* base = get(VirtualRegister(currentInstruction[2].u.operand));
             unsigned identifierNumber = m_inlineStackTop->m_identifierRemap[currentInstruction[3].u.operand];
             
-            AtomicStringImpl* uid = m_graph.identifiers()[identifierNumber];
+            UniquedStringImpl* uid = m_graph.identifiers()[identifierNumber];
             GetByIdStatus getByIdStatus = GetByIdStatus::computeFor(
                 m_inlineStackTop->m_profiledBlock, m_dfgCodeBlock,
                 m_inlineStackTop->m_stubInfos, m_dfgStubInfos,
@@ -3164,10 +3159,11 @@ bool ByteCodeParser::parseBlock(unsigned limit)
 
         case op_init_global_const: {
             Node* value = get(VirtualRegister(currentInstruction[2].u.operand));
+            JSGlobalObject* globalObject = m_inlineStackTop->m_codeBlock->globalObject();
             addToGraph(
                 PutGlobalVar,
-                OpInfo(m_inlineStackTop->m_codeBlock->globalObject()->assertVariableIsInThisObject(currentInstruction[1].u.variablePointer)),
-                value);
+                OpInfo(globalObject->assertVariableIsInThisObject(currentInstruction[1].u.variablePointer)),
+                weakJSConstant(globalObject), value);
             NEXT_OPCODE(op_init_global_const);
         }
 
@@ -3403,6 +3399,8 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             
         case op_call:
             handleCall(currentInstruction, Call, CodeForCall);
+            // Verify that handleCall(), which could have inlined the callee, didn't trash m_currentInstruction
+            ASSERT(m_currentInstruction == currentInstruction);
             NEXT_OPCODE(op_call);
             
         case op_construct:
@@ -3488,7 +3486,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             int dst = currentInstruction[1].u.operand;
             int scope = currentInstruction[2].u.operand;
             unsigned identifierNumber = m_inlineStackTop->m_identifierRemap[currentInstruction[3].u.operand];
-            AtomicStringImpl* uid = m_graph.identifiers()[identifierNumber];
+            UniquedStringImpl* uid = m_graph.identifiers()[identifierNumber];
             ResolveType resolveType = ResolveModeAndType(currentInstruction[4].u.operand).type();
 
             Structure* structure = 0;
@@ -3630,7 +3628,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
                 identifierNumber = m_inlineStackTop->m_identifierRemap[identifierNumber];
             unsigned value = currentInstruction[3].u.operand;
             ResolveType resolveType = ResolveModeAndType(currentInstruction[4].u.operand).type();
-            AtomicStringImpl* uid;
+            UniquedStringImpl* uid;
             if (identifierNumber != UINT_MAX)
                 uid = m_graph.identifiers()[identifierNumber];
             else
@@ -3679,7 +3677,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
                     ASSERT_UNUSED(entry, watchpoints == entry.watchpointSet());
                 }
                 Node* valueNode = get(VirtualRegister(value));
-                addToGraph(PutGlobalVar, OpInfo(operand), valueNode);
+                addToGraph(PutGlobalVar, OpInfo(operand), weakJSConstant(globalObject), valueNode);
                 if (watchpoints && watchpoints->state() != IsInvalidated) {
                     // Must happen after the store. See comment for GetGlobalVar.
                     addToGraph(NotifyWrite, OpInfo(watchpoints));
@@ -3730,7 +3728,8 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         }
             
         case op_create_lexical_environment: {
-            Node* lexicalEnvironment = addToGraph(CreateActivation, get(VirtualRegister(currentInstruction[2].u.operand)));
+            FrozenValue* symbolTable = m_graph.freezeStrong(m_graph.symbolTableFor(currentNodeOrigin().semantic));
+            Node* lexicalEnvironment = addToGraph(CreateActivation, OpInfo(symbolTable), get(VirtualRegister(currentInstruction[2].u.operand)));
             set(VirtualRegister(currentInstruction[1].u.operand), lexicalEnvironment);
             set(VirtualRegister(currentInstruction[2].u.operand), lexicalEnvironment);
             NEXT_OPCODE(op_create_lexical_environment);
@@ -3855,7 +3854,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
 
         case op_has_indexed_property: {
             Node* base = get(VirtualRegister(currentInstruction[2].u.operand));
-            ArrayMode arrayMode = getArrayModeConsideringSlowPath(currentInstruction[4].u.arrayProfile, Array::Read);
+            ArrayMode arrayMode = getArrayMode(currentInstruction[4].u.arrayProfile, Array::Read);
             Node* property = get(VirtualRegister(currentInstruction[3].u.operand));
             Node* hasIterableProperty = addToGraph(HasIndexedProperty, OpInfo(arrayMode.asWord()), base, property);
             set(VirtualRegister(currentInstruction[1].u.operand), hasIterableProperty);
@@ -4037,7 +4036,7 @@ ByteCodeParser::InlineStackEntry::InlineStackEntry(
         } else
             m_inlineCallFrame->isClosureCall = true;
         m_inlineCallFrame->caller = byteCodeParser->currentCodeOrigin();
-        m_inlineCallFrame->arguments.resize(argumentCountIncludingThis); // Set the number of arguments including this, but don't configure the value recoveries, yet.
+        m_inlineCallFrame->arguments.resizeToFit(argumentCountIncludingThis); // Set the number of arguments including this, but don't configure the value recoveries, yet.
         m_inlineCallFrame->kind = kind;
         
         byteCodeParser->buildOperandMapsIfNecessary();
@@ -4047,7 +4046,7 @@ ByteCodeParser::InlineStackEntry::InlineStackEntry(
         m_switchRemap.resize(codeBlock->numberOfSwitchJumpTables());
 
         for (size_t i = 0; i < codeBlock->numberOfIdentifiers(); ++i) {
-            AtomicStringImpl* rep = codeBlock->identifier(i).impl();
+            UniquedStringImpl* rep = codeBlock->identifier(i).impl();
             BorrowedIdentifierMap::AddResult result = byteCodeParser->m_identifierMap.add(rep, byteCodeParser->m_graph.identifiers().numberOfIdentifiers());
             if (result.isNewEntry)
                 byteCodeParser->m_graph.identifiers().addLazily(rep);

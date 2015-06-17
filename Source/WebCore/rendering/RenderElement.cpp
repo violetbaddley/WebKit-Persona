@@ -3,7 +3,7 @@
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2005 Allan Sandfeld Jensen (kde@carewolf.com)
  *           (C) 2005, 2006 Samuel Weinig (sam.weinig@gmail.com)
- * Copyright (C) 2005, 2006, 2007, 2008, 2009, 2013 Apple Inc. All rights reserved.
+ * Copyright (C) 2005, 2006, 2007, 2008, 2009, 2013, 2015 Apple Inc. All rights reserved.
  * Copyright (C) 2010, 2012 Google Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -593,6 +593,8 @@ void RenderElement::insertChildInternal(RenderObject* newChild, RenderObject* be
 
     if (AXObjectCache* cache = document().axObjectCache())
         cache->childrenChanged(this, newChild);
+    if (is<RenderBlockFlow>(*this))
+        downcast<RenderBlockFlow>(*this).invalidateLineLayoutPath();
 }
 
 void RenderElement::removeChildInternal(RenderObject& oldChild, NotifyChildrenType notifyChildren)
@@ -902,6 +904,16 @@ void RenderElement::styleWillChange(StyleDifference diff, const RenderStyle& new
         }
     }
 
+#if ENABLE(CSS_SCROLL_SNAP)
+    if (!newStyle.scrollSnapCoordinates().isEmpty() || (oldStyle && !oldStyle->scrollSnapCoordinates().isEmpty())) {
+        ASSERT(is<RenderBox>(this));
+        if (newStyle.scrollSnapCoordinates().isEmpty())
+            view().unregisterBoxWithScrollSnapCoordinates(downcast<RenderBox>(*this));
+        else
+            view().registerBoxWithScrollSnapCoordinates(downcast<RenderBox>(*this));
+    }
+#endif
+
     if (isRoot() || isBody())
         view().frameView().updateExtendBackgroundIfNecessary();
 }
@@ -1055,6 +1067,14 @@ void RenderElement::willBeRemovedFromTree()
 
     if (auto* containerFlowThread = parent()->renderNamedFlowThreadWrapper())
         containerFlowThread->removeFlowChild(*this);
+
+    
+#if ENABLE(CSS_SCROLL_SNAP)
+    if (!m_style->scrollSnapCoordinates().isEmpty()) {
+        ASSERT(is<RenderBox>(this));
+        view().unregisterBoxWithScrollSnapCoordinates(downcast<RenderBox>(*this));
+    }
+#endif
 
     RenderObject::willBeRemovedFromTree();
 }
@@ -1717,17 +1737,8 @@ bool RenderElement::getTrailingCorner(FloatPoint& point) const
 LayoutRect RenderElement::anchorRect() const
 {
     FloatPoint leading, trailing;
-    bool foundLeading = getLeadingCorner(leading);
-    bool foundTrailing = getTrailingCorner(trailing);
-    
-    // If we've found one corner, but not the other,
-    // then we should just return a point at the corner that we did find.
-    if (foundLeading != foundTrailing) {
-        if (foundLeading)
-            foundTrailing = foundLeading;
-        else
-            foundLeading = foundTrailing;
-    }
+    getLeadingCorner(leading);
+    getTrailingCorner(trailing);
 
     FloatPoint upperLeft = leading;
     FloatPoint lowerRight = trailing;

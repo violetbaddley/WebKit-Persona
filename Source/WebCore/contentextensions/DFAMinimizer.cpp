@@ -100,14 +100,19 @@ static void simplifyTransitions(DFA& dfa)
         
             unsigned firstSlot = dfaNode.transitionsStart();
             dfaNode.resetTransitions(firstSlot, transitions.size());
-            for (unsigned i = 0; i < transitions.size(); ++i)
-                dfa.transitions[firstSlot + i] = transitions[i];
+            for (unsigned i = 0; i < transitions.size(); ++i) {
+                dfa.transitionCharacters[firstSlot + i] = transitions[i].first;
+                dfa.transitionDestinations[firstSlot + i] = transitions[i].second;
+            }
             for (unsigned i = transitions.size(); i < availableSlotCount; ++i) {
                 // Invalidate now-unused memory to make finding bugs easier.
-                dfa.transitions[firstSlot + i] = std::make_pair(std::numeric_limits<uint8_t>::max(), std::numeric_limits<uint32_t>::max());
+                dfa.transitionCharacters[firstSlot + i] = std::numeric_limits<uint8_t>::max();
+                dfa.transitionDestinations[firstSlot + i] = std::numeric_limits<uint32_t>::max();
             }
-            if (willHaveFallback)
-                dfa.transitions[firstSlot + transitions.size()] = std::make_pair(std::numeric_limits<uint8_t>::max(), newFallbackDestination);
+            if (willHaveFallback) {
+                dfa.transitionCharacters[firstSlot + transitions.size()] = std::numeric_limits<uint8_t>::max();
+                dfa.transitionDestinations[firstSlot + transitions.size()] = newFallbackDestination;
+            }
         }
     }
 }
@@ -437,6 +442,7 @@ struct ActionKey {
         : dfa(dfa)
         , actionsStart(actionsStart)
         , actionsLength(actionsLength)
+        , state(Valid)
     {
         StringHasher hasher;
         hasher.addCharactersAssumingAligned(reinterpret_cast<const UChar*>(&dfa->actions[actionsStart]), actionsLength * sizeof(uint64_t) / sizeof(UChar));
@@ -465,8 +471,7 @@ struct ActionKeyHash {
         return actionKey.hash;
     }
 
-    // FIXME: Release builds on Mavericks fail with this inlined.
-    __attribute__((noinline)) static bool equal(const ActionKey& a, const ActionKey& b)
+    static bool equal(const ActionKey& a, const ActionKey& b)
     {
         if (a.state != b.state
             || a.dfa != b.dfa
@@ -541,7 +546,7 @@ void DFAMinimizer::minimize(DFA& dfa)
     for (DFANode& node : dfa.nodes) {
         auto nodeTransitions = node.transitions(dfa);
         for (unsigned i = 0; i < node.transitionsLength(); ++i)
-            dfa.transitions[node.transitionsStart() + i].second = relocationVector[nodeTransitions[i].second];
+            dfa.transitionDestinations[node.transitionsStart() + i] = relocationVector[nodeTransitions[i].second];
         if (node.hasFallbackTransition())
             node.changeFallbackTransition(dfa, relocationVector[node.fallbackTransitionDestination(dfa)]);
     }

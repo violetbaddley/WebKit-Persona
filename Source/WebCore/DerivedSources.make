@@ -35,6 +35,7 @@ VPATH = \
     $(WebCore)/Modules/indexeddb \
     $(WebCore)/Modules/indieui \
     $(WebCore)/Modules/mediacontrols \
+    $(WebCore)/Modules/mediasession \
     $(WebCore)/Modules/mediasource \
     $(WebCore)/Modules/mediastream \
     $(WebCore)/Modules/notifications \
@@ -103,6 +104,9 @@ NON_SVG_BINDING_IDLS = \
     $(WebCore)/Modules/indexeddb/WorkerGlobalScopeIndexedDatabase.idl \
     $(WebCore)/Modules/indieui/UIRequestEvent.idl \
     $(WebCore)/Modules/mediacontrols/MediaControlsHost.idl \
+    $(WebCore)/Modules/mediasession/HTMLMediaElementMediaSession.idl \
+    $(WebCore)/Modules/mediasession/MediaRemoteControls.idl \
+    $(WebCore)/Modules/mediasession/MediaSession.idl \
 	$(WebCore)/Modules/mediasource/DOMURLMediaSource.idl \
 	$(WebCore)/Modules/mediasource/AudioTrackMediaSource.idl \
 	$(WebCore)/Modules/mediasource/MediaSource.idl \
@@ -284,6 +288,7 @@ NON_SVG_BINDING_IDLS = \
     $(WebCore)/dom/EventListener.idl \
     $(WebCore)/dom/EventTarget.idl \
     $(WebCore)/dom/FocusEvent.idl \
+    $(WebCore)/dom/GlobalEventHandlers.idl \
     $(WebCore)/dom/HashChangeEvent.idl \
     $(WebCore)/dom/KeyboardEvent.idl \
     $(WebCore)/dom/MessageChannel.idl \
@@ -299,6 +304,7 @@ NON_SVG_BINDING_IDLS = \
     $(WebCore)/dom/NodeFilter.idl \
     $(WebCore)/dom/NodeIterator.idl \
     $(WebCore)/dom/NodeList.idl \
+    $(WebCore)/dom/NonElementParentNode.idl \
     $(WebCore)/dom/NonDocumentTypeChildNode.idl \
     $(WebCore)/dom/OverflowEvent.idl \
     $(WebCore)/dom/PageTransitionEvent.idl \
@@ -501,6 +507,7 @@ NON_SVG_BINDING_IDLS = \
     $(WebCore)/page/UserMessageHandlersNamespace.idl \
     $(WebCore)/page/UserMessageHandler.idl \
     $(WebCore)/page/WindowBase64.idl \
+    $(WebCore)/page/WindowEventHandlers.idl \
     $(WebCore)/page/WindowTimers.idl \
     $(WebCore)/page/WorkerNavigator.idl \
     $(WebCore)/plugins/DOMMimeType.idl \

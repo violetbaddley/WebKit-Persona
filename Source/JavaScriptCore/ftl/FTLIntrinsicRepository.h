@@ -73,7 +73,7 @@ namespace JSC { namespace FTL {
     macro(C_JITOperation_EStZZ, functionType(intPtr, intPtr, intPtr, int32, int32)) \
     macro(C_JITOperation_EZ, functionType(intPtr, intPtr, int32)) \
     macro(D_JITOperation_D, functionType(doubleType, doubleType)) \
-    macro(I_JITOperation_EJss, functionType(intPtr, intPtr, intPtr)) \
+    macro(T_JITOperation_EJss, functionType(intPtr, intPtr, intPtr)) \
     macro(J_JITOperation_E, functionType(int64, intPtr)) \
     macro(J_JITOperation_EA, functionType(int64, intPtr, intPtr)) \
     macro(J_JITOperation_EAZ, functionType(int64, intPtr, intPtr, int32)) \
@@ -83,6 +83,7 @@ namespace JSC { namespace FTL {
     macro(J_JITOperation_EJ, functionType(int64, intPtr, int64)) \
     macro(J_JITOperation_EJA, functionType(int64, intPtr, int64, intPtr)) \
     macro(J_JITOperation_EJC, functionType(int64, intPtr, int64, intPtr)) \
+    macro(J_JITOperation_EJI, functionType(int64, intPtr, int64, intPtr)) \
     macro(J_JITOperation_EJJ, functionType(int64, intPtr, int64, int64)) \
     macro(J_JITOperation_EJscC, functionType(intPtr, intPtr, intPtr, intPtr)) \
     macro(J_JITOperation_EJssZ, functionType(int64, intPtr, intPtr, int32)) \

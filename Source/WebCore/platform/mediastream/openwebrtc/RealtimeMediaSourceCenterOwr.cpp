@@ -49,7 +49,7 @@
 #include <owr/owr_media_source.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
-#include <wtf/gobject/GUniquePtr.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringHash.h>
 
@@ -89,7 +89,7 @@ void RealtimeMediaSourceCenterOwr::validateRequestConstraints(PassRefPtr<MediaSt
     RefPtr<MediaConstraints> audioConstraints = prpAudioConstraints;
     RefPtr<MediaConstraints> videoConstraints = prpVideoConstraints;
 
-    int types;
+    int types = OWR_MEDIA_TYPE_UNKNOWN;
     if (audioConstraints)
         types |= OWR_MEDIA_TYPE_AUDIO;
     if (videoConstraints)
@@ -156,8 +156,10 @@ void RealtimeMediaSourceCenterOwr::mediaSourcesAvailable(GList* sources)
             sourceType = RealtimeMediaSource::Audio;
         else if (mediaType & OWR_MEDIA_TYPE_VIDEO)
             sourceType = RealtimeMediaSource::Video;
-        else
+        else {
+            sourceType = RealtimeMediaSource::None;
             ASSERT_NOT_REACHED();
+        }
 
         RefPtr<RealtimeMediaSourceOwr> mediaSource = adoptRef(new RealtimeMediaSourceOwr(source, id, sourceType, sourceName));
 

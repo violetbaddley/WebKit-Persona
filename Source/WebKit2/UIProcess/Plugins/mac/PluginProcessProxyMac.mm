@@ -63,7 +63,7 @@ namespace WebKit {
     
 bool PluginProcessProxy::pluginNeedsExecutableHeap(const PluginModuleInfo& pluginInfo)
 {
-    static bool forceNonexecutableHeapForPlugins = [[NSUserDefaults standardUserDefaults] boolForKey:@"ForceNonexecutableHeapForPlugins"];
+    static const bool forceNonexecutableHeapForPlugins = [[NSUserDefaults standardUserDefaults] boolForKey:@"ForceNonexecutableHeapForPlugins"];
     if (forceNonexecutableHeapForPlugins)
         return false;
     
@@ -77,6 +77,7 @@ bool PluginProcessProxy::pluginNeedsExecutableHeap(const PluginModuleInfo& plugi
     return false;
 }
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED <= 101000
 bool PluginProcessProxy::createPropertyListFile(const PluginModuleInfo& plugin)
 {
     NSBundle *webKit2Bundle = [NSBundle bundleWithIdentifier:@"com.apple.WebKit"];
@@ -126,6 +127,7 @@ bool PluginProcessProxy::createPropertyListFile(const PluginModuleInfo& plugin)
 
     return true;
 }
+#endif
 
 static bool shouldUseXPC(ProcessLauncher::LaunchOptions& launchOptions, const PluginProcessAttributes& pluginProcessAttributes)
 {
@@ -473,13 +475,13 @@ void PluginProcessProxy::openFile(const String& fullPath, bool& result)
 
 int pluginProcessLatencyQOS()
 {
-    static int qos = [[NSUserDefaults standardUserDefaults] integerForKey:@"WebKitPluginProcessLatencyQOS"];
+    static const int qos = [[NSUserDefaults standardUserDefaults] integerForKey:@"WebKitPluginProcessLatencyQOS"];
     return qos;
 }
 
 int pluginProcessThroughputQOS()
 {
-    static int qos = [[NSUserDefaults standardUserDefaults] integerForKey:@"WebKitPluginProcessThroughputQOS"];
+    static const int qos = [[NSUserDefaults standardUserDefaults] integerForKey:@"WebKitPluginProcessThroughputQOS"];
     return qos;
 }
 

@@ -33,65 +33,54 @@
 #if ENABLE(STREAMS_API)
 
 #include "ReadableStream.h"
-#include "ReadableStreamReader.h"
-#include "ReadableStreamSource.h"
 #include <heap/Strong.h>
 #include <heap/StrongInlines.h>
 #include <runtime/JSCJSValue.h>
 #include <runtime/PrivateName.h>
+#include <wtf/Deque.h>
 #include <wtf/Ref.h>
 
+namespace JSC {
+class JSFunction;
+class JSPromise;
+}
+    
 namespace WebCore {
 
 class JSDOMGlobalObject;
 class ReadableStreamController;
 
 class ReadableJSStream: public ReadableStream {
-private:
-    class Reader: public ReadableStreamReader {
-    public:
-        static Ref<Reader> create(ReadableJSStream&);
-        void storeError(JSC::ExecState&, JSC::JSValue);
-        JSC::JSValue error() { return m_error.get(); }
-
-    private:
-        explicit Reader(ReadableJSStream&);
-
-        JSC::Strong<JSC::Unknown> m_error;
-    };
-
-    class Source: public ReadableStreamSource {
-    public:
-        static Ref<Source> create(JSC::ExecState&);
-
-        JSDOMGlobalObject* globalObject();
-        void start(JSC::ExecState&, ReadableJSStream&);
-
-    private:
-        Source(JSC::ExecState&);
-
-        JSC::Strong<JSC::JSObject> m_source;
-    };
-
 public:
-    static Ref<ReadableJSStream> create(JSC::ExecState&, ScriptExecutionContext&);
-    virtual Ref<ReadableStreamReader> createReader() override;
+    static RefPtr<ReadableJSStream> create(JSC::ExecState&, ScriptExecutionContext&);
 
-    ReadableJSStream::Source& jsSource();
     JSC::JSValue jsController(JSC::ExecState&, JSDOMGlobalObject*);
 
-    void storeError(JSC::ExecState&);
-    JSC::JSValue error() { return m_error.get(); }
+    void storeError(JSC::ExecState&, JSC::JSValue);
+    JSC::JSValue error() override { return m_error.get(); }
+
+    void enqueue(JSC::ExecState&);
 
 private:
-    ReadableJSStream(ScriptExecutionContext&, Ref<ReadableJSStream::Source>&&);
+    ReadableJSStream(ScriptExecutionContext&, JSC::ExecState&, JSC::JSObject*);
+
+    void doStart(JSC::ExecState&);
+
+    JSC::JSPromise* invoke(JSC::ExecState&, const char*);
+    void storeException(JSC::ExecState&);
+
+    virtual bool hasValue() const override;
+    virtual JSC::JSValue read() override;
+    virtual void doPull() override;
+
+    JSDOMGlobalObject* globalObject();
 
     std::unique_ptr<ReadableStreamController> m_controller;
     JSC::Strong<JSC::Unknown> m_error;
+    JSC::Strong<JSC::JSFunction> m_errorFunction;
+    JSC::Strong<JSC::JSObject> m_source;
+    Deque<JSC::Strong<JSC::Unknown>> m_chunkQueue;
 };
-
-void setInternalSlotToObject(JSC::ExecState*, JSC::JSValue, JSC::PrivateName&, JSC::JSValue);
-JSC::JSValue getInternalSlotFromObject(JSC::ExecState*, JSC::JSValue, JSC::PrivateName&);
 
 } // namespace WebCore
 

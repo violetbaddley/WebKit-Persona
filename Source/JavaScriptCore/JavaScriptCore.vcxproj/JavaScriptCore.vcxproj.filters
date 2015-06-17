@@ -627,6 +627,9 @@
     <ClCompile Include="..\runtime\IteratorOperations.cpp">
       <Filter>runtime</Filter>
     </ClCompile>
+    <ClCompile Include="..\runtime\IteratorPrototype.cpp">
+      <Filter>runtime</Filter>
+    </ClCompile>
     <ClCompile Include="..\runtime\JSLexicalEnvironment.cpp">
       <Filter>runtime</Filter>
     </ClCompile>
@@ -819,13 +822,7 @@
     <ClCompile Include="..\runtime\SetIteratorPrototype.cpp">
       <Filter>runtime</Filter>
     </ClCompile>
-    <ClCompile Include="..\runtime\SetIteratorConstructor.cpp">
-      <Filter>runtime</Filter>
-    </ClCompile>
     <ClCompile Include="..\runtime\SetConstructor.cpp">
-      <Filter>runtime</Filter>
-    </ClCompile>
-    <ClCompile Include="..\runtime\SetIteratorConstructor.cpp">
       <Filter>runtime</Filter>
     </ClCompile>
     <ClCompile Include="..\runtime\SparseArrayValueMap.cpp">
@@ -835,9 +832,6 @@
       <Filter>runtime</Filter>
     </ClCompile>
     <ClCompile Include="..\runtime\StringConstructor.cpp">
-      <Filter>runtime</Filter>
-    </ClCompile>
-    <ClCompile Include="..\runtime\StringIteratorConstructor.cpp">
       <Filter>runtime</Filter>
     </ClCompile>
     <ClCompile Include="..\runtime\StringIteratorPrototype.cpp">
@@ -1191,6 +1185,9 @@
     <ClCompile Include="..\dfg\DFGLazyJSValue.cpp">
       <Filter>dfg</Filter>
     </ClCompile>
+    <ClCompile Include="..\dfg\DFGLazyNode.cpp">
+      <Filter>dfg</Filter>
+    </ClCompile>
     <ClCompile Include="..\dfg\DFGLICMPhase.cpp">
       <Filter>dfg</Filter>
     </ClCompile>
@@ -1341,13 +1338,7 @@
     <ClCompile Include="..\runtime\CompilationResult.cpp">
       <Filter>runtime</Filter>
     </ClCompile>
-    <ClCompile Include="..\runtime\ArrayIteratorConstructor.cpp">
-      <Filter>runtime</Filter>
-    </ClCompile>
     <ClCompile Include="..\runtime\ArrayIteratorPrototype.cpp">
-      <Filter>runtime</Filter>
-    </ClCompile>
-    <ClCompile Include="..\runtime\MapIteratorConstructor.cpp">
       <Filter>runtime</Filter>
     </ClCompile>
     <ClCompile Include="..\runtime\MapIteratorPrototype.cpp">
@@ -1694,6 +1685,9 @@
     </ClCompile>
     <ClCompile Include="..\dfg\DFGValueStrength.cpp">
       <Filter>dfg</Filter>
+    </ClCompile>
+    <ClCompile Include="..\runtime\Exception.cpp">
+      <Filter>runtime</Filter>
     </ClCompile>
     <ClCompile Include="..\runtime\ExceptionFuzz.cpp">
       <Filter>runtime</Filter>
@@ -2688,6 +2682,9 @@
     <ClInclude Include="..\runtime\IteratorOperations.h">
       <Filter>runtime</Filter>
     </ClInclude>
+    <ClInclude Include="..\runtime\IteratorPrototype.h">
+      <Filter>runtime</Filter>
+    </ClInclude>
     <ClInclude Include="..\runtime\JSLexicalEnvironment.h">
       <Filter>runtime</Filter>
     </ClInclude>
@@ -2914,9 +2911,6 @@
       <Filter>runtime</Filter>
     </ClInclude>
     <ClInclude Include="..\runtime\StringConstructor.h">
-      <Filter>runtime</Filter>
-    </ClInclude>
-    <ClInclude Include="..\runtime\StringIteratorConstructor.h">
       <Filter>runtime</Filter>
     </ClInclude>
     <ClInclude Include="..\runtime\StringIteratorPrototype.h">
@@ -3319,9 +3313,6 @@
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\KeywordLookup.lut.h">
       <Filter>Derived Sources</Filter>
     </ClInclude>
-    <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\RegExpObject.lut.h">
-      <Filter>Derived Sources</Filter>
-    </ClInclude>
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\SymbolPrototype.lut.h">
       <Filter>Derived Sources</Filter>
     </ClInclude>
@@ -3374,9 +3365,6 @@
       <Filter>runtime</Filter>
     </ClInclude>
     <ClInclude Include="..\runtime\SetConstructor.h">
-      <Filter>runtime</Filter>
-    </ClInclude>
-    <ClInclude Include="..\runtime\SetIteratorConstructor.h">
       <Filter>runtime</Filter>
     </ClInclude>
     <ClInclude Include="..\dfg\DFGAbstractHeap.h">
@@ -3560,6 +3548,9 @@
       <Filter>dfg</Filter>
     </ClInclude>
     <ClInclude Include="..\dfg\DFGLazyJSValue.h">
+      <Filter>dfg</Filter>
+    </ClInclude>
+    <ClInclude Include="..\dfg\DFGLazyNode.h">
       <Filter>dfg</Filter>
     </ClInclude>
     <ClInclude Include="..\dfg\DFGLICMPhase.h">
@@ -3751,13 +3742,7 @@
     <ClInclude Include="..\runtime\ArrayIteratorPrototype.h">
       <Filter>runtime</Filter>
     </ClInclude>
-    <ClInclude Include="..\runtime\ArrayIteratorConstructor.h">
-      <Filter>runtime</Filter>
-    </ClInclude>
     <ClInclude Include="..\runtime\MapIteratorPrototype.h">
-      <Filter>runtime</Filter>
-    </ClInclude>
-    <ClInclude Include="..\runtime\MapIteratorConstructor.h">
       <Filter>runtime</Filter>
     </ClInclude>
     <ClInclude Include="..\runtime\Microtask.h">
@@ -4183,6 +4168,9 @@
     </ClInclude>
     <ClInclude Include="..\dfg\DFGValueStrength.h">
       <Filter>dfg</Filter>
+    </ClInclude>
+    <ClInclude Include="..\runtime\Exception.h">
+      <Filter>runtime</Filter>
     </ClInclude>
     <ClInclude Include="..\runtime\ExceptionFuzz.h">
       <Filter>runtime</Filter>
