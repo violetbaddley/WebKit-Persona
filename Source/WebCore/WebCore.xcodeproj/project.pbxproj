@@ -3789,15 +3789,15 @@
 		9BD8A95A18BEFC7600987E9A /* CollectionIndexCache.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9BD8A95918BEFC7600987E9A /* CollectionIndexCache.cpp */; };
 		9BF9A8801648DD2F001C6B23 /* JSHTMLFormControlsCollection.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9BF9A87E1648DD2F001C6B23 /* JSHTMLFormControlsCollection.cpp */; };
 		9BF9A8811648DD2F001C6B23 /* JSHTMLFormControlsCollection.h in Headers */ = {isa = PBXBuildFile; fileRef = 9BF9A87F1648DD2F001C6B23 /* JSHTMLFormControlsCollection.h */; };
-		9D6380101AF173220031A15C /* StyleSelfAlignmentData.h in Headers */ = {isa = PBXBuildFile; fileRef = 9D63800F1AF16E160031A15C /* StyleSelfAlignmentData.h */; settings = {ATTRIBUTES = (Private, ); }; };
-		9DAC7C541AF2CAA100437C44 /* CSSContentDistributionValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9DAC7C521AF2CAA100437C44 /* CSSContentDistributionValue.cpp */; };
-		9DAC7C551AF2CAA200437C44 /* CSSContentDistributionValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DAC7C531AF2CAA100437C44 /* CSSContentDistributionValue.h */; };
-		9DAC7C571AF2CB6400437C44 /* StyleContentAlignmentData.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DAC7C561AF2CB6400437C44 /* StyleContentAlignmentData.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9C6EC19E1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC19D1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h */; };
 		9C6EC1A01ACF7128007A8E49 /* BrowsPersona.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC19F1ACF7128007A8E49 /* BrowsPersona.h */; };
 		9C6EC1A31AD0CB48007A8E49 /* PersonaBridge.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC1A11AD0CB48007A8E49 /* PersonaBridge.h */; };
 		9C6EC1A41AD0CB48007A8E49 /* PersonaBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9C6EC1A21AD0CB48007A8E49 /* PersonaBridge.mm */; };
 		9C6EC1AA1AD2355B007A8E49 /* WebFrameInternal.h in Headers */ = {isa = PBXBuildFile; fileRef = 9C6EC1A91AD2355B007A8E49 /* WebFrameInternal.h */; };
+		9D6380101AF173220031A15C /* StyleSelfAlignmentData.h in Headers */ = {isa = PBXBuildFile; fileRef = 9D63800F1AF16E160031A15C /* StyleSelfAlignmentData.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		9DAC7C541AF2CAA100437C44 /* CSSContentDistributionValue.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9DAC7C521AF2CAA100437C44 /* CSSContentDistributionValue.cpp */; };
+		9DAC7C551AF2CAA200437C44 /* CSSContentDistributionValue.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DAC7C531AF2CAA100437C44 /* CSSContentDistributionValue.h */; };
+		9DAC7C571AF2CB6400437C44 /* StyleContentAlignmentData.h in Headers */ = {isa = PBXBuildFile; fileRef = 9DAC7C561AF2CB6400437C44 /* StyleContentAlignmentData.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9F72304F11184B4100AD0126 /* ScriptProfile.h in Headers */ = {isa = PBXBuildFile; fileRef = 9F72304C11184B4100AD0126 /* ScriptProfile.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9FA37EE41172FC8000C4CD55 /* ScriptProfileNode.h in Headers */ = {isa = PBXBuildFile; fileRef = 9FA37EE31172FC8000C4CD55 /* ScriptProfileNode.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		9FA37EFA1172FDA600C4CD55 /* JSScriptProfile.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 9FA37EF61172FD9300C4CD55 /* JSScriptProfile.cpp */; };
@@ -11090,16 +11090,16 @@
 		9BD8A95918BEFC7600987E9A /* CollectionIndexCache.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CollectionIndexCache.cpp; sourceTree = "<group>"; };
 		9BF9A87E1648DD2F001C6B23 /* JSHTMLFormControlsCollection.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = JSHTMLFormControlsCollection.cpp; sourceTree = "<group>"; };
 		9BF9A87F1648DD2F001C6B23 /* JSHTMLFormControlsCollection.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = JSHTMLFormControlsCollection.h; sourceTree = "<group>"; };
-		9D63800F1AF16E160031A15C /* StyleSelfAlignmentData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StyleSelfAlignmentData.h; sourceTree = "<group>"; };
-		9DAC7C521AF2CAA100437C44 /* CSSContentDistributionValue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CSSContentDistributionValue.cpp; sourceTree = "<group>"; };
-		9DAC7C531AF2CAA100437C44 /* CSSContentDistributionValue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CSSContentDistributionValue.h; sourceTree = "<group>"; };
-		9DAC7C561AF2CB6400437C44 /* StyleContentAlignmentData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StyleContentAlignmentData.h; sourceTree = "<group>"; };
 		9C6EC19D1ACF7101007A8E49 /* EIIGIsolatedCookieWebViewResourceLoadDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = EIIGIsolatedCookieWebViewResourceLoadDelegate.h; path = "../../../Brows Personæ/EIIGIsolatedCookieWebViewResourceLoadDelegate.h"; sourceTree = "<group>"; };
 		9C6EC19F1ACF7128007A8E49 /* BrowsPersona.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BrowsPersona.h; path = "../../../Brows Personæ/BrowsPersona.h"; sourceTree = "<group>"; };
 		9C6EC1A11AD0CB48007A8E49 /* PersonaBridge.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PersonaBridge.h; path = "Eightt Extras/PersonaBridge.h"; sourceTree = "<group>"; };
 		9C6EC1A21AD0CB48007A8E49 /* PersonaBridge.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = PersonaBridge.mm; path = "Eightt Extras/PersonaBridge.mm"; sourceTree = "<group>"; };
 		9C6EC1A71AD234EE007A8E49 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = ../../WebKitBuild/Debug/WebKit.framework; sourceTree = "<group>"; };
 		9C6EC1A91AD2355B007A8E49 /* WebFrameInternal.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = WebFrameInternal.h; path = ../WebKit/mac/WebView/WebFrameInternal.h; sourceTree = "<group>"; };
+		9D63800F1AF16E160031A15C /* StyleSelfAlignmentData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StyleSelfAlignmentData.h; sourceTree = "<group>"; };
+		9DAC7C521AF2CAA100437C44 /* CSSContentDistributionValue.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = CSSContentDistributionValue.cpp; sourceTree = "<group>"; };
+		9DAC7C531AF2CAA100437C44 /* CSSContentDistributionValue.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CSSContentDistributionValue.h; sourceTree = "<group>"; };
+		9DAC7C561AF2CB6400437C44 /* StyleContentAlignmentData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StyleContentAlignmentData.h; sourceTree = "<group>"; };
 		9F72304C11184B4100AD0126 /* ScriptProfile.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScriptProfile.h; sourceTree = "<group>"; };
 		9FA37EE31172FC8000C4CD55 /* ScriptProfileNode.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ScriptProfileNode.h; sourceTree = "<group>"; };
 		9FA37EEF1172FD4100C4CD55 /* ScriptProfile.idl */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = ScriptProfile.idl; sourceTree = "<group>"; };
@@ -30642,6 +30642,7 @@
 				"FRAMEWORK_SEARCH_PATHS[sdk=macosx*]" = (
 					"$(STAGED_FRAMEWORKS_SEARCH_PATH)",
 					"$(TARGET_BUILD_DIR)",
+					"$(inherited)",
 				);
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
@@ -30716,6 +30717,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				FRAMEWORK_SEARCH_PATHS = "";
 				PRODUCT_NAME = All;
 			};
 			name = Debug;
@@ -30724,6 +30726,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				FRAMEWORK_SEARCH_PATHS = "";
 				PRODUCT_NAME = All;
 			};
 			name = Release;
@@ -30732,6 +30735,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				FRAMEWORK_SEARCH_PATHS = "";
 				PRODUCT_NAME = All;
 			};
 			name = Production;
