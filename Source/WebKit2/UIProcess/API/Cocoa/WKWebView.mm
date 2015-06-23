@@ -278,7 +278,7 @@ static bool shouldAllowAlternateFullscreen()
 {
     if (!(self = [super initWithFrame:frame]))
         return nil;
-
+    
     if (!configuration)
         [NSException raise:NSInvalidArgumentException format:@"Configuration cannot be nil"];
 
@@ -413,6 +413,14 @@ static bool shouldAllowAlternateFullscreen()
     pageToViewMap().remove(_page.get());
 
     [super dealloc];
+}
+
+- (float)ei_topContentInset {
+    return _page->topContentInset();
+}
+
+- (void)setEi_topContentInset:(float)inset {
+    _page->setTopContentInset(inset);
 }
 
 - (WKWebViewConfiguration *)configuration
