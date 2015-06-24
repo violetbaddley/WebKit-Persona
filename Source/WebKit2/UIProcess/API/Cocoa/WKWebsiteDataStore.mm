@@ -43,6 +43,21 @@
     return [WebKit::wrapper(*API::WebsiteDataStore::createNonPersistentDataStore().release().leakRef()) autorelease];
 }
 
++ (WKWebsiteDataStore *)ei_dataStoreWithBaseURL:(NSURL * __nonnull)base {
+    
+    const char *appCache = [[[[base URLByAppendingPathComponent:@"OfflineWebApplicationCache" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
+    const char *netCache = [[[[base URLByAppendingPathComponent:@"NetworkCache" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
+    const char *locStorage = [[[[base URLByAppendingPathComponent:@"LocalStorage" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
+    const char *mediaKeys = [[[[base URLByAppendingPathComponent:@"MediaKeys" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
+    const char *webSQL = [[[[base URLByAppendingPathComponent:@"WebSQL" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
+
+    
+    WebKit::WebsiteDataStore::Configuration conf = API::WebsiteDataStore::ei_dataStoreConfigurationWith(appCache, netCache, webSQL, locStorage, mediaKeys);
+    
+    return [WebKit::wrapper(*API::WebsiteDataStore::create(conf).release().leakRef()) autorelease];
+    
+}
+
 - (void)dealloc
 {
     _websiteDataStore->API::WebsiteDataStore::~WebsiteDataStore();

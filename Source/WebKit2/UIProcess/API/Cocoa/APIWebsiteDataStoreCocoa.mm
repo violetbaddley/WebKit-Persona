@@ -146,5 +146,23 @@ WebKit::WebsiteDataStore::Configuration WebsiteDataStore::defaultDataStoreConfig
 
     return configuration;
 }
+    
+WebKit::WebsiteDataStore::Configuration WebsiteDataStore::ei_dataStoreConfigurationWith(String applicationCacheDirectory,
+                                                                                        String networkCacheDirectory,
+                                                                                        String webSQLDatabaseDirectory,
+                                                                                        String localStorageDirectory,
+                                                                                        String mediaKeysStorageDirectory)
+{
+    WebKit::WebsiteDataStore::Configuration configuration;
+    
+    configuration.applicationCacheDirectory = applicationCacheDirectory;
+    configuration.networkCacheDirectory = networkCacheDirectory;
+    
+    configuration.webSQLDatabaseDirectory = webSQLDatabaseDirectory;
+    configuration.localStorageDirectory = localStorageDirectory;
+    configuration.mediaKeysStorageDirectory = mediaKeysStorageDirectory;
+    
+    return configuration;
+}
 
 }

@@ -51,6 +51,13 @@ public:
     static String defaultLocalStorageDirectory();
     static String defaultMediaKeysStorageDirectory();
     static String defaultWebSQLDatabaseDirectory();
+    
+    static WebKit::WebsiteDataStore::Configuration ei_dataStoreConfigurationWith(String applicationCacheDirectory,
+                                                                                 String networkCacheDirectory,
+                                                                                 String webSQLDatabaseDirectory,
+                                                                                 String localStorageDirectory,
+                                                                                 String mediaKeysStorageDirectory);
+
 
 private:
     WebsiteDataStore(WebKit::WebsiteDataStore::Configuration);
@@ -60,7 +67,6 @@ private:
     static String websiteDataDirectoryFileSystemRepresentation(const String& directoryName);
 
     static WebKit::WebsiteDataStore::Configuration defaultDataStoreConfiguration();
-
     RefPtr<WebKit::WebsiteDataStore> m_websiteDataStore;
 };
 

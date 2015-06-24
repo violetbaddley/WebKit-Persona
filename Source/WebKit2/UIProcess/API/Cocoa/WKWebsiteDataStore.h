@@ -47,6 +47,8 @@ WK_CLASS_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA)
 */
 + (WKWebsiteDataStore *)nonPersistentDataStore;
 
++ (WKWebsiteDataStore *)ei_dataStoreWithBaseURL:(NSURL *)base;
+
 - (instancetype)init WK_UNAVAILABLE;
 
 /*! @abstract Whether the data store is persistent or not. */
