@@ -1,0 +1,30 @@
+{
+  "DVTSourceControlWorkspaceBlueprintPrimaryRemoteRepositoryKey" : "94D753953040122F76D30FC1464B1B4DCE436F58",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyRepositoryLocationsKey" : {
+
+  },
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyStatesKey" : {
+    "493A41E4B5B5EFE1529AFDC61EF3FC0E799F55C8" : 0,
+    "94D753953040122F76D30FC1464B1B4DCE436F58" : 0
+  },
+  "DVTSourceControlWorkspaceBlueprintIdentifierKey" : "CF23A5B8-E92A-460F-9631-C66C7E139558",
+  "DVTSourceControlWorkspaceBlueprintWorkingCopyPathsKey" : {
+    "493A41E4B5B5EFE1529AFDC61EF3FC0E799F55C8" : "",
+    "94D753953040122F76D30FC1464B1B4DCE436F58" : "WebKit"
+  },
+  "DVTSourceControlWorkspaceBlueprintNameKey" : "WebKit",
+  "DVTSourceControlWorkspaceBlueprintVersion" : 203,
+  "DVTSourceControlWorkspaceBlueprintRelativePathToProjectKey" : "WebKit.xcworkspace",
+  "DVTSourceControlWorkspaceBlueprintRemoteRepositoriesKey" : [
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "github.com:talusbb\/Brows-Personae.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "493A41E4B5B5EFE1529AFDC61EF3FC0E799F55C8"
+    },
+    {
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryURLKey" : "github.com:talusbb\/WebKit-Persona.git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositorySystemKey" : "com.apple.dt.Xcode.sourcecontrol.Git",
+      "DVTSourceControlWorkspaceBlueprintRemoteRepositoryIdentifierKey" : "94D753953040122F76D30FC1464B1B4DCE436F58"
+    }
+  ]
+}
