@@ -3891,7 +3891,7 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     if (!self._automaticallyAdjustsContentInsets)
         return;
 
-    if ((self.window.styleMask & NSFullSizeContentViewWindowMask) && !self.window.titlebarAppearsTransparent && ![self enclosingScrollView]) {
+    if ((self.window.styleMask & NSFullSizeContentViewWindowMask) /*&& !self.window.titlebarAppearsTransparent*/ && ![self enclosingScrollView]) {
         NSRect contentLayoutRect = [self convertRect:self.window.contentLayoutRect fromView:nil];
         CGFloat newTopContentInset = NSMaxY(contentLayoutRect) - NSHeight(contentLayoutRect);
         if (self._topContentInset != newTopContentInset)
