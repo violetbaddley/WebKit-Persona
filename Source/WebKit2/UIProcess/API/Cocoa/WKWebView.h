@@ -224,9 +224,6 @@ WK_CLASS_AVAILABLE(10_10, 8_0)
 */
 @property (WK_NULLABLE_PROPERTY nonatomic, copy) NSString *customUserAgent WK_AVAILABLE(WK_MAC_TBA, WK_IOS_TBA);
 
-- (float)ei_topContentInset;
-- (void)setEi_topContentInset:(float)inset;
-
 #if TARGET_OS_IPHONE
 /*! @abstract The scroll view associated with the web view.
  */

@@ -415,14 +415,6 @@ static bool shouldAllowAlternateFullscreen()
     [super dealloc];
 }
 
-- (float)ei_topContentInset {
-    return _page->topContentInset();
-}
-
-- (void)setEi_topContentInset:(float)inset {
-    _page->setTopContentInset(inset);
-}
-
 - (WKWebViewConfiguration *)configuration
 {
     return [[_configuration copy] autorelease];
