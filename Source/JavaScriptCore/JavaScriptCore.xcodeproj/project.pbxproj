@@ -7817,6 +7817,7 @@
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Debug;
@@ -7826,6 +7827,8 @@
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Release;
@@ -7836,6 +7839,7 @@
 			buildSettings = {
 				BUILD_VARIANTS = normal;
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Production;
@@ -7864,6 +7868,7 @@
 		149C276D08902AFE008A9EFC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = All;
 			};
 			name = Debug;
@@ -7871,6 +7876,7 @@
 		149C276E08902AFE008A9EFC /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = All;
 			};
 			name = Release;
@@ -7878,6 +7884,7 @@
 		149C277008902AFE008A9EFC /* Production */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = All;
 			};
 			name = Production;
@@ -8025,6 +8032,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "Generate Derived Sources";
 			};
 			name = Debug;
@@ -8033,6 +8041,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "Generate Derived Sources";
 			};
 			name = Release;
@@ -8041,6 +8050,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "Generate Derived Sources";
 			};
 			name = Production;
@@ -8056,6 +8066,7 @@
 		A761483E0E6402F700E357FA /* Profiling */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = All;
 			};
 			name = Profiling;
@@ -8065,6 +8076,7 @@
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				INSTALL_PATH = "@executable_path/../Frameworks";
 			};
 			name = Profiling;
@@ -8073,6 +8085,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1C9051430BA9E8A70081E9D0 /* JavaScriptCore.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "Generate Derived Sources";
 			};
 			name = Profiling;

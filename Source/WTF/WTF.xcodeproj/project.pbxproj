@@ -1457,6 +1457,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5D247B7314689C4700E78B76 /* WTF.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 			};
 			name = Debug;
 		};
@@ -1464,6 +1465,8 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5D247B7314689C4700E78B76 /* WTF.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 			};
 			name = Release;
 		};
@@ -1478,6 +1481,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 5D247B7314689C4700E78B76 /* WTF.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 			};
 			name = Production;
 		};
@@ -1485,6 +1489,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 6541CAF41630DB26006D0DEC /* CopyWTFHeaders.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Debug;
@@ -1493,6 +1498,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 6541CAF41630DB26006D0DEC /* CopyWTFHeaders.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Release;
@@ -1501,6 +1507,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 6541CAF41630DB26006D0DEC /* CopyWTFHeaders.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 			};
 			name = Production;

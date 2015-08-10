@@ -2372,6 +2372,7 @@
 			baseConfigurationReference = 1C904FD20BA9DD0F0081E9D0 /* WebKitLegacy.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				DEBUG_DEFINES = "$(DEBUG_DEFINES_debug) ENABLE_WEBKIT_UNSET_DYLD_FRAMEWORK_PATH";
 				INSTALL_PATH = "@executable_path/../Frameworks";
 				OTHER_LDFLAGS = (
@@ -2386,6 +2387,7 @@
 			baseConfigurationReference = 1C904FD20BA9DD0F0081E9D0 /* WebKitLegacy.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				DEBUG_DEFINES = "$(DEBUG_DEFINES_$(CURRENT_VARIANT)) ENABLE_WEBKIT_UNSET_DYLD_FRAMEWORK_PATH";
 				INSTALL_PATH = "@executable_path/../Frameworks";
 				OTHER_LDFLAGS = (
@@ -2401,6 +2403,7 @@
 			buildSettings = {
 				BUILD_VARIANTS = normal;
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				INSTALL_PATH = "@executable_path/../Frameworks";
 				OTHER_LDFLAGS = (
 					"$(OTHER_LDFLAGS)",

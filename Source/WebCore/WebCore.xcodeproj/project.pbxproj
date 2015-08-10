@@ -30698,6 +30698,7 @@
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(TARGET_BUILD_DIR)",
@@ -30715,6 +30716,8 @@
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
@@ -30734,6 +30737,7 @@
 			buildSettings = {
 				BUILD_VARIANTS = normal;
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					/Users/taldar/Programming/Git/WebKit/WebKitBuild/Debug,
@@ -30797,6 +30801,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
 				PRODUCT_NAME = All;
 			};
@@ -30806,6 +30811,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
 				PRODUCT_NAME = All;
 			};
@@ -30815,6 +30821,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_IDENTITY = "Developer ID Application: TALUS BADDLEY";
+				COPY_PHASE_STRIP = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
 				PRODUCT_NAME = All;
 			};
@@ -30824,6 +30831,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "Derived Sources";
 			};
 			name = Debug;
@@ -30832,6 +30840,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "Derived Sources";
 			};
 			name = Release;
@@ -30840,6 +30849,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 1CDD45E50BA9C84600F90147 /* WebCore.xcconfig */;
 			buildSettings = {
+				COPY_PHASE_STRIP = NO;
 				PRODUCT_NAME = "Derived Sources";
 			};
 			name = Production;
