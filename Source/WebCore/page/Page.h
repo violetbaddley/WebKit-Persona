@@ -58,8 +58,6 @@
 #include "MediaEventTypes.h"
 #endif
 
-OBJC_CLASS BrowsPersona;
-
 namespace JSC {
 class Debugger;
 }
@@ -117,7 +115,7 @@ class UserContentController;
 class ValidationMessageClient;
 class ViewStateChangeObserver;
 class VisitedLinkStore;
-    
+
 typedef uint64_t LinkHash;
 class SharedBuffer;
 
@@ -137,10 +135,6 @@ public:
     WEBCORE_EXPORT ~Page();
 
     WEBCORE_EXPORT uint64_t renderTreeSize() const;
-    
-    BrowsPersona *ei_browsPersonaForPage;
-    WEBCORE_EXPORT void set_ei_browsPersona(BrowsPersona *browsPersona);
-    WEBCORE_EXPORT BrowsPersona *ei_browsPersona();
     
     static std::unique_ptr<Page> createPageFromBuffer(PageConfiguration&, const SharedBuffer*, const String& mimeType, bool canHaveScrollbars, bool transparent);
 

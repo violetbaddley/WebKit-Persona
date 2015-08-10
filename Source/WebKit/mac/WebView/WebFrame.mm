@@ -2451,24 +2451,6 @@ static bool needsMicrosoftMessengerDOMDocumentWorkaround()
     return kit(coreFrame->ownerElement());
 }
 
-
-- (void)setEi_browsPersona:(BrowsPersona *)persona {
-    Page *page = [[self webView] page];
-    NSAssert(page != nil, @"ATTEMPTING TO SET A BROWS PERSONA ON A WEBVIEW WITH NO PAGE.");
-    
-    page->set_ei_browsPersona(persona);
-    
-}
-
-- (BrowsPersona *)ei_browsPersona {
-    Page *page = [[self webView] page];
-    NSAssert(page != nil, @"ATTEMPTING TO GET THE BROWS PERSONA OF A WEBVIEW WITH NO PAGE.");
-    
-    return page->ei_browsPersona();
-    
-}
-
-
 - (WebDataSource *)provisionalDataSource
 {
     Frame* coreFrame = _private->coreFrame;

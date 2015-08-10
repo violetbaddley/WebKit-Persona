@@ -278,7 +278,7 @@ static bool shouldAllowAlternateFullscreen()
 {
     if (!(self = [super initWithFrame:frame]))
         return nil;
-    
+
     if (!configuration)
         [NSException raise:NSInvalidArgumentException format:@"Configuration cannot be nil"];
 

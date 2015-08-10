@@ -40,8 +40,6 @@
 @class WebScriptObject;
 @class WebView;
 
-@class BrowsPersona;
-
 /*!
     @class WebFrame
     @discussion Every web page is represented by at least one WebFrame.  A WebFrame
@@ -97,8 +95,6 @@
     Returns nil if the frame is the main frame since there is no frame element for the frame in this case.
 */
 @property (nonatomic, readonly, strong) DOMHTMLElement *frameElement;
-
-@property (nonatomic, unsafe_unretained) BrowsPersona *ei_browsPersona;
 
 /*!
     @method loadRequest:

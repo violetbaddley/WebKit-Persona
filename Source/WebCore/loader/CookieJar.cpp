@@ -34,8 +34,6 @@
 #include "PlatformCookieJar.h"
 #include "PlatformStrategies.h"
 
-#include "PersonaBridge.h"
-
 namespace WebCore {
 
 static NetworkingContext* networkingContext(const Document* document)
@@ -63,57 +61,38 @@ inline NetworkStorageSession& storageSession(const Document* document)
 
 String cookies(const Document* document, const URL& url)
 {
-    //LOCAL_SESSION(document)
-    //return platformStrategies()->cookiesStrategy()->cookiesForDOM(session, document->firstPartyForCookies(), url);
-    
-    return PersonaBridgeFunctions::cookiesForDOM(document->page(), document->firstPartyForCookies(), url);
-    
+    LOCAL_SESSION(document)
+    return platformStrategies()->cookiesStrategy()->cookiesForDOM(session, document->firstPartyForCookies(), url);
 }
 
 void setCookies(Document* document, const URL& url, const String& cookieString)
 {
-    //LOCAL_SESSION(document)
-    //platformStrategies()->cookiesStrategy()->setCookiesFromDOM(session, document->firstPartyForCookies(), url, cookieString);
-    
-    PersonaBridgeFunctions::setCookiesFromDOM(document->page(), document->firstPartyForCookies(), url, cookieString);
-    
+    LOCAL_SESSION(document)
+    platformStrategies()->cookiesStrategy()->setCookiesFromDOM(session, document->firstPartyForCookies(), url, cookieString);
 }
 
 bool cookiesEnabled(const Document* document)
 {
-    //LOCAL_SESSION(document)
-    //return platformStrategies()->cookiesStrategy()->cookiesEnabled(session, document->firstPartyForCookies(), document->cookieURL());
-    
-    (void)document;
-    return true;
-    
+    LOCAL_SESSION(document)
+    return platformStrategies()->cookiesStrategy()->cookiesEnabled(session, document->firstPartyForCookies(), document->cookieURL());
 }
 
 String cookieRequestHeaderFieldValue(const Document* document, const URL& url)
 {
-    //LOCAL_SESSION(document)
-    //return platformStrategies()->cookiesStrategy()->cookieRequestHeaderFieldValue(session, document->firstPartyForCookies(), url);
-    
-    return PersonaBridgeFunctions::cookieRequestHeaderFieldValue(document->page(), document->firstPartyForCookies(), url);
-    
+    LOCAL_SESSION(document)
+    return platformStrategies()->cookiesStrategy()->cookieRequestHeaderFieldValue(session, document->firstPartyForCookies(), url);
 }
 
 bool getRawCookies(const Document* document, const URL& url, Vector<Cookie>& cookies)
 {
-    //LOCAL_SESSION(document)
-    //return platformStrategies()->cookiesStrategy()->getRawCookies(session, document->firstPartyForCookies(), url, cookies);
-    
-    return PersonaBridgeFunctions::getRawCookies(document->page(), document->firstPartyForCookies(), url, cookies);
-    
+    LOCAL_SESSION(document)
+    return platformStrategies()->cookiesStrategy()->getRawCookies(session, document->firstPartyForCookies(), url, cookies);
 }
 
 void deleteCookie(const Document* document, const URL& url, const String& cookieName)
 {
-    //LOCAL_SESSION(document)
-    //platformStrategies()->cookiesStrategy()->deleteCookie(session, url, cookieName);
-    
-    PersonaBridgeFunctions::deleteCookie(document->page(), url, cookieName);
-    
+    LOCAL_SESSION(document)
+    platformStrategies()->cookiesStrategy()->deleteCookie(session, url, cookieName);
 }
 
 }
