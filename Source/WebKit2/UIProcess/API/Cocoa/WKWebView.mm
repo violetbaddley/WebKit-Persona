@@ -278,6 +278,8 @@ static bool shouldAllowAlternateFullscreen()
 {
     if (!(self = [super initWithFrame:frame]))
         return nil;
+    
+    NSLog(@"\n\n  VI'S CHANGES PRESENT.\n\n");
 
     if (!configuration)
         [NSException raise:NSInvalidArgumentException format:@"Configuration cannot be nil"];
