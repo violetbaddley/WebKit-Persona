@@ -34,10 +34,11 @@
 #include "MessageReceiver.h"
 #include "ProcessType.h"
 #include <atomic>
-#include <condition_variable>
+#include <wtf/Condition.h>
 #include <wtf/Deque.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
+#include <wtf/Lock.h>
 #include <wtf/WorkQueue.h>
 #include <wtf/text/CString.h>
 
@@ -50,10 +51,6 @@
 #if PLATFORM(GTK) || PLATFORM(EFL)
 #include "PlatformProcessIdentifier.h"
 #endif
-
-namespace WTF {
-class RunLoop;
-}
 
 namespace IPC {
 
@@ -71,6 +68,7 @@ enum SyncMessageSendFlags {
     // Some platform accessibility clients can't suspend gracefully and need to spin the run loop so WebProcess doesn't hang.
     // FIXME (126021): Remove when no platforms need to support this.
     SpinRunLoopWhileWaitingForReply = 1 << 1,
+    UseFullySynchronousModeForTesting = 1 << 2,
 };
 
 enum WaitForMessageFlags {
@@ -144,8 +142,8 @@ public:
     static Connection::SocketPair createPlatformConnection(unsigned options = SetCloexecOnClient | SetCloexecOnServer);
 #endif
 
-    static Ref<Connection> createServerConnection(Identifier, Client&, WTF::RunLoop& clientRunLoop);
-    static Ref<Connection> createClientConnection(Identifier, Client&, WTF::RunLoop& clientRunLoop);
+    static Ref<Connection> createServerConnection(Identifier, Client&);
+    static Ref<Connection> createClientConnection(Identifier, Client&);
     ~Connection();
 
     Client* client() const { return m_client; }
@@ -204,8 +202,14 @@ public:
     void setShouldBoostMainThreadOnSyncMessage(bool b) { m_shouldBoostMainThreadOnSyncMessage = b; }
 #endif
 
+    uint64_t installIncomingSyncMessageCallback(std::function<void ()>);
+    void uninstallIncomingSyncMessageCallback(uint64_t);
+    bool hasIncomingSyncMessage();
+
+    void allowFullySynchronousModeForTesting() { m_fullySynchronousModeIsAllowedForTesting = true; }
+
 private:
-    Connection(Identifier, bool isServer, Client&, WTF::RunLoop& clientRunLoop);
+    Connection(Identifier, bool isServer, Client&);
     void platformInitialize(Identifier);
     void platformInvalidate();
     
@@ -249,25 +253,26 @@ private:
 
     bool m_isConnected;
     Ref<WorkQueue> m_connectionQueue;
-    WTF::RunLoop& m_clientRunLoop;
 
     HashMap<StringReference, std::pair<RefPtr<WorkQueue>, RefPtr<WorkQueueMessageReceiver>>> m_workQueueMessageReceivers;
 
     unsigned m_inSendSyncCount;
     unsigned m_inDispatchMessageCount;
     unsigned m_inDispatchMessageMarkedDispatchWhenWaitingForSyncReplyCount;
+    unsigned m_inDispatchMessageMarkedToUseFullySynchronousModeForTesting { 0 };
+    bool m_fullySynchronousModeIsAllowedForTesting { false };
     bool m_didReceiveInvalidMessage;
 
     // Incoming messages.
-    std::mutex m_incomingMessagesMutex;
+    Lock m_incomingMessagesMutex;
     Deque<std::unique_ptr<MessageDecoder>> m_incomingMessages;
 
     // Outgoing messages.
-    std::mutex m_outgoingMessagesMutex;
+    Lock m_outgoingMessagesMutex;
     Deque<std::unique_ptr<MessageEncoder>> m_outgoingMessages;
     
-    std::condition_variable m_waitForMessageCondition;
-    std::mutex m_waitForMessageMutex;
+    Condition m_waitForMessageCondition;
+    Lock m_waitForMessageMutex;
 
     WaitForMessageState* m_waitingForMessage;
 
@@ -298,15 +303,19 @@ private:
 
     class SyncMessageState;
     friend class SyncMessageState;
-    RefPtr<SyncMessageState> m_syncMessageState;
 
-    Mutex m_syncReplyStateMutex;
+    Lock m_syncReplyStateMutex;
     bool m_shouldWaitForSyncReplies;
     Vector<PendingSyncReply> m_pendingSyncReplies;
 
     class SecondaryThreadPendingSyncReply;
     typedef HashMap<uint64_t, SecondaryThreadPendingSyncReply*> SecondaryThreadPendingSyncReplyMap;
     SecondaryThreadPendingSyncReplyMap m_secondaryThreadPendingSyncReplyMap;
+
+    Lock m_incomingSyncMessageCallbackMutex;
+    HashMap<uint64_t, std::function<void ()>> m_incomingSyncMessageCallbacks;
+    RefPtr<WorkQueue> m_incomingSyncMessageCallbackQueue;
+    uint64_t m_nextIncomingSyncMessageCallbackID { 0 };
 
 #if HAVE(QOS_CLASSES)
     pthread_t m_mainThread { 0 };
@@ -364,7 +373,12 @@ template<typename T> bool Connection::sendSync(T&& message, typename T::Reply&& 
 
     uint64_t syncRequestID = 0;
     std::unique_ptr<MessageEncoder> encoder = createSyncMessageEncoder(T::receiverName(), T::name(), destinationID, syncRequestID);
-    
+
+    if (syncSendFlags & SyncMessageSendFlags::UseFullySynchronousModeForTesting) {
+        encoder->setFullySynchronousModeForTesting();
+        m_fullySynchronousModeIsAllowedForTesting = true;
+    }
+
     // Encode the rest of the input arguments.
     encoder->encode(message.arguments());
 

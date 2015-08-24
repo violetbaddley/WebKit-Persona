@@ -283,9 +283,12 @@ sub SkipFunction {
 
     my $functionName = "webkit_dom_" . $decamelize . "_" . $prefix . decamelize($function->signature->name);
     my $functionReturnType = $prefix eq "set_" ? "void" : $function->signature->type;
-    my $isCustomFunction = $function->signature->extendedAttributes->{"Custom"};
+    my $isCustomFunction = $function->signature->extendedAttributes->{"Custom"} || $function->signature->extendedAttributes->{"CustomBinding"};
     my $callWith = $function->signature->extendedAttributes->{"CallWith"};
     my $isUnsupportedCallWith = $codeGenerator->ExtendedAttributeContains($callWith, "ScriptArguments") || $codeGenerator->ExtendedAttributeContains($callWith, "CallStack");
+
+    # Static methods are unsupported
+    return 1 if $function->isStatic;
 
     if (($isCustomFunction || $isUnsupportedCallWith) &&
         $functionName ne "webkit_dom_node_replace_child" &&
@@ -359,6 +362,14 @@ sub SkipFunction {
     }
 
     if ($function->signature->name eq "supports" && @{$function->parameters} == 1) {
+        return 1;
+    }
+
+    if ($function->signature->type eq "Promise") {
+        return 1;
+    }
+
+    if ($function->signature->type eq "Date") {
         return 1;
     }
 
@@ -982,6 +993,31 @@ sub GetTransferTypeForReturnType {
     return "none";
 }
 
+sub GetEffectiveFunctionName {
+    my $functionName = shift;
+
+    # Rename webkit_dom_[document|element]_get_elements_by_tag_name* and webkit_dom_[document|element]_get_elements_by_class_name
+    # functions since they were changed to return a WebKitDOMHTMLCollection instead of a WebKitDOMNodeList in
+    # r188809 and r188735. The old methods are now manually added as deprecated.
+    if ($functionName eq "webkit_dom_document_get_elements_by_tag_name"
+        || $functionName eq "webkit_dom_document_get_elements_by_tag_name_ns"
+        || $functionName eq "webkit_dom_document_get_elements_by_class_name"
+        || $functionName eq "webkit_dom_element_get_elements_by_tag_name"
+        || $functionName eq "webkit_dom_element_get_elements_by_tag_name_ns"
+        || $functionName eq "webkit_dom_element_get_elements_by_class_name") {
+        return $functionName . "_as_html_collection";
+    }
+
+    return $functionName;
+}
+
+sub FunctionUsedToRaiseException {
+    my $functionName = shift;
+
+    return $functionName eq "webkit_dom_document_create_node_iterator"
+        || $functionName eq "webkit_dom_document_create_tree_walker";
+}
+
 sub GenerateFunction {
     my ($object, $interfaceName, $function, $prefix, $parentNode) = @_;
 
@@ -993,10 +1029,16 @@ sub GenerateFunction {
 
     my $functionSigType = $prefix eq "set_" ? "void" : $function->signature->type;
     my $functionSigName = GetFunctionSignatureName($interfaceName, $function);
-    my $functionName = "webkit_dom_" . $decamelize . "_" . $prefix . $functionSigName;
+    my $functionName = GetEffectiveFunctionName("webkit_dom_" . $decamelize . "_" . $prefix . $functionSigName);
     my $returnType = GetGlibTypeName($functionSigType);
     my $returnValueIsGDOMType = IsGDOMClassType($functionSigType);
     my $raisesException = $function->signature->extendedAttributes->{"RaisesException"};
+
+    # If a method used to raise an exception, but was changed to not raise it anymore, the
+    # API changes because we use a explicit GError parameter to handle the exceptions.
+    # In this case, it's better to keep the GError parameter even if it's unused to keep
+    # the API compatibility.
+    my $usedToRaiseException = FunctionUsedToRaiseException($functionName);
 
     my $conditionalString = $codeGenerator->GenerateConditionalString($function->signature);
     my $parentConditionalString = $codeGenerator->GenerateConditionalString($parentNode);
@@ -1041,8 +1083,8 @@ sub GenerateFunction {
         $implIncludes{"WebKitDOM${functionSigType}Private.h"} = 1;
     }
 
-    $functionSig .= ", GError** error" if $raisesException;
-    $symbolSig .= ", GError**" if $raisesException;
+    $functionSig .= ", GError** error" if $raisesException || $usedToRaiseException;
+    $symbolSig .= ", GError**" if $raisesException || $usedToRaiseException;
 
     my $symbol = "$returnType $functionName($symbolSig)";
     my $isStableClass = scalar(@stableSymbols);
@@ -1073,7 +1115,7 @@ sub GenerateFunction {
         }
         push(@functionHeader, " * \@${paramName}:${paramAnnotations} A #${paramType}");
     }
-    push(@functionHeader, " * \@error: #GError") if $raisesException;
+    push(@functionHeader, " * \@error: #GError") if $raisesException || $usedToRaiseException;
     push(@functionHeader, " *");
     my $returnTypeName = $returnType;
     my $hasReturnTag = 0;
@@ -1130,6 +1172,8 @@ sub GenerateFunction {
     if ($raisesException) {
         $gReturnMacro = GetGReturnMacro("error", "GError", $returnType);
         push(@cBody, $gReturnMacro);
+    } elsif ($usedToRaiseException) {
+        push(@cBody, "    UNUSED_PARAM(error);\n");
     }
 
     # The WebKit::core implementations check for null already; no need to duplicate effort.

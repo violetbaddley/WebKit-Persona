@@ -65,7 +65,7 @@ void InspectorLayerTreeAgent::didCreateFrontendAndBackend(Inspector::FrontendCha
 void InspectorLayerTreeAgent::willDestroyFrontendAndBackend(Inspector::DisconnectReason)
 {
     m_frontendDispatcher = nullptr;
-    m_backendDispatcher.clear();
+    m_backendDispatcher = nullptr;
 
     ErrorString unused;
     disable(unused);
@@ -306,6 +306,9 @@ void InspectorLayerTreeAgent::reasonsForCompositingLayer(ErrorString& errorStrin
 
     if (reasonsBitmask & CompositingReasonPreserve3D)
         compositingReasons->setPreserve3D(true);
+
+    if (reasonsBitmask & CompositingReasonWillChange)
+        compositingReasons->setWillChange(true);
 
     if (reasonsBitmask & CompositingReasonRoot)
         compositingReasons->setRoot(true);

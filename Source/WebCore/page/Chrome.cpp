@@ -23,13 +23,13 @@
 #include "Chrome.h"
 
 #include "ChromeClient.h"
-#include "DNS.h"
 #include "Document.h"
 #include "DocumentType.h"
 #include "FileIconLoader.h"
 #include "FileChooser.h"
 #include "FileList.h"
 #include "FloatRect.h"
+#include "FrameLoaderClient.h"
 #include "FrameTree.h"
 #include "Geolocation.h"
 #include "HTMLFormElement.h"
@@ -347,24 +347,10 @@ void Chrome::setStatusbarText(Frame* frame, const String& status)
     m_client.setStatusbarText(frame->displayStringModifiedByEncoding(status));
 }
 
-bool Chrome::shouldInterruptJavaScript()
-{
-    // Defer loads in case the client method runs a new event loop that would
-    // otherwise cause the load to continue while we're in the middle of executing JavaScript.
-    PageGroupLoadDeferrer deferrer(m_page, true);
-
-    return m_client.shouldInterruptJavaScript();
-}
-
-IntRect Chrome::windowResizerRect() const
-{
-    return m_client.windowResizerRect();
-}
-
 void Chrome::mouseDidMoveOverElement(const HitTestResult& result, unsigned modifierFlags)
 {
     if (result.innerNode() && result.innerNode()->document().isDNSPrefetchEnabled())
-        prefetchDNS(result.absoluteLinkURL().host());
+        m_page.mainFrame().loader().client().prefetchDNS(result.absoluteLinkURL().host());
     m_client.mouseDidMoveOverElement(result, modifierFlags);
 
     InspectorInstrumentation::mouseDidMoveOverElement(m_page, result, modifierFlags);
@@ -562,13 +548,13 @@ bool Chrome::hasOpenedPopup() const
     return m_client.hasOpenedPopup();
 }
 
-PassRefPtr<PopupMenu> Chrome::createPopupMenu(PopupMenuClient* client) const
+RefPtr<PopupMenu> Chrome::createPopupMenu(PopupMenuClient* client) const
 {
     notifyPopupOpeningObservers();
     return m_client.createPopupMenu(client);
 }
 
-PassRefPtr<SearchPopupMenu> Chrome::createSearchPopupMenu(PopupMenuClient* client) const
+RefPtr<SearchPopupMenu> Chrome::createSearchPopupMenu(PopupMenuClient* client) const
 {
     notifyPopupOpeningObservers();
     return m_client.createSearchPopupMenu(client);

@@ -466,47 +466,6 @@ WEBKIT_API void
 webkit_dom_test_obj_conditional_method3(WebKitDOMTestObj* self);
 
 /**
- * webkit_dom_test_obj_class_method:
- * @self: A #WebKitDOMTestObj
- *
- * Stability: Unstable
-**/
-WEBKIT_API void
-webkit_dom_test_obj_class_method(WebKitDOMTestObj* self);
-
-/**
- * webkit_dom_test_obj_class_method_with_optional:
- * @self: A #WebKitDOMTestObj
- * @arg: A #glong
- *
- * Returns: A #glong
- *
- * Stability: Unstable
-**/
-WEBKIT_API glong
-webkit_dom_test_obj_class_method_with_optional(WebKitDOMTestObj* self, glong arg);
-
-/**
- * webkit_dom_test_obj_overloaded_method1:
- * @self: A #WebKitDOMTestObj
- * @arg: A #glong
- *
- * Stability: Unstable
-**/
-WEBKIT_API void
-webkit_dom_test_obj_overloaded_method1(WebKitDOMTestObj* self, glong arg);
-
-/**
- * webkit_dom_test_obj_overloaded_method1:
- * @self: A #WebKitDOMTestObj
- * @type: A #gchar
- *
- * Stability: Unstable
-**/
-WEBKIT_API void
-webkit_dom_test_obj_overloaded_method1(WebKitDOMTestObj* self, const gchar* type);
-
-/**
  * webkit_dom_test_obj_convert1:
  * @self: A #WebKitDOMTestObj
  * @value: A #WebKitDOMTestNode
@@ -649,17 +608,6 @@ webkit_dom_test_obj_variadic_node_method(WebKitDOMTestObj* self, WebKitDOMNode* 
 **/
 WEBKIT_API void
 webkit_dom_test_obj_any(WebKitDOMTestObj* self, gfloat a, glong b);
-
-/**
- * webkit_dom_test_obj_test_promise_function:
- * @self: A #WebKitDOMTestObj
- *
- * Returns: (transfer none): A #WebKitDOMPromise
- *
- * Stability: Unstable
-**/
-WEBKIT_API WebKitDOMPromise*
-webkit_dom_test_obj_test_promise_function(WebKitDOMTestObj* self);
 
 /**
  * webkit_dom_test_obj_get_read_only_long_attr:

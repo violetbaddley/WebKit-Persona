@@ -33,6 +33,8 @@ function makeHeaderValue(value)
         return (new Date(new Date().getTime() + serverClientTimeDelta)).toUTCString();
     if (value == 'now(100)')
         return (new Date(new Date().getTime() + serverClientTimeDelta + 100 * 1000)).toUTCString();
+    if (value == 'now(-1000)')
+        return (new Date(new Date().getTime() - serverClientTimeDelta - 1000 * 1000)).toUTCString()
     if (value == 'unique()')
         return "" + uniqueIdCounter++;
     return value;
@@ -69,11 +71,12 @@ function loadResource(test, onload)
     test.xhr.send();
 }
 
-function loadResources(tests, completetion)
+function loadResourcesWithOptions(tests, options, completetion)
 {
-    // Otherwise we just get responses from the memory cache.
-    internals.clearMemoryCache();
-    
+    if (options["ClearMemoryCache"])
+        internals.clearMemoryCache();
+    internals.setStrictRawResourceValidationPolicyDisabled(options["SubresourceValidationPolicy"]);
+
     var pendingCount = tests.length;
     for (var i = 0; i < tests.length; ++i) {
         loadResource(tests[i], function (ev) {
@@ -82,6 +85,11 @@ function loadResources(tests, completetion)
                 completetion();
          });
     }
+}
+
+function loadResources(tests, completetion)
+{
+    loadResourcesWithOptions(tests, { "ClearMemoryCache" : true }, completetion);
 }
 
 function printResults(tests)
@@ -104,12 +112,21 @@ function runTests(tests, completionHandler)
     loadResources(tests, function () {
         // Wait a bit so things settle down in the disk cache.
         setTimeout(function () {
-            loadResources(tests, function () {
+            debug("--------Testing loads from disk cache--------");
+            loadResourcesWithOptions(tests, { "ClearMemoryCache" : true }, function () {
                 printResults(tests);
-                if (completionHandler)
-                    completionHandler();
-                else
-                    finishJSTest();
+                debug("--------Testing loads through memory cache (XHR behavior)--------");
+                loadResourcesWithOptions(tests, { }, function () {
+                    printResults(tests);
+                    debug("--------Testing loads through memory cache (subresource behavior)--------");
+                    loadResourcesWithOptions(tests, { "SubresourceValidationPolicy": true }, function () {
+                        printResults(tests);
+                        if (completionHandler)
+                            completionHandler();
+                        else
+                            finishJSTest();
+                    });
+                });
             });
         }, 100);
     });

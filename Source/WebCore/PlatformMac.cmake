@@ -188,12 +188,6 @@ list(APPEND WebCore_SOURCES
     platform/graphics/ca/TileGrid.cpp
     platform/graphics/ca/TransformationMatrixCA.cpp
 
-    platform/graphics/ca/mac/LayerFlushSchedulerMac.cpp
-    platform/graphics/ca/mac/PlatformCAAnimationMac.mm
-    platform/graphics/ca/mac/PlatformCAFiltersMac.mm
-    platform/graphics/ca/mac/PlatformCALayerMac.mm
-    platform/graphics/ca/mac/WebTiledBackingLayer.mm
-
     platform/graphics/cg/BitmapImageCG.cpp
     platform/graphics/cg/ColorCG.cpp
     platform/graphics/cg/FloatPointCG.cpp
@@ -280,7 +274,6 @@ list(APPEND WebCore_SOURCES
     platform/mac/PlatformEventFactoryMac.mm
     platform/mac/PlatformPasteboardMac.mm
     platform/mac/PlatformScreenMac.mm
-    platform/mac/PlatformSpeechSynthesisMac.mm
     platform/mac/PlatformSpeechSynthesizerMac.mm
     platform/mac/PublicSuffixMac.mm
     platform/mac/SSLKeyGeneratorMac.cpp
@@ -544,6 +537,7 @@ list(REMOVE_ITEM WebCore_SOURCES
     ${DERIVED_SOURCES_WEBCORE_DIR}/DOMCommandLineAPIHost.mm
     ${DERIVED_SOURCES_WEBCORE_DIR}/DOMConvolverNode.mm
     ${DERIVED_SOURCES_WEBCORE_DIR}/DOMCoordinates.mm
+    ${DERIVED_SOURCES_WEBCORE_DIR}/DOMCountQueuingStrategy.mm
     ${DERIVED_SOURCES_WEBCORE_DIR}/DOMCrypto.mm
     ${DERIVED_SOURCES_WEBCORE_DIR}/DOMCryptoKey.mm
     ${DERIVED_SOURCES_WEBCORE_DIR}/DOMCustomEvent.mm

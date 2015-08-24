@@ -64,7 +64,7 @@ static Bitmap<256> makeCharacterBitmap(const char (&characters)[charactersCount]
 
 static JSValue encode(ExecState* exec, const Bitmap<256>& doNotEscape)
 {
-    CString cstr = exec->argument(0).toString(exec)->view(exec).utf8(StrictConversion);
+    CString cstr = exec->argument(0).toString(exec)->view(exec).get().utf8(StrictConversion);
     if (!cstr.data())
         return exec->vm().throwException(exec, createURIError(exec, ASCIILiteral("String contained an illegal UTF-16 sequence.")));
 
@@ -580,7 +580,8 @@ EncodedJSValue JSC_HOST_CALL globalFuncEval(ExecState* exec)
     }
 
     JSGlobalObject* calleeGlobalObject = exec->callee()->globalObject();
-    EvalExecutable* eval = EvalExecutable::create(exec, makeSource(s), false, ThisTDZMode::CheckIfNeeded);
+    VariableEnvironment emptyTDZVariables; // Indirect eval does not have access to the lexical scope.
+    EvalExecutable* eval = EvalExecutable::create(exec, makeSource(s), false, ThisTDZMode::CheckIfNeeded, &emptyTDZVariables);
     if (!eval)
         return JSValue::encode(jsUndefined());
 
@@ -871,6 +872,9 @@ EncodedJSValue JSC_HOST_CALL globalFuncProtoSetter(ExecState* exec)
 
     // Setting __proto__ to a non-object, non-null value is silently ignored to match Mozilla.
     if (!value.isObject() && !value.isNull())
+        return JSValue::encode(jsUndefined());
+
+    if (thisObject->prototype() == value)
         return JSValue::encode(jsUndefined());
 
     if (!thisObject->isExtensible())

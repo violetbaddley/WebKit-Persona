@@ -718,6 +718,14 @@
             "dnomi"
          ]
       },
+      "Devin Rousso" : {
+         "emails" : [
+            "dcrousso+webkit@gmail.com"
+         ],
+         "nicks" : [
+            "drousso"
+         ]
+      },
       "Dhi Aurrahman" : {
          "emails" : [
             "diorahman@rockybars.com"
@@ -734,6 +742,14 @@
          "expertise" : "The QtWebKit Port",
          "nicks" : [
             "diegohcg"
+         ]
+      },
+      "Diego Pino Garcia" : {
+         "emails" : [
+            "dpino@igalia.com"
+         ],
+         "nicks" : [
+            "dpino"
          ]
       },
       "Dinu Jacob" : {
@@ -1105,6 +1121,15 @@
             "hyowon"
          ]
       },
+      "Hyungwook Lee" : {
+         "emails" : [
+            "hyungwook.lee@navercorp.com"
+         ],
+         "expertise" : "Loader, Graphics, The EFLWebKit port, WebKit on Windows",
+         "nicks" : [
+            "hwlee"
+         ]
+      },
       "Ian Vollick" : {
          "emails" : [
             "vollick@chromium.org"
@@ -1416,6 +1441,16 @@
          "expertise" : "Forms, Notifications",
          "nicks" : [
             "jonlee"
+         ]
+      },
+      "Jonathan Davis" : {
+         "emails" : [
+            "jond@apple.com",
+            "web-evangelist@apple.com"
+         ],
+         "expertise" : "webkit.org, Developer Tools, Web Inspector",
+         "nicks" : [
+            "JonDavis"
          ]
       },
       "Jonathan Dong" : {
@@ -1850,6 +1885,14 @@
             "mattbaker@apple.com"
          ]
       },
+      "Matt Daiter" : {
+         "emails" : [
+            "mdaiter@apple.com"
+         ],
+         "nicks" : [
+            "mdaiter"
+         ]
+      },
       "Matt Delaney" : {
          "emails" : [
             "mdelaney@apple.com"
@@ -1884,6 +1927,14 @@
       "Matt Perry" : {
          "emails" : [
             "mpcomplete@chromium.org"
+         ]
+      },
+      "Matt Rajca" : {
+         "emails" : [
+            "mrajca@apple.com"
+         ],
+         "nicks" : [
+            "mrajca"
          ]
       },
       "Matthew Mirman" : {
@@ -2407,14 +2458,6 @@
             "ryuan"
          ]
       },
-      "Saam Barati" : {
-         "emails" : [
-            "saambarati1@gmail.com"
-         ],
-         "nicks" : [
-            "saamyjoon"
-         ]
-      },
       "Sadrul Habib Chowdhury" : {
          "emails" : [
             "sadrul@chromium.org"
@@ -2792,6 +2835,15 @@
             "seumas"
          ]
       },
+      "Wenson Hsieh" : {
+         "emails" : [
+            "wenson_hsieh@apple.com",
+            "whsieh@berkeley.edu"
+         ],
+         "nicks" : [
+            "whsieh"
+         ]
+      },
       "William Siegrist" : {
          "emails" : [
             "wsiegrist@apple.com"
@@ -2986,6 +3038,14 @@
       "Alejandro Pineiro" : {
          "emails" : [
             "apinheiro@igalia.com"
+         ]
+      },
+      "Aleksandr Skachkov" : {
+         "emails" : [
+            "gskachkov@gmail.com"
+         ],
+         "nicks" : [
+            "gskachkov"
          ]
       },
       "Alexey Marinichev" : {
@@ -3745,7 +3805,6 @@
       },
       "Brian Burg" : {
          "emails" : [
-            "burg@cs.washington.edu",
             "bburg@apple.com"
          ],
          "expertise" : "Developer Tools, Web Inspector",
@@ -4105,8 +4164,7 @@
       "Gyuyoung Kim" : {
          "emails" : [
             "gyuyoung.kim@webkit.org",
-            "gyuyoung.kim@navercorp.com",
-            "gyuyoung.kim@samsung.com"
+            "gyuyoung.kim@navercorp.com"
          ],
          "expertise" : "The EFLWebKit Port, Navigator Content Utils, CMake build system",
          "nicks" : [
@@ -4602,6 +4660,14 @@
          "expertise" : "HTML DOM, Core DOM, DOM Bindings (JavaScript, Objective-C and COM), Security, DumpRenderTree",
          "nicks" : [
             "weinig"
+         ]
+      },
+      "Saam Barati" : {
+         "emails" : [
+            "sbarati@apple.com"
+         ],
+         "nicks" : [
+            "saamyjoon"
          ]
       },
       "Sergio Villar Senin" : {

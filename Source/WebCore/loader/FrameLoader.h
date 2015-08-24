@@ -272,7 +272,8 @@ public:
     
     void started();
 
-    Page::DismissalType pageDismissalEventBeingDispatched() const { return m_pageDismissalEventBeingDispatched; }
+    enum class PageDismissalType { None, BeforeUnload, PageHide, Unload };
+    PageDismissalType pageDismissalEventBeingDispatched() const { return m_pageDismissalEventBeingDispatched; }
 
     WEBCORE_EXPORT NetworkingContext* networkingContext() const;
 
@@ -284,6 +285,9 @@ public:
 
     void setOverrideCachePolicyForTesting(ResourceRequestCachePolicy policy) { m_overrideCachePolicyForTesting = policy; }
     void setOverrideResourceLoadPriorityForTesting(ResourceLoadPriority priority) { m_overrideResourceLoadPriorityForTesting = priority; }
+    void setStrictRawResourceValidationPolicyDisabledForTesting(bool disabled) { m_isStrictRawResourceValidationPolicyDisabledForTesting = disabled; }
+    bool isStrictRawResourceValidationPolicyDisabledForTesting() { return m_isStrictRawResourceValidationPolicyDisabledForTesting; }
+
     WEBCORE_EXPORT void clearTestingOverrides();
 
     const URL& provisionalLoadErrorBeingHandledURL() const { return m_provisionalLoadErrorBeingHandledURL; }
@@ -413,21 +417,7 @@ private:
     bool m_didCallImplicitClose;
     bool m_wasUnloadEventEmitted;
 
-    class PageDismissalEventType {
-    public:
-        PageDismissalEventType(Frame& frame)
-            : m_frame(frame)
-        { }
-
-        PageDismissalEventType& operator=(Page::DismissalType);
-        operator Page::DismissalType() const { return m_dismissalEventBeingDispatched; }
-
-    private:
-        Frame& m_frame;
-        Page::DismissalType m_dismissalEventBeingDispatched { Page::DismissalType::None };
-    };
-
-    PageDismissalEventType m_pageDismissalEventBeingDispatched;
+    PageDismissalType m_pageDismissalEventBeingDispatched { PageDismissalType::None };
     bool m_isComplete;
 
     RefPtr<SerializedScriptValue> m_pendingStateObject;
@@ -455,6 +445,7 @@ private:
 
     Optional<ResourceRequestCachePolicy> m_overrideCachePolicyForTesting;
     Optional<ResourceLoadPriority> m_overrideResourceLoadPriorityForTesting;
+    bool m_isStrictRawResourceValidationPolicyDisabledForTesting { false };
 
     URL m_previousURL;
     RefPtr<HistoryItem> m_requestedHistoryItem;

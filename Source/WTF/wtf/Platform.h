@@ -82,7 +82,7 @@
 
 /* CPU(MIPS) - MIPS 32-bit and 64-bit */
 #if (defined(mips) || defined(__mips__) || defined(MIPS) || defined(_MIPS_) || defined(__mips64))
-#if defined(_MIPS_SIM_ABI64) && (_MIPS_SIM == _MIPS_SIM_ABI64)
+#if defined(_ABI64) && (_MIPS_SIM == _ABI64)
 #define WTF_CPU_MIPS64 1
 #define WTF_MIPS_ARCH __mips64
 #else
@@ -488,8 +488,18 @@
 #define USE_WEBP 1
 #endif
 
+#if PLATFORM(EFL)
+#define GLIB_VERSION_MIN_REQUIRED GLIB_VERSION_2_38
+#elif PLATFORM(GTK)
+#define GLIB_VERSION_MIN_REQUIRED GLIB_VERSION_2_36
+#endif
+
 #if PLATFORM(GTK) && !defined(GTK_API_VERSION_2)
 #define GDK_VERSION_MIN_REQUIRED GDK_VERSION_3_6
+#endif
+
+#if USE(SOUP)
+#define SOUP_VERSION_MIN_REQUIRED SOUP_VERSION_2_42
 #endif
 
 /* On Windows, use QueryPerformanceCounter by default */
@@ -545,7 +555,7 @@
 #define USE_WEB_THREAD 1
 #define USE_QUICK_LOOK 1
 
-#if __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS && __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000
 #define HAVE_APP_LINKS 1
 #endif
 
@@ -774,17 +784,6 @@
 #define ENABLE_FTL_JIT 0
 #endif
 
-#if !defined(ENABLE_FTL_NATIVE_CALL_INLINING)
-#define ENABLE_FTL_NATIVE_CALL_INLINING 0
-#endif
-
-/* Used to make GCC's optimization not throw away a symbol that we would need for native inlining */
-#if ENABLE(FTL_NATIVE_CALL_INLINING) && COMPILER(GCC) && !COMPILER(CLANG)
-#define ATTR_USED __attribute__ ((used))
-#else
-#define ATTR_USED
-#endif
-
 /* Generational collector for JSC */
 #if !defined(ENABLE_GGC)
 #if CPU(X86_64) || CPU(X86) || CPU(ARM64) || CPU(ARM)
@@ -823,14 +822,14 @@
 /* Configure the JIT */
 #if CPU(X86) && COMPILER(MSVC)
 #define JSC_HOST_CALL __fastcall
-#elif CPU(X86) && COMPILER(GCC)
+#elif CPU(X86) && COMPILER(GCC_OR_CLANG)
 #define JSC_HOST_CALL __attribute__ ((fastcall))
 #else
 #define JSC_HOST_CALL
 #endif
 
 /* Configure the interpreter */
-#if COMPILER(GCC)
+#if COMPILER(GCC_OR_CLANG)
 #define HAVE_COMPUTED_GOTO 1
 #endif
 
@@ -976,7 +975,7 @@
 #define USE_IMLANG_FONT_LINK2 1
 #endif
 
-#if !defined(ENABLE_COMPARE_AND_SWAP) && (OS(WINDOWS) || (COMPILER(GCC) && (CPU(X86) || CPU(X86_64) || CPU(ARM_THUMB2) || CPU(ARM64))))
+#if !defined(ENABLE_COMPARE_AND_SWAP) && (OS(WINDOWS) || (COMPILER(GCC_OR_CLANG) && (CPU(X86) || CPU(X86_64) || CPU(ARM_THUMB2) || CPU(ARM64))))
 #define ENABLE_COMPARE_AND_SWAP 1
 #endif
 
@@ -1081,10 +1080,6 @@
 #define HAVE_TIMINGDATAOPTIONS 1
 #endif
 
-#if PLATFORM(IOS)
-#define USE_PLATFORM_TEXT_TRACK_MENU 1
-#endif
-
 #if PLATFORM(COCOA)
 #define USE_AUDIO_SESSION 1
 #endif
@@ -1110,8 +1105,10 @@
 #if COMPILER(MSVC)
 #undef __STDC_LIMIT_MACROS
 #define __STDC_LIMIT_MACROS
+#if _MSC_VER < 1900
 #undef _HAS_EXCEPTIONS
 #define _HAS_EXCEPTIONS 1
+#endif
 #endif
 
 #if PLATFORM(MAC)
@@ -1139,6 +1136,11 @@
 
 #if PLATFORM(IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 90000
 #define ENABLE_VIDEO_PRESENTATION_MODE 1
+#endif
+
+/* While 10.10 has support for fences, it is missing some API important for our integration of them. */
+#if PLATFORM(IOS) || (PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100)
+#define HAVE_COREANIMATION_FENCES 1
 #endif
 
 #endif /* WTF_Platform_h */

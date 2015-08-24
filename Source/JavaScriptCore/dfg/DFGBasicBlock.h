@@ -204,8 +204,8 @@ struct BasicBlock : RefCounted<BasicBlock> {
     Vector<Node*> phis;
     PredecessorList predecessors;
     
-    Operands<Node*, NodePointerTraits> variablesAtHead;
-    Operands<Node*, NodePointerTraits> variablesAtTail;
+    Operands<Node*> variablesAtHead;
+    Operands<Node*> variablesAtTail;
     
     Operands<AbstractValue> valuesAtHead;
     Operands<AbstractValue> valuesAtTail;
@@ -237,6 +237,8 @@ struct BasicBlock : RefCounted<BasicBlock> {
     unsigned innerMostLoopIndices[numberOfInnerMostLoopIndices];
 
     struct SSAData {
+        WTF_MAKE_FAST_ALLOCATED;
+    public:
         AvailabilityMap availabilityAtHead;
         AvailabilityMap availabilityAtTail;
         

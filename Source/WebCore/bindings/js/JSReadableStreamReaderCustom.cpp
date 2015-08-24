@@ -44,58 +44,14 @@ using namespace JSC;
 
 namespace WebCore {
 
-JSValue JSReadableStreamReader::read(ExecState* exec)
-{
-    JSPromiseDeferred* promiseDeferred = JSPromiseDeferred::create(exec, globalObject());
-    DeferredWrapper wrapper(exec, globalObject(), promiseDeferred);
-
-    auto successCallback = [wrapper](JSValue value) mutable {
-        JSValue result = createIteratorResultObject(wrapper.promise()->globalObject()->globalExec(), value, false);
-        wrapper.resolve(result);
-    };
-    auto endCallback = [wrapper]() mutable {
-        JSValue result = createIteratorResultObject(wrapper.promise()->globalObject()->globalExec(), JSC::jsUndefined(), true);
-        wrapper.resolve(result);
-    };
-    auto failureCallback = [wrapper](JSValue value) mutable {
-        wrapper.reject(value);
-    };
-
-    impl().read(WTF::move(successCallback), WTF::move(endCallback), WTF::move(failureCallback));
-
-    return promiseDeferred->promise();
-}
-
 JSValue JSReadableStreamReader::closed(ExecState* exec) const
 {
-    if (m_closedPromiseDeferred)
-        return m_closedPromiseDeferred->promise();
-
-    const_cast<JSReadableStreamReader*>(this)->m_closedPromiseDeferred.set(exec->vm(), JSPromiseDeferred::create(exec, globalObject()));
-    DeferredWrapper wrapper(exec, globalObject(), m_closedPromiseDeferred.get());
-
-    auto successCallback = [wrapper]() mutable {
-        wrapper.resolve(jsUndefined());
-    };
-    auto failureCallback = [wrapper](JSValue value) mutable {
-        wrapper.reject(value);
-    };
-
-    impl().closed(WTF::move(successCallback), WTF::move(failureCallback));
-
-    return m_closedPromiseDeferred->promise();
-}
-
-JSValue JSReadableStreamReader::cancel(ExecState* exec)
-{
-    JSValue error = createError(exec, ASCIILiteral("cancel is not implemented"));
-    return exec->vm().throwException(exec, error);
-}
-
-JSValue JSReadableStreamReader::releaseLock(ExecState* exec)
-{
-    JSValue error = createError(exec, ASCIILiteral("releaseLock is not implemented"));
-    return exec->vm().throwException(exec, error);
+    if (!m_closed) {
+        JSPromiseDeferred* closedPromise = JSPromiseDeferred::create(exec, globalObject());
+        const_cast<JSReadableStreamReader*>(this)->m_closed.set(exec->vm(), this, closedPromise->promise());
+        impl().closed(DeferredWrapper(exec, globalObject(), closedPromise));
+    }
+    return m_closed.get();
 }
 
 EncodedJSValue JSC_HOST_CALL constructJSReadableStreamReader(ExecState* exec)
@@ -107,10 +63,13 @@ EncodedJSValue JSC_HOST_CALL constructJSReadableStreamReader(ExecState* exec)
     if (!stream)
         return throwVMError(exec, createTypeError(exec, ASCIILiteral("ReadableStreamReader constructor parameter is not a ReadableStream")));
 
-    if (stream->impl().isLocked())
+    if (stream->impl().locked())
         return throwVMError(exec, createTypeError(exec, ASCIILiteral("ReadableStreamReader constructor parameter is a locked ReadableStream")));
 
-    return JSValue::encode(toJS(exec, stream->globalObject(), stream->impl().getReader()));
+    ExceptionCode ec = 0;
+    EncodedJSValue value = JSValue::encode(toJS(exec, stream->globalObject(), stream->impl().getReader(ec)));
+    ASSERT(!ec);
+    return value;
 }
 
 } // namespace WebCore

@@ -44,6 +44,7 @@
 #include "MediaTimeAVFoundation.h"
 #include "URL.h"
 #include "Logging.h"
+#include "PlatformCALayerClient.h"
 #include "PlatformCALayerWin.h"
 #include "TimeRanges.h"
 #include "WebCoreAVCFResourceLoader.h"
@@ -65,6 +66,7 @@
 #include <runtime/Uint16Array.h>
 #endif
 #include <wtf/HashMap.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/Threading.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringView.h>
@@ -156,7 +158,7 @@ public:
 private:
     inline void* callbackContext() const { return reinterpret_cast<void*>(m_objectID); }
 
-    static Mutex& mapLock();
+    static Lock& mapLock();
     static HashMap<uintptr_t, AVFWrapper*>& map();
     static AVFWrapper* avfWrapperForCallbackContext(void*);
     void addToMap();
@@ -870,9 +872,9 @@ void MediaPlayerPrivateAVFoundationCF::paint(GraphicsContext* context, const Flo
     m_videoFrameHasDrawn = true;
 }
 
-static HashSet<String> mimeTypeCache()
+static const HashSet<String>& mimeTypeCache()
 {
-    DEPRECATED_DEFINE_STATIC_LOCAL(HashSet<String>, cache, ());
+    static NeverDestroyed<HashSet<String>> cache;
     static bool typeListInitialized = false;
 
     if (typeListInitialized)
@@ -887,7 +889,7 @@ static HashSet<String> mimeTypeCache()
 
     CFIndex typeCount = CFArrayGetCount(supportedTypes.get());
     for (CFIndex i = 0; i < typeCount; i++)
-        cache.add(static_cast<CFStringRef>(CFArrayGetValueAtIndex(supportedTypes.get(), i)));
+        cache.get().add(static_cast<CFStringRef>(CFArrayGetValueAtIndex(supportedTypes.get(), i)));
 
     return cache;
 } 
@@ -906,14 +908,45 @@ static bool keySystemIsSupported(const String& keySystem)
 }
 #endif
 
+static const HashSet<String>& avfMIMETypes()
+{
+    static NeverDestroyed<HashSet<String>> cache = []() {
+        HashSet<String> types;
+        RetainPtr<CFArrayRef> avTypes = AVCFURLAssetCopyAudiovisualMIMETypes();
+
+        CFIndex typeCount = CFArrayGetCount(avTypes.get());
+        for (CFIndex i = 0; i < typeCount; ++i) {
+            String mimeType = (CFStringRef)(CFArrayGetValueAtIndex(avTypes.get(), i));
+            types.add(mimeType.lower());
+        }
+
+        return types;
+    }();
+
+    return cache;
+}
+
 MediaPlayer::SupportsType MediaPlayerPrivateAVFoundationCF::supportsType(const MediaEngineSupportParameters& parameters)
 {
-    // Only return "IsSupported" if there is no codecs parameter for now as there is no way to ask if it supports an
-    // extended MIME type until rdar://8721715 is fixed.
+    if (isUnsupportedMIMEType(parameters.type))
+        return MediaPlayer::IsNotSupported;
+
+    if (!staticMIMETypeList().contains(parameters.type) && !avfMIMETypes().contains(parameters.type))
+        return MediaPlayer::IsNotSupported;
+
+#if HAVE(AVCFURL_PLAYABLE_MIMETYPE)
+    // The spec says:
+    // "Implementors are encouraged to return "maybe" unless the type can be confidently established as being supported or not."
+    if (parameters.codecs.isEmpty())
+        return MediaPlayer::MayBeSupported;
+
+    String typeString = parameters.type + "; codecs=\"" + parameters.codecs + "\"";
+    return AVCFURLAssetIsPlayableExtendedMIMEType(typeString.createCFString().get()) ? MediaPlayer::IsSupported : MediaPlayer::MayBeSupported;
+#else
     if (mimeTypeCache().contains(parameters.type))
         return parameters.codecs.isEmpty() ? MediaPlayer::MayBeSupported : MediaPlayer::IsSupported;
-
     return MediaPlayer::IsNotSupported;
+#endif
 }
 
 bool MediaPlayerPrivateAVFoundationCF::supportsKeySystem(const String& keySystem, const String& mimeType)
@@ -1273,7 +1306,11 @@ String MediaPlayerPrivateAVFoundationCF::languageOfPrimaryAudioTrack() const
     AVCFMediaSelectionOptionRef currentlySelectedAudibleOption = AVCFPlayerItemGetSelectedMediaOptionInMediaSelectionGroup(avPlayerItem(m_avfWrapper), audibleGroup);
     if (currentlySelectedAudibleOption) {
         RetainPtr<CFLocaleRef> audibleOptionLocale = adoptCF(AVCFMediaSelectionOptionCopyLocale(currentlySelectedAudibleOption));
-        m_languageOfPrimaryAudioTrack = CFLocaleGetIdentifier(audibleOptionLocale.get());
+        if (audibleOptionLocale)
+            m_languageOfPrimaryAudioTrack = CFLocaleGetIdentifier(audibleOptionLocale.get());
+        else
+            m_languageOfPrimaryAudioTrack = emptyString();
+
         LOG(Media, "MediaPlayerPrivateAVFoundationCF::languageOfPrimaryAudioTrack(%p) - returning language of selected audible option: %s", this, m_languageOfPrimaryAudioTrack.utf8().data());
 
         return m_languageOfPrimaryAudioTrack;
@@ -1367,9 +1404,9 @@ AVFWrapper::~AVFWrapper()
     m_avPlayer = 0;
 }
 
-Mutex& AVFWrapper::mapLock()
+Lock& AVFWrapper::mapLock()
 {
-    static Mutex mapLock;
+    static Lock mapLock;
     return mapLock;
 }
 
@@ -1381,7 +1418,7 @@ HashMap<uintptr_t, AVFWrapper*>& AVFWrapper::map()
 
 void AVFWrapper::addToMap()
 {
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     
     // HashMap doesn't like a key of 0, and also make sure we aren't
     // using an object ID that's already in use.
@@ -1397,7 +1434,7 @@ void AVFWrapper::removeFromMap() const
 {
     LOG(Media, "AVFWrapper::removeFromMap(%p %d)", this, m_objectID);
 
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     map().remove(m_objectID);
 }
 
@@ -1580,7 +1617,11 @@ void AVFWrapper::createPlayerItem()
     AVCFPlayerItemOutputSetSuppressPlayerRendering(m_legibleOutput.get(), TRUE);
 
     AVCFPlayerItemLegibleOutputCallbacks callbackInfo;
+#if HAVE(AVCFPLAYERITEM_CALLBACK_VERSION_2)
+    callbackInfo.version = kAVCFPlayerItemLegibleOutput_CallbacksVersion_2;
+#else
     callbackInfo.version = kAVCFPlayerItemLegibleOutput_CallbacksVersion_1;
+#endif
     ASSERT(callbackContext());
     callbackInfo.context = callbackContext();
     callbackInfo.legibleOutputCallback = AVFWrapper::legibleOutputCallback;
@@ -1594,7 +1635,7 @@ void AVFWrapper::createPlayerItem()
 
 void AVFWrapper::periodicTimeObserverCallback(AVCFPlayerRef, CMTime cmTime, void* context)
 {
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(context);
     if (!self) {
         LOG(Media, "AVFWrapper::periodicTimeObserverCallback invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1625,7 +1666,7 @@ void AVFWrapper::processNotification(void* context)
 
     std::unique_ptr<NotificationCallbackData> notificationData { static_cast<NotificationCallbackData*>(context) };
 
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(notificationData->m_context);
     if (!self) {
         LOG(Media, "AVFWrapper::processNotification invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1680,7 +1721,7 @@ void AVFWrapper::notificationCallback(CFNotificationCenterRef, void* observer, C
 
 void AVFWrapper::loadPlayableCompletionCallback(AVCFAssetRef, void* context)
 {
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(context);
     if (!self) {
         LOG(Media, "AVFWrapper::loadPlayableCompletionCallback invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1708,7 +1749,7 @@ void AVFWrapper::checkPlayability()
 
 void AVFWrapper::loadMetadataCompletionCallback(AVCFAssetRef, void* context)
 {
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(context);
     if (!self) {
         LOG(Media, "AVFWrapper::loadMetadataCompletionCallback invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1728,7 +1769,7 @@ void AVFWrapper::beginLoadingMetadata()
 
 void AVFWrapper::seekCompletedCallback(AVCFPlayerItemRef, Boolean finished, void* context)
 {
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(context);
     if (!self) {
         LOG(Media, "AVFWrapper::seekCompletedCallback invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1771,7 +1812,7 @@ void AVFWrapper::processCue(void* context)
 
     std::unique_ptr<LegibleOutputData> legibleOutputData(reinterpret_cast<LegibleOutputData*>(context));
 
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(legibleOutputData->m_context);
     if (!self) {
         LOG(Media, "AVFWrapper::processCue invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1787,7 +1828,7 @@ void AVFWrapper::processCue(void* context)
 void AVFWrapper::legibleOutputCallback(void* context, AVCFPlayerItemLegibleOutputRef legibleOutput, CFArrayRef attributedStrings, CFArrayRef nativeSampleBuffers, CMTime itemTime)
 {
     ASSERT(!isMainThread());
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(context);
     if (!self) {
         LOG(Media, "AVFWrapper::legibleOutputCallback invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1825,7 +1866,7 @@ void AVFWrapper::processShouldWaitForLoadingOfResource(void* context)
 
     std::unique_ptr<LoadRequestData> loadRequestData(reinterpret_cast<LoadRequestData*>(context));
 
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(loadRequestData->m_context);
     if (!self) {
         LOG(Media, "AVFWrapper::processShouldWaitForLoadingOfResource invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1881,7 +1922,7 @@ bool AVFWrapper::shouldWaitForLoadingOfResource(AVCFAssetResourceLoadingRequestR
 Boolean AVFWrapper::resourceLoaderShouldWaitForLoadingOfRequestedResource(AVCFAssetResourceLoaderRef resourceLoader, AVCFAssetResourceLoadingRequestRef loadingRequest, void *context)
 {
     ASSERT(dispatch_get_main_queue() != dispatch_get_current_queue());
-    MutexLocker locker(mapLock());
+    LockHolder locker(mapLock());
     AVFWrapper* self = avfWrapperForCallbackContext(context);
     if (!self) {
         LOG(Media, "AVFWrapper::resourceLoaderShouldWaitForLoadingOfRequestedResource invoked for deleted AVFWrapper %d", reinterpret_cast<uintptr_t>(context));
@@ -1953,13 +1994,13 @@ void AVFWrapper::destroyVideoLayer()
     ASSERT(dispatch_get_main_queue() == dispatch_get_current_queue());
     LOG(Media, "AVFWrapper::destroyVideoLayer(%p)", this);
     m_layerClient = nullptr;
-    m_caVideoLayer = 0;
-    m_videoLayerWrapper = 0;
+    m_caVideoLayer = nullptr;
+    m_videoLayerWrapper = nullptr;
     if (!m_avCFVideoLayer.get())
         return;
 
-    AVCFPlayerLayerSetPlayer((AVCFPlayerLayerRef)m_avCFVideoLayer.get(), 0);
-    m_avCFVideoLayer = 0;
+    AVCFPlayerLayerSetPlayer((AVCFPlayerLayerRef)m_avCFVideoLayer.get(), nullptr);
+    m_avCFVideoLayer = nullptr;
 }
 
 void AVFWrapper::setVideoLayerNeedsCommit()

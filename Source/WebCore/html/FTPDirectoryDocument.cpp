@@ -34,6 +34,7 @@
 #include "Settings.h"
 #include "SharedBuffer.h"
 #include "Text.h"
+#include <wtf/GregorianDateTime.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/unicode/CharacterNames.h>
 
@@ -411,7 +412,7 @@ void FTPDirectoryDocumentParser::finish()
         m_carryOver = String();
     }
 
-    m_tableElement = 0;
+    m_tableElement = nullptr;
     fastFree(m_buffer);
 
     HTMLDocumentParser::finish();

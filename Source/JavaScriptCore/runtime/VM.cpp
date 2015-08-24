@@ -59,12 +59,11 @@
 #include "JSCInlines.h"
 #include "JSFunction.h"
 #include "JSGlobalObjectFunctions.h"
+#include "JSInternalPromiseDeferred.h"
 #include "JSLexicalEnvironment.h"
 #include "JSLock.h"
-#include "JSNameScope.h"
 #include "JSNotAnObject.h"
 #include "JSPromiseDeferred.h"
-#include "JSPromiseReaction.h"
 #include "JSPropertyNameEnumerator.h"
 #include "JSTemplateRegistryKey.h"
 #include "JSWithScope.h"
@@ -87,6 +86,8 @@
 #include "TypeProfiler.h"
 #include "TypeProfilerLog.h"
 #include "UnlinkedCodeBlock.h"
+#include "VMEntryScope.h"
+#include "Watchdog.h"
 #include "WeakGCMapInlines.h"
 #include "WeakMapData.h"
 #include <wtf/CurrentTime.h>
@@ -154,7 +155,6 @@ VM::VM(VMType vmType, HeapType heapType)
     , emptyList(new MarkedArgumentBuffer)
     , stringCache(*this)
     , prototypeMap(*this)
-    , keywords(std::make_unique<Keywords>(*this))
     , interpreter(0)
     , jsArrayClassInfo(JSArray::info())
     , jsFinalObjectClassInfo(JSFinalObject::info())
@@ -237,10 +237,8 @@ VM::VM(VMType vmType, HeapType heapType)
     inferredValueStructure.set(*this, InferredValue::createStructure(*this, 0, jsNull()));
     functionRareDataStructure.set(*this, FunctionRareData::createStructure(*this, 0, jsNull()));
     exceptionStructure.set(*this, Exception::createStructure(*this, 0, jsNull()));
-#if ENABLE(PROMISES)
     promiseDeferredStructure.set(*this, JSPromiseDeferred::createStructure(*this, 0, jsNull()));
-    promiseReactionStructure.set(*this, JSPromiseReaction::createStructure(*this, 0, jsNull()));
-#endif
+    internalPromiseDeferredStructure.set(*this, JSInternalPromiseDeferred::createStructure(*this, 0, jsNull()));
     iterationTerminator.set(*this, JSFinalObject::create(*this, JSFinalObject::createStructure(*this, 0, jsNull(), 1)));
     smallStrings.initializeCommonStrings(*this);
 
@@ -256,7 +254,7 @@ VM::VM(VMType vmType, HeapType heapType)
     ftlThunks = std::make_unique<FTL::Thunks>();
 #endif // ENABLE(FTL_JIT)
     
-    interpreter->initialize(this->canUseJIT());
+    interpreter->initialize();
     
 #if ENABLE(JIT)
     initializeHostCallReturnValue(); // This is needed to convince the linker not to drop host call return support.
@@ -290,6 +288,12 @@ VM::VM(VMType vmType, HeapType heapType)
         enableTypeProfiler();
     if (Options::enableControlFlowProfiler())
         enableControlFlowProfiler();
+
+    if (Options::watchdog()) {
+        std::chrono::milliseconds timeoutMillis(Options::watchdog());
+        Watchdog& watchdog = ensureWatchdog();
+        watchdog.setTimeLimit(*this, timeoutMillis);
+    }
 }
 
 VM::~VM()
@@ -375,6 +379,19 @@ VM*& VM::sharedInstanceInternal()
     return sharedInstance;
 }
 
+Watchdog& VM::ensureWatchdog()
+{
+    if (!watchdog) {
+        watchdog = adoptRef(new Watchdog());
+        
+        // The LLINT peeks into the Watchdog object directly. In order to do that,
+        // the LLINT assumes that the internal shape of a std::unique_ptr is the
+        // same as a plain C++ pointer, and loads the address of Watchdog from it.
+        RELEASE_ASSERT(*reinterpret_cast<Watchdog**>(&watchdog) == watchdog.get());
+    }
+    return *watchdog;
+}
+
 #if ENABLE(JIT)
 static ThunkGenerator thunkGeneratorForIntrinsic(Intrinsic intrinsic)
 {
@@ -454,24 +471,28 @@ void VM::stopSampling()
     interpreter->stopSampling();
 }
 
-void VM::prepareToDiscardCode()
+void VM::whenIdle(std::function<void()> callback)
 {
-#if ENABLE(DFG_JIT)
-    for (unsigned i = DFG::numberOfWorklists(); i--;) {
-        if (DFG::Worklist* worklist = DFG::worklistForIndexOrNull(i))
-            worklist->completeAllPlansForVM(*this);
+    if (!entryScope) {
+        callback();
+        return;
     }
-#endif // ENABLE(DFG_JIT)
+
+    entryScope->addDidPopListener(callback);
 }
 
-void VM::discardAllCode()
+void VM::deleteAllCode()
 {
-    prepareToDiscardCode();
-    m_codeCache->clear();
-    m_regExpCache->invalidateCode();
-    heap.deleteAllCompiledCode();
-    heap.deleteAllUnlinkedFunctionCode();
-    heap.reportAbandonedObjectGraph();
+    whenIdle([this]() {
+        m_codeCache->clear();
+        m_regExpCache->deleteAllCode();
+#if ENABLE(DFG_JIT)
+        DFG::completeAllPlansForVM(*this);
+#endif
+        heap.deleteAllCompiledCode();
+        heap.deleteAllUnlinkedFunctionCode();
+        heap.reportAbandonedObjectGraph();
+    });
 }
 
 void VM::dumpSampleData(ExecState* exec)
@@ -493,58 +514,6 @@ SourceProviderCache* VM::addSourceProviderCache(SourceProvider* sourceProvider)
 void VM::clearSourceProviderCaches()
 {
     sourceProviderCacheMap.clear();
-}
-
-struct StackPreservingRecompiler : public MarkedBlock::VoidFunctor {
-    HashSet<FunctionExecutable*> currentlyExecutingFunctions;
-    inline void visit(JSCell* cell)
-    {
-        if (!cell->inherits(FunctionExecutable::info()))
-            return;
-        FunctionExecutable* executable = jsCast<FunctionExecutable*>(cell);
-        if (currentlyExecutingFunctions.contains(executable))
-            return;
-        executable->clearCode();
-    }
-    IterationStatus operator()(JSCell* cell)
-    {
-        visit(cell);
-        return IterationStatus::Continue;
-    }
-};
-
-void VM::releaseExecutableMemory()
-{
-    prepareToDiscardCode();
-    
-    if (entryScope) {
-        StackPreservingRecompiler recompiler;
-        HeapIterationScope iterationScope(heap);
-        HashSet<JSCell*> roots;
-        heap.getConservativeRegisterRoots(roots);
-        HashSet<JSCell*>::iterator end = roots.end();
-        for (HashSet<JSCell*>::iterator ptr = roots.begin(); ptr != end; ++ptr) {
-            ScriptExecutable* executable = 0;
-            JSCell* cell = *ptr;
-            if (cell->inherits(ScriptExecutable::info()))
-                executable = static_cast<ScriptExecutable*>(*ptr);
-            else if (cell->inherits(JSFunction::info())) {
-                JSFunction* function = jsCast<JSFunction*>(*ptr);
-                if (function->isHostFunction())
-                    continue;
-                executable = function->jsExecutable();
-            } else
-                continue;
-            ASSERT(executable->inherits(ScriptExecutable::info()));
-            executable->unlinkCalls();
-            if (executable->inherits(FunctionExecutable::info()))
-                recompiler.currentlyExecutingFunctions.add(static_cast<FunctionExecutable*>(executable));
-                
-        }
-        heap.objectSpace().forEachLiveCell<StackPreservingRecompiler>(iterationScope, recompiler);
-    }
-    m_regExpCache->invalidateCode();
-    heap.collectAllGarbage();
 }
 
 void VM::throwException(ExecState* exec, Exception* exception)
@@ -654,11 +623,6 @@ void VM::updateFTLLargestStackSize(size_t stackSize)
 }
 #endif
 
-void releaseExecutableMemory(VM& vm)
-{
-    vm.releaseExecutableMemory();
-}
-
 #if ENABLE(DFG_JIT)
 void VM::gatherConservativeRoots(ConservativeRoots& conservativeRoots)
 {
@@ -748,7 +712,6 @@ void VM::setEnabledProfiler(LegacyProfiler* profiler)
 {
     m_enabledProfiler = profiler;
     if (m_enabledProfiler) {
-        prepareToDiscardCode();
         SetEnabledProfilerFunctor functor;
         heap.forEachCodeBlock(functor);
     }
@@ -824,6 +787,22 @@ void VM::dumpTypeProfilerData()
 
     typeProfilerLog()->processLogEntries(ASCIILiteral("VM Dump Types"));
     typeProfiler()->dumpTypeProfilerData(*this);
+}
+
+void VM::queueMicrotask(JSGlobalObject* globalObject, PassRefPtr<Microtask> task)
+{
+    m_microtaskQueue.append(std::make_unique<QueuedTask>(*this, globalObject, task));
+}
+
+void VM::drainMicrotasks()
+{
+    while (!m_microtaskQueue.isEmpty())
+        m_microtaskQueue.takeFirst()->run();
+}
+
+void QueuedTask::run()
+{
+    m_microtask->run(m_globalObject->globalExec());
 }
 
 void sanitizeStackForVM(VM* vm)

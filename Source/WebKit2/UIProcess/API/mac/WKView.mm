@@ -126,8 +126,6 @@
 @end
 
 @interface NSWindow (WKNSWindowDetails)
-- (NSRect)_intersectBottomCornersWithRect:(NSRect)viewRect;
-- (void)_maskRoundedBottomCorners:(NSRect)clipRect;
 - (id)_newFirstResponderAfterResigning;
 @end
 
@@ -236,8 +234,6 @@ struct WKViewInterpretKeyEventsParameters {
 
     BOOL _inSecureInputState;
 
-    NSRect _windowBottomCornerIntersectionRect;
-    
     BOOL _shouldDeferViewInWindowChanges;
     NSWindow *_targetWindowForMovePreparation;
 
@@ -265,8 +261,11 @@ struct WKViewInterpretKeyEventsParameters {
     BOOL _ignoresNonWheelEvents;
     BOOL _ignoresAllEvents;
     BOOL _allowsBackForwardNavigationGestures;
+    BOOL _allowsLinkPreview;
 
     RetainPtr<WKViewLayoutStrategy> _layoutStrategy;
+    WKLayoutMode _lastRequestedLayoutMode;
+    float _lastRequestedViewScale;
     CGSize _minimumViewSize;
 
     RetainPtr<CALayer> _rootLayer;
@@ -1199,25 +1198,6 @@ static NSToolbarItem *toolbarItem(id <NSValidatedUserInterfaceItem> item)
 - (void)capitalizeWord:(id)sender
 {
     _data->_page->capitalizeWord();
-}
-
-- (void)displayIfNeeded
-{
-    // FIXME: We should remove this code when <rdar://problem/9362085> is resolved. In the meantime,
-    // it is necessary to disable scren updates so we get a chance to redraw the corners before this 
-    // display is visible.
-    NSWindow *window = [self window];
-    BOOL shouldMaskWindow = window && !NSIsEmptyRect(_data->_windowBottomCornerIntersectionRect);
-    if (shouldMaskWindow)
-        NSDisableScreenUpdates();
-
-    [super displayIfNeeded];
-
-    if (shouldMaskWindow) {
-        [window _maskRoundedBottomCorners:_data->_windowBottomCornerIntersectionRect];
-        NSEnableScreenUpdates();
-        _data->_windowBottomCornerIntersectionRect = NSZeroRect;
-    }
 }
 
 // Events
@@ -2729,7 +2709,7 @@ static void* keyValueObservingContext = &keyValueObservingContext;
         [self _accessibilityRegisterUIProcessTokens];
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-        if (_data->_immediateActionGestureRecognizer && ![[self gestureRecognizers] containsObject:_data->_immediateActionGestureRecognizer.get()] && !_data->_ignoresNonWheelEvents)
+        if (_data->_immediateActionGestureRecognizer && ![[self gestureRecognizers] containsObject:_data->_immediateActionGestureRecognizer.get()] && !_data->_ignoresNonWheelEvents && _data->_allowsLinkPreview)
             [self addGestureRecognizer:_data->_immediateActionGestureRecognizer.get()];
 #endif
     } else {
@@ -2835,7 +2815,7 @@ static void* keyValueObservingContext = &keyValueObservingContext;
 
 - (void)drawRect:(NSRect)rect
 {
-    LOG(View, "drawRect: x:%g, y:%g, width:%g, height:%g", rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
+    LOG(Printing, "drawRect: x:%g, y:%g, width:%g, height:%g", rect.origin.x, rect.origin.y, rect.size.width, rect.size.height);
     _data->_page->endPrinting();
 }
 
@@ -2890,7 +2870,7 @@ static void* keyValueObservingContext = &keyValueObservingContext;
 
 - (void)_dictionaryLookupPopoverWillClose:(NSNotification *)notification
 {
-    [self _clearTextIndicatorWithAnimation:TextIndicatorDismissalAnimation::None];
+    [self _clearTextIndicatorWithAnimation:TextIndicatorWindowDismissalAnimation::None];
 }
 
 - (void)_accessibilityRegisterUIProcessTokens
@@ -3278,10 +3258,10 @@ static void* keyValueObservingContext = &keyValueObservingContext;
 
 - (void)_setTextIndicator:(TextIndicator&)textIndicator
 {
-    [self _setTextIndicator:textIndicator withLifetime:TextIndicatorLifetime::Permanent];
+    [self _setTextIndicator:textIndicator withLifetime:TextIndicatorWindowLifetime::Permanent];
 }
 
-- (void)_setTextIndicator:(TextIndicator&)textIndicator withLifetime:(TextIndicatorLifetime)lifetime
+- (void)_setTextIndicator:(TextIndicator&)textIndicator withLifetime:(TextIndicatorWindowLifetime)lifetime
 {
     if (!_data->_textIndicatorWindow)
         _data->_textIndicatorWindow = std::make_unique<TextIndicatorWindow>(self);
@@ -3290,7 +3270,7 @@ static void* keyValueObservingContext = &keyValueObservingContext;
     _data->_textIndicatorWindow->setTextIndicator(textIndicator, NSRectToCGRect(textBoundingRectInScreenCoordinates), lifetime);
 }
 
-- (void)_clearTextIndicatorWithAnimation:(TextIndicatorDismissalAnimation)animation
+- (void)_clearTextIndicatorWithAnimation:(TextIndicatorWindowDismissalAnimation)animation
 {
     if (_data->_textIndicatorWindow)
         _data->_textIndicatorWindow->clearTextIndicator(animation);
@@ -3543,7 +3523,7 @@ static bool matchesExtensionOrEquivalent(NSString *filename, NSString *extension
 
 - (void)pasteboardChangedOwner:(NSPasteboard *)pasteboard
 {
-    _data->_promisedImage = 0;
+    _data->_promisedImage = nullptr;
     _data->_promisedFilename = "";
     _data->_promisedURL = "";
 }
@@ -3554,7 +3534,7 @@ static bool matchesExtensionOrEquivalent(NSString *filename, NSString *extension
 
     if ([type isEqual:NSTIFFPboardType] && _data->_promisedImage) {
         [pasteboard setData:(NSData *)_data->_promisedImage->getTIFFRepresentation() forType:NSTIFFPboardType];
-        _data->_promisedImage = 0;
+        _data->_promisedImage = nullptr;
     }
 }
 
@@ -3728,18 +3708,6 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     [self invalidateIntrinsicContentSize];
 }
 
-- (void)_cacheWindowBottomCornerRect
-{
-    // FIXME: We should remove this code when <rdar://problem/9362085> is resolved.
-    NSWindow *window = [self window];
-    if (!window)
-        return;
-
-    _data->_windowBottomCornerIntersectionRect = [window _intersectBottomCornersWithRect:[self convertRect:[self visibleRect] toView:nil]];
-    if (!NSIsEmptyRect(_data->_windowBottomCornerIntersectionRect))
-        [self setNeedsDisplayInRect:[self convertRect:_data->_windowBottomCornerIntersectionRect fromView:nil]];
-}
-
 - (NSInteger)spellCheckerDocumentTag
 {
     if (!_data->_hasSpellCheckerDocumentTag) {
@@ -3776,7 +3744,7 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     [self addTrackingArea:trackingArea];
 }
 
-- (instancetype)initWithFrame:(NSRect)frame processPool:(WebProcessPool&)processPool configuration:(WebPageConfiguration)webPageConfiguration webView:(WKWebView *)webView
+- (instancetype)initWithFrame:(NSRect)frame processPool:(WebProcessPool&)processPool configuration:(Ref<API::PageConfiguration>&&)configuration webView:(WKWebView *)webView
 {
     self = [super initWithFrame:frame];
     if (!self)
@@ -3798,7 +3766,7 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     [self addTrackingArea:_data->_primaryTrackingArea.get()];
 
     _data->_pageClient = std::make_unique<PageClientImpl>(self, webView);
-    _data->_page = processPool.createWebPage(*_data->_pageClient, WTF::move(webPageConfiguration));
+    _data->_page = processPool.createWebPage(*_data->_pageClient, WTF::move(configuration));
     _data->_page->setAddsVisitedLinks(processPool.historyClient().addsVisitedLinks());
 
     _data->_page->setIntrinsicDeviceScaleFactor([self _intrinsicDeviceScaleFactor]);
@@ -3810,6 +3778,8 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     _data->_clipsToVisibleRect = NO;
     _data->_useContentPreparationRectForVisibleRect = NO;
     _data->_windowOcclusionDetectionEnabled = YES;
+    _data->_lastRequestedLayoutMode = kWKLayoutModeViewSize;
+    _data->_lastRequestedViewScale = 1;
 
     _data->_windowVisibilityObserver = adoptNS([[WKWindowVisibilityObserver alloc] initWithView:self]);
 
@@ -3832,6 +3802,8 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     [workspaceNotificationCenter addObserver:self selector:@selector(_activeSpaceDidChange:) name:NSWorkspaceActiveSpaceDidChangeNotification object:nil];
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    _data->_allowsLinkPreview = YES;
+
     if (Class gestureClass = NSClassFromString(@"NSImmediateActionGestureRecognizer")) {
         _data->_immediateActionGestureRecognizer = adoptNS([(NSImmediateActionGestureRecognizer *)[gestureClass alloc] init]);
         _data->_immediateActionController = adoptNS([[WKImmediateActionController alloc] initWithPage:*_data->_page view:self recognizer:_data->_immediateActionGestureRecognizer.get()]);
@@ -3926,10 +3898,51 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
         _data->_gestureController->didFirstVisuallyNonEmptyLayoutForMainFrame();
 }
 
+- (BOOL)_supportsArbitraryLayoutModes
+{
+    WebPageProxy* page = _data->_page.get();
+    if (!page)
+        return YES;
+    WebFrameProxy* frame = page->mainFrame();
+    if (!frame)
+        return YES;
+
+    // If we have a plugin document in the main frame, avoid using custom WKLayoutModes
+    // and fall back to the defaults, because there's a good chance that it won't work (e.g. with PDFPlugin).
+    if (frame->containsPluginDocument())
+        return NO;
+
+    return YES;
+}
+
+- (void)_didCommitLoadForMainFrame
+{
+    if (![self _supportsArbitraryLayoutModes]) {
+        WKLayoutMode oldRequestedLayoutMode = _data->_lastRequestedLayoutMode;
+        float oldRequestedViewScale = _data->_lastRequestedViewScale;
+        [self _setViewScale:1];
+        [self _setLayoutMode:kWKLayoutModeViewSize];
+
+        // The 'last requested' parameters will have been overwritten by setting them above, but we don't
+        // want this to count as a request (only changes from the client count), so reset them.
+        _data->_lastRequestedLayoutMode = oldRequestedLayoutMode;
+        _data->_lastRequestedViewScale = oldRequestedViewScale;
+    } else if (_data->_lastRequestedLayoutMode != [_data->_layoutStrategy layoutMode]) {
+        [self _setViewScale:_data->_lastRequestedViewScale];
+        [self _setLayoutMode:_data->_lastRequestedLayoutMode];
+    }
+}
+
 - (void)_didFinishLoadForMainFrame
 {
     if (_data->_gestureController)
         _data->_gestureController->didFinishLoadForMainFrame();
+}
+
+- (void)_didFailLoadForMainFrame
+{
+    if (_data->_gestureController)
+        _data->_gestureController->didFailLoadForMainFrame();
 }
 
 - (void)_didSameDocumentNavigationForMainFrame:(SameDocumentNavigationType)type
@@ -3953,6 +3966,13 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
 #endif // __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
 
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101100
+- (void)_startWindowDrag
+{
+    [[self window] performWindowDragWithEvent:_data->_mouseDownEvent];
+}
+#endif
+
 @end
 
 @implementation WKView (Private)
@@ -3974,19 +3994,20 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
 - (id)initWithFrame:(NSRect)frame contextRef:(WKContextRef)contextRef pageGroupRef:(WKPageGroupRef)pageGroupRef relatedToPage:(WKPageRef)relatedPage
 {
-    WebPageConfiguration webPageConfiguration;
-    webPageConfiguration.pageGroup = toImpl(pageGroupRef);
-    webPageConfiguration.relatedPage = toImpl(relatedPage);
+    auto configuration = API::PageConfiguration::create();
+    configuration->setProcessPool(toImpl(contextRef));
+    configuration->setPageGroup(toImpl(pageGroupRef));
+    configuration->setRelatedPage(toImpl(relatedPage));
 
-    return [self initWithFrame:frame processPool:*toImpl(contextRef) configuration:webPageConfiguration webView:nil];
+    return [self initWithFrame:frame processPool:*toImpl(contextRef) configuration:WTF::move(configuration) webView:nil];
 }
 
-- (id)initWithFrame:(NSRect)frame configurationRef:(WKPageConfigurationRef)configuration
+- (id)initWithFrame:(NSRect)frame configurationRef:(WKPageConfigurationRef)configurationRef
 {
-    auto& processPool = *toImpl(configuration)->processPool();
-    auto webPageConfiguration = toImpl(configuration)->webPageConfiguration();
+    Ref<API::PageConfiguration> configuration = toImpl(configurationRef)->copy();
+    auto& processPool = *configuration->processPool();
 
-    return [self initWithFrame:frame processPool:processPool configuration:webPageConfiguration webView:nil];
+    return [self initWithFrame:frame processPool:processPool configuration:WTF::move(configuration) webView:nil];
 }
 
 - (BOOL)wantsUpdateLayer
@@ -4024,7 +4045,7 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
 - (NSPrintOperation *)printOperationWithPrintInfo:(NSPrintInfo *)printInfo forFrame:(WKFrameRef)frameRef
 {
-    LOG(View, "Creating an NSPrintOperation for frame '%s'", toImpl(frameRef)->url().utf8().data());
+    LOG(Printing, "Creating an NSPrintOperation for frame '%s'", toImpl(frameRef)->url().utf8().data());
 
     // FIXME: If the frame cannot be printed (e.g. if it contains an encrypted PDF that disallows
     // printing), this function should return nil.
@@ -4243,6 +4264,26 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     return _data->_allowsBackForwardNavigationGestures;
 }
 
+- (BOOL)allowsLinkPreview
+{
+    return _data->_allowsLinkPreview;
+}
+
+- (void)setAllowsLinkPreview:(BOOL)allowsLinkPreview
+{
+    if (_data->_allowsLinkPreview == allowsLinkPreview)
+        return;
+
+    _data->_allowsLinkPreview = allowsLinkPreview;
+    
+#if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    if (!allowsLinkPreview)
+        [self removeGestureRecognizer:_data->_immediateActionGestureRecognizer.get()];
+    else if (NSGestureRecognizer *immediateActionRecognizer = _data->_immediateActionGestureRecognizer.get())
+        [self addGestureRecognizer:immediateActionRecognizer];
+#endif
+}
+
 - (void)_setIgnoresAllEvents:(BOOL)ignoresAllEvents
 {
     _data->_ignoresAllEvents = ignoresAllEvents;
@@ -4266,8 +4307,10 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
     if (ignoresNonWheelEvents)
         [self removeGestureRecognizer:_data->_immediateActionGestureRecognizer.get()];
-    else if (NSGestureRecognizer *immediateActionRecognizer = _data->_immediateActionGestureRecognizer.get())
-        [self addGestureRecognizer:immediateActionRecognizer];
+    else if (NSGestureRecognizer *immediateActionRecognizer = _data->_immediateActionGestureRecognizer.get()) {
+        if (_data->_allowsLinkPreview)
+            [self addGestureRecognizer:immediateActionRecognizer];
+    }
 #endif
 }
 
@@ -4299,6 +4342,11 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
 - (void)_setLayoutMode:(WKLayoutMode)layoutMode
 {
+    _data->_lastRequestedLayoutMode = layoutMode;
+
+    if (![self _supportsArbitraryLayoutModes] && layoutMode != kWKLayoutModeViewSize)
+        return;
+
     if (layoutMode == [_data->_layoutStrategy layoutMode])
         return;
 
@@ -4323,6 +4371,11 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
 - (void)_setViewScale:(CGFloat)viewScale
 {
+    _data->_lastRequestedViewScale = viewScale;
+
+    if (![self _supportsArbitraryLayoutModes] && viewScale != 1)
+        return;
+
     if (viewScale <= 0 || isnan(viewScale) || isinf(viewScale))
         [NSException raise:NSInvalidArgumentException format:@"View scale should be a positive number"];
 
@@ -4429,12 +4482,16 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     return nsColor(color);
 }
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
 // This method forces a drawing area geometry update, even if frame size updates are disabled.
 // The updated is performed asynchronously; we don't wait for the geometry update before returning.
 // The area drawn need not match the current frame size - if it differs it will be anchored to the
 // frame according to the current contentAnchor.
 - (void)forceAsyncDrawingAreaSizeUpdate:(NSSize)size
 {
+    // This SPI is only used on 10.9 and below, and is incompatible with the fence-based drawing area size synchronization in 10.10+.
+#if __MAC_OS_X_VERSION_MIN_REQUIRED <= 1090
     if (_data->_clipsToVisibleRect)
         [self _updateViewExposedRect];
     [self _setDrawingAreaSize:size];
@@ -4444,10 +4501,15 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
     // the drawing area size such that the latest update is sent.
     if (DrawingAreaProxy* drawingArea = _data->_page->drawingArea())
         drawingArea->waitForPossibleGeometryUpdate(std::chrono::milliseconds::zero());
+#else
+    ASSERT_NOT_REACHED();
+#endif
 }
 
 - (void)waitForAsyncDrawingAreaSizeUpdate
 {
+    // This SPI is only used on 10.9 and below, and is incompatible with the fence-based drawing area size synchronization in 10.10+.
+#if __MAC_OS_X_VERSION_MIN_REQUIRED <= 1090
     if (DrawingAreaProxy* drawingArea = _data->_page->drawingArea()) {
         // If a geometry update is still pending then the action of receiving the
         // first geometry update may result in another update being scheduled -
@@ -4455,7 +4517,11 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
         drawingArea->waitForPossibleGeometryUpdate(DrawingAreaProxy::didUpdateBackingStoreStateTimeout() / 2);
         drawingArea->waitForPossibleGeometryUpdate(DrawingAreaProxy::didUpdateBackingStoreStateTimeout() / 2);
     }
+#else
+    ASSERT_NOT_REACHED();
+#endif
 }
+#pragma clang diagnostic pop
 
 - (BOOL)isUsingUISideCompositing
 {
@@ -4620,7 +4686,7 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 #endif
     }
 
-    [self _clearTextIndicatorWithAnimation:TextIndicatorDismissalAnimation::FadeOut];
+    [self _clearTextIndicatorWithAnimation:TextIndicatorWindowDismissalAnimation::FadeOut];
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
     [_data->_immediateActionController dismissContentRelativeChildWindows];
@@ -4633,7 +4699,7 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 {
     // Calling _clearTextIndicatorWithAnimation here will win out over the animated clear in _dismissContentRelativeChildWindows.
     // We can't invert these because clients can override (and have overridden) _dismissContentRelativeChildWindows, so it needs to be called.
-    [self _clearTextIndicatorWithAnimation:withAnimation ? TextIndicatorDismissalAnimation::FadeOut : TextIndicatorDismissalAnimation::None];
+    [self _clearTextIndicatorWithAnimation:withAnimation ? TextIndicatorWindowDismissalAnimation::FadeOut : TextIndicatorWindowDismissalAnimation::None];
     [self _dismissContentRelativeChildWindows];
 }
 

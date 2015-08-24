@@ -29,6 +29,7 @@
 #include "FileSystem.h"
 #include "ResourceHandle.h"
 #include "ResourceResponse.h"
+#include <wtf/Lock.h>
 #include <wtf/Threading.h>
 
 #if PLATFORM(WIN)
@@ -73,7 +74,7 @@ private:
     Vector<CURL*> m_pendingHandleList;
     Vector<CURL*> m_activeHandleList;
     Vector<CURL*> m_removedHandleList;
-    mutable Mutex m_mutex;
+    mutable Lock m_mutex;
     bool m_runThread;
 };
 
@@ -85,13 +86,15 @@ public:
     virtual void didFail() { }
 };
 
-class CurlDownload {
+class CurlDownload : public ThreadSafeRefCounted<CurlDownload> {
 public:
     CurlDownload();
     ~CurlDownload();
 
     void init(CurlDownloadListener*, const WebCore::URL&);
     void init(CurlDownloadListener*, ResourceHandle*, const ResourceRequest&, const ResourceResponse&);
+
+    void setListener(CurlDownloadListener* listener) { m_listener = listener; }
 
     bool start();
     bool cancel();
@@ -138,7 +141,7 @@ private:
     WebCore::PlatformFileHandle m_tempHandle;
     WebCore::ResourceResponse m_response;
     bool m_deletesFileUponFailure;
-    mutable Mutex m_mutex;
+    mutable Lock m_mutex;
     CurlDownloadListener *m_listener;
 
     static CurlDownloadManager m_downloadManager;

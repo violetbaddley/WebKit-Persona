@@ -45,6 +45,7 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
 
         this._cleared = true;
         this._previousMessageView = null;
+        this._lastCommitted = "";
         this._repeatCountWasInterrupted = false;
 
         this._sessions = [];
@@ -108,6 +109,7 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
         var consoleSession = new WebInspector.ConsoleSession;
 
         this._previousMessageView = null;
+        this._lastCommitted = "";
         this._repeatCountWasInterrupted = false;
 
         this._sessions.push(consoleSession);
@@ -119,11 +121,11 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
         consoleSession.element.scrollIntoView();
     }
 
-    appendImmediateExecutionWithResult(text, result)
+    appendImmediateExecutionWithResult(text, result, addSpecialUserLogClass)
     {
         console.assert(result instanceof WebInspector.RemoteObject);
 
-        var commandMessageView = new WebInspector.ConsoleCommandView(text);
+        var commandMessageView = new WebInspector.ConsoleCommandView(text, addSpecialUserLogClass ? "special-user-log" : null);
         this._appendConsoleMessageView(commandMessageView, true);
 
         function saveResultCallback(savedResultIndex)
@@ -147,14 +149,14 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
     {
         console.assert(this._previousMessageView);
         if (!this._previousMessageView)
-            return;
+            return false;
 
         var previousIgnoredCount = this._previousMessageView[WebInspector.JavaScriptLogViewController.IgnoredRepeatCount] || 0;
         var previousVisibleCount = this._previousMessageView.repeatCount;
 
         if (!this._repeatCountWasInterrupted) {
             this._previousMessageView.repeatCount = count - previousIgnoredCount;
-            return;
+            return true;
         }
 
         var consoleMessage = this._previousMessageView.message;
@@ -162,6 +164,8 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
         duplicatedConsoleMessageView[WebInspector.JavaScriptLogViewController.IgnoredRepeatCount] = previousIgnoredCount + previousVisibleCount;
         duplicatedConsoleMessageView.repeatCount = 1;
         this._appendConsoleMessageView(duplicatedConsoleMessageView);
+
+        return true;
     }
 
     isScrolledToBottom()
@@ -219,8 +223,11 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
     {
         console.assert(text);
 
-        var commandMessageView = new WebInspector.ConsoleCommandView(text);
-        this._appendConsoleMessageView(commandMessageView, true);
+        if (this._lastCommitted !== text) {
+            let commandMessageView = new WebInspector.ConsoleCommandView(text);
+            this._appendConsoleMessageView(commandMessageView, true);
+            this._lastCommitted = text;
+        }
 
         function printResult(result, wasThrown, savedResultIndex)
         {
@@ -231,8 +238,6 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
             var commandResultMessageView = new WebInspector.ConsoleMessageView(commandResultMessage);
             this._appendConsoleMessageView(commandResultMessageView, true);
         }
-
-        text += "\n//# sourceURL=__WebInspectorConsole__\n";
 
         WebInspector.runtimeManager.evaluateInInspectedWindow(text, "console", true, false, false, true, true, printResult.bind(this));
     }
@@ -278,6 +283,9 @@ WebInspector.JavaScriptLogViewController = class JavaScriptLogViewController ext
 
         if (!repeatCountWasInterrupted)
             this._previousMessageView = messageView;
+
+        if (messageView.message && messageView.message.source !== WebInspector.ConsoleMessage.MessageSource.JS)
+            this._lastCommitted = "";
 
         var type = messageView instanceof WebInspector.ConsoleCommandView ? null : messageView.message.type;
         if (type === WebInspector.ConsoleMessage.MessageType.EndGroup) {

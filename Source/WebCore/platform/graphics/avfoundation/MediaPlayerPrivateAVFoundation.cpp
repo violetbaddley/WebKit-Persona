@@ -44,6 +44,7 @@
 #include <runtime/DataView.h>
 #include <runtime/Uint16Array.h>
 #include <wtf/MainThread.h>
+#include <wtf/NeverDestroyed.h>
 #include <wtf/text/CString.h>
 #include <wtf/StringPrintStream.h>
 
@@ -85,7 +86,6 @@ MediaPlayerPrivateAVFoundation::~MediaPlayerPrivateAVFoundation()
 {
     LOG(Media, "MediaPlayerPrivateAVFoundation::~MediaPlayerPrivateAVFoundation(%p)", this);
     setIgnoreLoadStateChanges(true);
-    cancelCallOnMainThread(mainThreadCallback, this);
 }
 
 MediaPlayerPrivateAVFoundation::MediaRenderingMode MediaPlayerPrivateAVFoundation::currentRenderingMode() const
@@ -272,9 +272,6 @@ void MediaPlayerPrivateAVFoundation::seekWithTolerance(const MediaTime& mediaTim
 
     if (time > durationMediaTime())
         time = durationMediaTime();
-
-    if (currentMediaTime() == time)
-        return;
 
     if (currentTextTrack())
         currentTextTrack()->beginSeeking();
@@ -683,8 +680,6 @@ void MediaPlayerPrivateAVFoundation::didEnd()
 
 void MediaPlayerPrivateAVFoundation::invalidateCachedDuration()
 {
-    LOG(Media, "MediaPlayerPrivateAVFoundation::invalidateCachedDuration(%p)", this);
-    
     m_cachedDuration = MediaTime::invalidTime();
 
     // For some media files, reported duration is estimated and updated as media is loaded
@@ -739,7 +734,7 @@ void MediaPlayerPrivateAVFoundation::setPreload(MediaPlayer::Preload preload)
 
 void MediaPlayerPrivateAVFoundation::setDelayCallbacks(bool delay) const
 {
-    MutexLocker lock(m_queueMutex);
+    LockHolder lock(m_queueMutex);
     if (delay)
         ++m_delayCallbacks;
     else {
@@ -748,17 +743,17 @@ void MediaPlayerPrivateAVFoundation::setDelayCallbacks(bool delay) const
     }
 }
 
-void MediaPlayerPrivateAVFoundation::mainThreadCallback(void* context)
+void MediaPlayerPrivateAVFoundation::mainThreadCallback()
 {
-    LOG(Media, "MediaPlayerPrivateAVFoundation::mainThreadCallback(%p)", context);
-    MediaPlayerPrivateAVFoundation* player = static_cast<MediaPlayerPrivateAVFoundation*>(context);
-    player->clearMainThreadPendingFlag();
-    player->dispatchNotification();
+    LOG(Media, "MediaPlayerPrivateAVFoundation::mainThreadCallback(%p)", this);
+
+    clearMainThreadPendingFlag();
+    dispatchNotification();
 }
 
 void MediaPlayerPrivateAVFoundation::clearMainThreadPendingFlag()
 {
-    MutexLocker lock(m_queueMutex);
+    LockHolder lock(m_queueMutex);
     m_mainThreadCallPending = false;
 }
 
@@ -804,7 +799,14 @@ void MediaPlayerPrivateAVFoundation::scheduleMainThreadNotification(Notification
 #endif
     if (delayDispatch && !m_mainThreadCallPending) {
         m_mainThreadCallPending = true;
-        callOnMainThread(mainThreadCallback, this);
+
+        auto weakThis = createWeakPtr();
+        callOnMainThread([weakThis] {
+            if (!weakThis)
+                return;
+
+            weakThis->mainThreadCallback();
+        });
     }
 
     m_queueMutex.unlock();
@@ -824,7 +826,7 @@ void MediaPlayerPrivateAVFoundation::dispatchNotification()
 
     Notification notification = Notification();
     {
-        MutexLocker lock(m_queueMutex);
+        LockHolder lock(m_queueMutex);
         
         if (m_queuedNotifications.isEmpty())
             return;
@@ -835,8 +837,15 @@ void MediaPlayerPrivateAVFoundation::dispatchNotification()
             m_queuedNotifications.remove(0);
         }
         
-        if (!m_queuedNotifications.isEmpty() && !m_mainThreadCallPending)
-            callOnMainThread(mainThreadCallback, this);
+        if (!m_queuedNotifications.isEmpty() && !m_mainThreadCallPending) {
+            auto weakThis = createWeakPtr();
+            callOnMainThread([weakThis] {
+                if (!weakThis)
+                    return;
+
+                weakThis->mainThreadCallback();
+            });
+        }
 
         if (!notification.isValid())
             return;
@@ -1075,6 +1084,77 @@ bool MediaPlayerPrivateAVFoundation::canSaveMediaData() const
         return false;
 
     return true;
+}
+
+bool MediaPlayerPrivateAVFoundation::isUnsupportedMIMEType(const String& type)
+{
+    String lowerCaseType = type.convertToASCIILowercase();
+
+    // AVFoundation will return non-video MIME types which it claims to support, but which we
+    // do not support in the <video> element. Reject all non video/, audio/, and application/ types.
+    if (!lowerCaseType.startsWith("video/") && !lowerCaseType.startsWith("audio/") && !lowerCaseType.startsWith("application/"))
+        return true;
+
+    // Reject types we know AVFoundation does not support that sites commonly ask about.
+    if (lowerCaseType == "video/webm" || lowerCaseType == "audio/webm" || lowerCaseType == "video/x-webm")
+        return true;
+
+    if (lowerCaseType == "video/x-flv")
+        return true;
+
+    if (lowerCaseType == "audio/ogg" || lowerCaseType == "video/ogg" || lowerCaseType == "application/ogg")
+        return true;
+
+    if (lowerCaseType == "video/h264")
+        return true;
+
+    return false;
+}
+
+const HashSet<String>& MediaPlayerPrivateAVFoundation::staticMIMETypeList()
+{
+    static NeverDestroyed<HashSet<String>> cache = []() {
+        HashSet<String> types;
+
+        static const char* typeNames[] = {
+            "application/vnd.apple.mpegurl",
+            "application/x-mpegurl",
+            "audio/3gpp",
+            "audio/aac",
+            "audio/aacp",
+            "audio/aiff",
+            "audio/basic",
+            "audio/mp3",
+            "audio/mp4",
+            "audio/mpeg",
+            "audio/mpeg3",
+            "audio/mpegurl",
+            "audio/mpg",
+            "audio/wav",
+            "audio/wave",
+            "audio/x-aac",
+            "audio/x-aiff",
+            "audio/x-m4a",
+            "audio/x-mpegurl",
+            "audio/x-wav",
+            "video/3gpp",
+            "video/3gpp2",
+            "video/mp4",
+            "video/mpeg",
+            "video/mpeg2",
+            "video/mpg",
+            "video/quicktime",
+            "video/x-m4v",
+            "video/x-mpeg",
+            "video/x-mpg",
+        };
+        for (size_t i = 0; i < WTF_ARRAY_LENGTH(typeNames); ++i)
+            types.add(typeNames[i]);
+
+        return types;
+    }();
+
+    return cache;
 }
 
 } // namespace WebCore

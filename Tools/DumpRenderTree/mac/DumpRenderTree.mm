@@ -145,12 +145,12 @@ using namespace std;
 @end
 
 #if USE(APPKIT)
-@interface NSSound (Details)
+@interface NSSound ()
 + (void)_setAlertType:(NSUInteger)alertType;
 @end
 #endif
 
-@interface WebView (Details)
+@interface WebView ()
 - (BOOL)_flushCompositingChanges;
 @end
 
@@ -359,7 +359,6 @@ static NSSet *allowedFontFamilySet()
         @"Hiragino Kaku Gothic ProN",
         @"Hiragino Kaku Gothic Std",
         @"Hiragino Kaku Gothic StdN",
-        @"Hiragino Maru Gothic Monospaced",
         @"Hiragino Maru Gothic Pro",
         @"Hiragino Maru Gothic ProN",
         @"Hiragino Mincho Pro",
@@ -559,7 +558,6 @@ static void activateTestingFonts()
         "WebKitWeightWatcher700.ttf",
         "WebKitWeightWatcher800.ttf",
         "WebKitWeightWatcher900.ttf",
-        "SampleFont.sfont",
         0
     };
 
@@ -977,6 +975,9 @@ static void resetWebPreferencesToConsistentValues()
 #if ENABLE(MEDIA_SOURCE)
     [preferences setMediaSourceEnabled:YES];
 #endif
+
+    [preferences setHiddenPageDOMTimerThrottlingEnabled:NO];
+    [preferences setHiddenPageCSSAnimationSuspensionEnabled:NO];
 
     [WebPreferences _clearNetworkLoaderSession];
     [WebPreferences _setCurrentNetworkLoaderSessionCookieAcceptPolicy:NSHTTPCookieAcceptPolicyOnlyFromMainDocumentDomain];
@@ -1823,6 +1824,8 @@ static void resetWebViewToConsistentStateBeforeTesting()
     [[webView window] setAutodisplay:NO];
 #endif
     [webView setTracksRepaints:NO];
+
+    [WebCache clearCachedCredentials];
     
     resetWebPreferencesToConsistentValues();
 
@@ -2064,7 +2067,7 @@ static void runTest(const string& inputLine)
     ASSERT(CFArrayGetCount(openWindowsRef) == 1);
     ASSERT(CFArrayGetValueAtIndex(openWindowsRef, 0) == [[mainFrame webView] window]);
 
-    gTestRunner.clear();
+    gTestRunner = nullptr;
 
     if (ignoreWebCoreNodeLeaks)
         [WebCoreStatistics stopIgnoringWebCoreNodeLeaks];

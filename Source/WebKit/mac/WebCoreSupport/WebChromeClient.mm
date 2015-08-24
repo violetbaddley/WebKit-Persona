@@ -109,6 +109,7 @@ NSString *WebConsoleMessageAppCacheMessageSource = @"AppCacheMessageSource";
 NSString *WebConsoleMessageRenderingMessageSource = @"RenderingMessageSource";
 NSString *WebConsoleMessageCSSMessageSource = @"CSSMessageSource";
 NSString *WebConsoleMessageSecurityMessageSource = @"SecurityMessageSource";
+NSString *WebConsoleMessageContentBlockerMessageSource = @"ContentBlockerMessageSource";
 NSString *WebConsoleMessageOtherMessageSource = @"OtherMessageSource";
 
 NSString *WebConsoleMessageDebugMessageLevel = @"DebugMessageLevel";
@@ -132,12 +133,6 @@ NSString *WebConsoleMessageErrorMessageLevel = @"ErrorMessageLevel";
 @interface NSView (WebOldWebKitPlugInDetails)
 - (void)setIsSelected:(BOOL)isSelected;
 @end
-
-#if !PLATFORM(IOS)
-@interface NSWindow (AppKitSecretsIKnowAbout)
-- (NSRect)_growBoxRect;
-@end
-#endif
 
 using namespace WebCore;
 using namespace HTMLNames;
@@ -245,10 +240,10 @@ Page* WebChromeClient::createWindow(Frame* frame, const FrameLoadRequest&, const
 #endif
     
     if ([delegate respondsToSelector:@selector(webView:createWebViewWithRequest:windowFeatures:)]) {
-        NSNumber *x = features.xSet ? [[NSNumber alloc] initWithFloat:features.x] : nil;
-        NSNumber *y = features.ySet ? [[NSNumber alloc] initWithFloat:features.y] : nil;
-        NSNumber *width = features.widthSet ? [[NSNumber alloc] initWithFloat:features.width] : nil;
-        NSNumber *height = features.heightSet ? [[NSNumber alloc] initWithFloat:features.height] : nil;
+        NSNumber *x = features.x ? [[NSNumber alloc] initWithFloat:*features.x] : nil;
+        NSNumber *y = features.y ? [[NSNumber alloc] initWithFloat:*features.y] : nil;
+        NSNumber *width = features.width ? [[NSNumber alloc] initWithFloat:*features.width] : nil;
+        NSNumber *height = features.height ? [[NSNumber alloc] initWithFloat:*features.height] : nil;
         NSNumber *menuBarVisible = [[NSNumber alloc] initWithBool:features.menuBarVisible];
         NSNumber *statusBarVisible = [[NSNumber alloc] initWithBool:features.statusBarVisible];
         NSNumber *toolBarVisible = [[NSNumber alloc] initWithBool:features.toolBarVisible];
@@ -387,6 +382,8 @@ inline static NSString *stringForMessageSource(MessageSource source)
         return WebConsoleMessageCSSMessageSource;
     case MessageSource::Security:
         return WebConsoleMessageSecurityMessageSource;
+    case MessageSource::ContentBlocker:
+        return WebConsoleMessageContentBlockerMessageSource;
     case MessageSource::Other:
         return WebConsoleMessageOtherMessageSource;
     }
@@ -545,11 +542,6 @@ bool WebChromeClient::runJavaScriptPrompt(Frame* frame, const String& prompt, co
     return !result.isNull();
 }
 
-bool WebChromeClient::shouldInterruptJavaScript()
-{
-    return CallUIDelegateReturningBoolean(NO, m_webView, @selector(webViewShouldInterruptJavaScript:));
-}
-
 void WebChromeClient::setStatusbarText(const String& status)
 {
     // We want the temporaries allocated here to be released even before returning to the 
@@ -557,15 +549,6 @@ void WebChromeClient::setStatusbarText(const String& status)
     NSAutoreleasePool* localPool = [[NSAutoreleasePool alloc] init];
     CallUIDelegate(m_webView, @selector(webView:setStatusText:), (NSString *)status);
     [localPool drain];
-}
-
-IntRect WebChromeClient::windowResizerRect() const
-{
-#if !PLATFORM(IOS)
-    return enclosingIntRect([[m_webView window] _growBoxRect]);
-#else
-    return IntRect();
-#endif
 }
 
 bool WebChromeClient::supportsImmediateInvalidation()
@@ -859,7 +842,7 @@ bool WebChromeClient::hasOpenedPopup() const
     return false;
 }
 
-PassRefPtr<WebCore::PopupMenu> WebChromeClient::createPopupMenu(WebCore::PopupMenuClient* client) const
+RefPtr<WebCore::PopupMenu> WebChromeClient::createPopupMenu(WebCore::PopupMenuClient* client) const
 {
 #if !PLATFORM(IOS)
     return adoptRef(new PopupMenuMac(client));
@@ -868,7 +851,7 @@ PassRefPtr<WebCore::PopupMenu> WebChromeClient::createPopupMenu(WebCore::PopupMe
 #endif
 }
 
-PassRefPtr<WebCore::SearchPopupMenu> WebChromeClient::createSearchPopupMenu(WebCore::PopupMenuClient* client) const
+RefPtr<WebCore::SearchPopupMenu> WebChromeClient::createSearchPopupMenu(WebCore::PopupMenuClient* client) const
 {
 #if !PLATFORM(IOS)
     return adoptRef(new SearchPopupMenuMac(client));

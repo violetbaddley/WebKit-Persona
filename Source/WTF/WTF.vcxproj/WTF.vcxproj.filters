@@ -102,9 +102,6 @@
     <ClCompile Include="..\wtf\win\MainThreadWin.cpp">
       <Filter>wtf\win</Filter>
     </ClCompile>
-    <ClCompile Include="..\wtf\threads\win\BinarySemaphoreWin.cpp">
-      <Filter>threads\win</Filter>
-    </ClCompile>
     <ClCompile Include="..\wtf\threads\BinarySemaphore.cpp">
       <Filter>threads</Filter>
     </ClCompile>
@@ -262,6 +259,7 @@
     <ClCompile Include="..\wtf\win\WorkItemWin.cpp">
       <Filter>wtf\win</Filter>
     </ClCompile>
+    <ClCompile Include="..\wtf\Lock.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\wtf\dtoa\utils.h">
@@ -465,6 +463,9 @@
     <ClInclude Include="..\wtf\HashCountedSet.h">
       <Filter>wtf</Filter>
     </ClInclude>
+    <ClInclude Include="..\wtf\Hasher.h">
+      <Filter>wtf</Filter>
+    </ClInclude>
     <ClInclude Include="..\wtf\HashFunctions.h">
       <Filter>wtf</Filter>
     </ClInclude>
@@ -624,9 +625,6 @@
     <ClInclude Include="..\wtf\StringExtras.h">
       <Filter>wtf</Filter>
     </ClInclude>
-    <ClInclude Include="..\wtf\StringHasher.h">
-      <Filter>wtf</Filter>
-    </ClInclude>
     <ClInclude Include="..\wtf\StringPrintStream.h">
       <Filter>wtf</Filter>
     </ClInclude>
@@ -716,6 +714,8 @@
     <ClInclude Include="..\wtf\win\WorkItemWin.h">
       <Filter>wtf\win</Filter>
     </ClInclude>
+    <ClInclude Include="..\wtf\TinyPtrSet.h" />
+    <ClInclude Include="..\wtf\Lock.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="WTFPostBuild.cmd" />

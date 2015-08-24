@@ -50,6 +50,8 @@ public:
     static std::unique_ptr<Storage> open(const String& cachePath);
 
     struct Record {
+        WTF_MAKE_FAST_ALLOCATED;
+    public:
         Key key;
         std::chrono::system_clock::time_point timeStamp;
         Data header;
@@ -66,9 +68,9 @@ public:
     void clear(std::chrono::system_clock::time_point modifiedSinceTime, std::function<void ()>&& completionHandler);
 
     struct RecordInfo {
-        size_t bodySize { 0 };
-        double worth { -1 }; // 0-1 where 1 is the most valuable.
-        unsigned bodyShareCount { 0 };
+        size_t bodySize;
+        double worth; // 0-1 where 1 is the most valuable.
+        unsigned bodyShareCount;
         String bodyHash;
     };
     enum TraverseFlag {
@@ -105,12 +107,13 @@ private:
     void shrink();
 
     struct ReadOperation;
-    void dispatchReadOperation(ReadOperation&);
+    void dispatchReadOperation(std::unique_ptr<ReadOperation>);
     void dispatchPendingReadOperations();
     void finishReadOperation(ReadOperation&);
+    void cancelAllReadOperations();
 
     struct WriteOperation;
-    void dispatchWriteOperation(WriteOperation&);
+    void dispatchWriteOperation(std::unique_ptr<WriteOperation>);
     void dispatchPendingWriteOperations();
     void finishWriteOperation(WriteOperation&);
 
@@ -119,6 +122,7 @@ private:
     void readRecord(ReadOperation&, const Data&);
 
     void updateFileModificationTime(const String& path);
+    bool removeFromPendingWriteOperations(const Key&);
 
     WorkQueue& ioQueue() { return m_ioQueue.get(); }
     WorkQueue& backgroundIOQueue() { return m_backgroundIOQueue.get(); }
@@ -148,10 +152,14 @@ private:
     static const int maximumRetrievePriority = 4;
     Deque<std::unique_ptr<ReadOperation>> m_pendingReadOperationsByPriority[maximumRetrievePriority + 1];
     HashSet<std::unique_ptr<ReadOperation>> m_activeReadOperations;
+    WebCore::Timer m_readOperationTimeoutTimer;
 
     Deque<std::unique_ptr<WriteOperation>> m_pendingWriteOperations;
     HashSet<std::unique_ptr<WriteOperation>> m_activeWriteOperations;
     WebCore::Timer m_writeOperationDispatchTimer;
+
+    struct TraverseOperation;
+    HashSet<std::unique_ptr<TraverseOperation>> m_activeTraverseOperations;
 
     Ref<WorkQueue> m_ioQueue;
     Ref<WorkQueue> m_backgroundIOQueue;

@@ -29,7 +29,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#if OS(UNIX)
+#if !OS(DARWIN) && OS(UNIX)
+#include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
 #endif
@@ -41,17 +42,41 @@
 
 namespace WTF {
 
+#if !OS(DARWIN) && OS(UNIX)
+NEVER_INLINE NO_RETURN_DUE_TO_CRASH static void crashUnableToOpenURandom()
+{
+    CRASH();
+}
+
+NEVER_INLINE NO_RETURN_DUE_TO_CRASH static void crashUnableToReadFromURandom()
+{
+    CRASH();
+}
+#endif
+    
 void cryptographicallyRandomValuesFromOS(unsigned char* buffer, size_t length)
 {
-#if OS(UNIX)
+#if OS(DARWIN)
+    return arc4random_buf(buffer, length);
+#elif OS(UNIX)
     int fd = open("/dev/urandom", O_RDONLY, 0);
     if (fd < 0)
-        CRASH(); // We need /dev/urandom for this API to work...
+        crashUnableToOpenURandom(); // We need /dev/urandom for this API to work...
 
-    if (read(fd, buffer, length) != static_cast<ssize_t>(length))
-        CRASH();
-
+    ssize_t amountRead = 0;
+    while (static_cast<size_t>(amountRead) < length) {
+        ssize_t currentRead = read(fd, buffer + amountRead, length - amountRead);
+        // We need to check for both EAGAIN and EINTR since on some systems /dev/urandom
+        // is blocking and on others it is non-blocking.
+        if (currentRead == -1) {
+            if (!(errno == EAGAIN || errno == EINTR))
+                crashUnableToReadFromURandom();
+        } else
+            amountRead += currentRead;
+    }
+    
     close(fd);
+
 #elif OS(WINDOWS)
     HCRYPTPROV hCryptProv = 0;
     if (!CryptAcquireContext(&hCryptProv, 0, MS_DEF_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))

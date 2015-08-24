@@ -34,6 +34,7 @@
 #if ENABLE(MEDIA_STREAM)
 
 #include "ContextDestructionObserver.h"
+#include "JSDOMPromise.h"
 #include "ScriptWrappable.h"
 #include <functional>
 #include <wtf/RefCounted.h>
@@ -43,6 +44,7 @@ namespace WebCore {
 
 class Dictionary;
 class Document;
+class MediaDeviceInfo;
 class MediaStream;
 class NavigatorUserMediaError;
 
@@ -55,10 +57,10 @@ public:
 
     Document* document() const;
 
-    typedef std::function<void(MediaStream&)> ResolveCallback;
-    typedef std::function<void(NavigatorUserMediaError&)> RejectCallback;
-
-    void getUserMedia(const Dictionary&, ResolveCallback, RejectCallback, ExceptionCode&) const;
+    typedef DOMPromiseWithCallback<RefPtr<MediaStream>, RefPtr<NavigatorUserMediaError>> Promise;
+    typedef DOMPromiseWithCallback<Vector<RefPtr<MediaDeviceInfo>>, RefPtr<NavigatorUserMediaError>> EnumerateDevicePromise;
+    void getUserMedia(const Dictionary&, Promise&&, ExceptionCode&) const;
+    void enumerateDevices(EnumerateDevicePromise&&, ExceptionCode&) const;
 
 private:
     explicit MediaDevices(ScriptExecutionContext*);

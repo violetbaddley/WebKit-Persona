@@ -80,11 +80,12 @@ WebInspector.CSSRule = class CSSRule extends WebInspector.Object
         this._selectorText = selectorText;
         this._selectors = selectors;
         this._matchedSelectorIndices = matchedSelectorIndices;
+        this._mostSpecificSelector = null;
         this._style = style;
         this._mediaList = mediaList;
 
-        delete this._matchedSelectors;
-        delete this._matchedSelectorText;
+        this._matchedSelectors = null;
+        this._matchedSelectorText = null;
 
         if (this._style)
             this._style.ownerRule = this;
@@ -114,10 +115,12 @@ WebInspector.CSSRule = class CSSRule extends WebInspector.Object
         if (!this.editable)
             return;
 
-        if (this._selectorText === selectorText)
+        if (this._selectorText === selectorText) {
+            this._selectorResolved(true);
             return;
+        }
 
-        this._nodeStyles.changeRuleSelector(this, selectorText);
+        this._nodeStyles.changeRuleSelector(this, selectorText).then(this._selectorResolved.bind(this), this._selectorRejected.bind(this));
     }
 
     get selectors()
@@ -174,6 +177,18 @@ WebInspector.CSSRule = class CSSRule extends WebInspector.Object
         return this._mediaList;
     }
 
+    get mediaText()
+    {
+        if (!this._mediaList.length)
+            return;
+
+        let mediaText = "";
+        for (let media of this._mediaList)
+            mediaText += media.text;
+
+        return mediaText;
+    }
+
     isEqualTo(rule)
     {
         if (!rule)
@@ -182,16 +197,67 @@ WebInspector.CSSRule = class CSSRule extends WebInspector.Object
         return Object.shallowEqual(this._id, rule.id);
     }
 
+    get mostSpecificSelector()
+    {
+        if (!this._mostSpecificSelector)
+            this._mostSpecificSelector = this._determineMostSpecificSelector();
+
+        return this._mostSpecificSelector;
+    }
+
+    selectorIsGreater(otherSelector)
+    {
+        var mostSpecificSelector = this.mostSpecificSelector;
+
+        if (!mostSpecificSelector)
+            return false;
+
+        return mostSpecificSelector.isGreaterThan(otherSelector);
+    }
+
     // Protected
 
     get nodeStyles()
     {
         return this._nodeStyles;
     }
+
+    // Private
+
+    _determineMostSpecificSelector()
+    {
+        if (!this._selectors || !this._selectors.length)
+            return null;
+
+        var selectors = this.matchedSelectors;
+
+        if (!selectors.length)
+            selectors = this._selectors;
+
+        var specificSelector = selectors[0];
+
+        for (var selector of selectors) {
+            if (selector.isGreaterThan(specificSelector))
+                specificSelector = selector;
+        }
+
+        return specificSelector;
+    }
+
+    _selectorRejected(error)
+    {
+        this.dispatchEventToListeners(WebInspector.CSSRule.Event.SelectorChanged, {valid: !error});
+    }
+
+    _selectorResolved(rulePayload)
+    {
+        this.dispatchEventToListeners(WebInspector.CSSRule.Event.SelectorChanged, {valid: !!rulePayload});
+    }
 };
 
 WebInspector.CSSRule.Event = {
-    Changed: "css-rule-changed"
+    Changed: "css-rule-changed",
+    SelectorChanged: "css-rule-invalid-selector"
 };
 
 WebInspector.CSSRule.Type = {

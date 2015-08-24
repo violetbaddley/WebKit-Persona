@@ -145,9 +145,6 @@ public:
     bool runJavaScriptConfirm(Frame*, const String&);
     bool runJavaScriptPrompt(Frame*, const String& message, const String& defaultValue, String& result);
     WEBCORE_EXPORT void setStatusbarText(Frame*, const String&);
-    bool shouldInterruptJavaScript();
-
-    IntRect windowResizerRect() const;
 
     void mouseDidMoveOverElement(const HitTestResult&, unsigned modifierFlags);
 
@@ -176,8 +173,8 @@ public:
     bool selectItemWritingDirectionIsNatural();
     bool selectItemAlignmentFollowsMenuWritingDirection();
     bool hasOpenedPopup() const;
-    PassRefPtr<PopupMenu> createPopupMenu(PopupMenuClient*) const;
-    PassRefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient*) const;
+    RefPtr<PopupMenu> createPopupMenu(PopupMenuClient*) const;
+    RefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient*) const;
 
 #if PLATFORM(IOS)
     // FIXME: Can we come up with a better name for this setter?

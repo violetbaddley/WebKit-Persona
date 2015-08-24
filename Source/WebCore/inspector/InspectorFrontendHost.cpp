@@ -203,6 +203,12 @@ void InspectorFrontendHost::setToolbarHeight(unsigned height)
         m_client->setToolbarHeight(height);
 }
 
+void InspectorFrontendHost::startWindowDrag()
+{
+    if (m_client)
+        m_client->startWindowDrag();
+}
+
 void InspectorFrontendHost::moveWindowBy(float x, float y) const
 {
     if (m_client)
@@ -302,7 +308,7 @@ bool InspectorFrontendHost::isUnderTest()
 void InspectorFrontendHost::unbufferedLog(const String& message)
 {
     // This is used only for debugging inspector tests.
-    WTFLogAlways("InspectorTest: %s", message.utf8().data());
+    WTFLogAlways("%s", message.utf8().data());
 }
 
 void InspectorFrontendHost::beep()

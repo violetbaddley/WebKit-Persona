@@ -2,6 +2,17 @@
 #
 # See http://trac.webkit.org/wiki/TestExpectations for more information on this file.
 
+#//////////////////////////////////////////////////////////////////////////////////////////
+# Platform-specific directories.
+#//////////////////////////////////////////////////////////////////////////////////////////
+
+accessibility/gtk [ Pass ]
+editing/pasteboard/gtk [ Pass ]
+
+#//////////////////////////////////////////////////////////////////////////////////////////
+# End platform-specific directories.
+#//////////////////////////////////////////////////////////////////////////////////////////
+
 # This list is divided into several sections to make it easy for us to triage and close issues.
 # 1. TESTS THAT REQUIRE NEW RESULTS
 # Please don't add any tests to this list. Instead just ping a GTK+ developer
@@ -40,6 +51,8 @@
 #////////////////////////////////////////////////////////////////////////////////////////
 # Tests that require new results.
 #////////////////////////////////////////////////////////////////////////////////////////
+
+accessibility/media-emits-object-replacement.html [ Failure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # Expected failures
@@ -287,10 +300,11 @@ webkit.org/b/71849 http/tests/security/webgl-remote-read-remote-image-allowed.ht
 webkit.org/b/71849 http/tests/security/webgl-remote-read-remote-image-allowed-with-credentials.html [ Skip ]
 webkit.org/b/71849 http/tests/security/webgl-remote-read-remote-image-blocked-no-crossorigin.html [ Skip ]
 webkit.org/b/71849 webkit.org/b/124486 http/tests/webgl [ Skip ]
-webkit.org/b/71849 webkit.org/b/111477 inspector-protocol/layers [ Skip ]
+webkit.org/b/71849 webkit.org/b/111477 inspector/layers [ Skip ]
 webkit.org/b/71849 webgl [ Skip ]
 
 # These tests reference specific fonts on Mac port.
+Bug(GTK) fast/text/font-weights.html [ WontFix ]
 Bug(GTK) fast/text/font-weights-zh.html [ WontFix ]
 
 # LAYER_TREE_INCLUDES_VISIBLE_RECTS option to layerTreeAsText is only applicable to Mac.
@@ -314,21 +328,9 @@ webkit.org/b/85211 ietestcenter/css3/flexbox/flexbox-align-stretch-001.htm [ Ima
 webkit.org/b/85212 ietestcenter/css3/flexbox/flexbox-layout-002.htm [ ImageOnlyFailure ]
 
 # Mediastream implementation is not complete yet.
-webkit.org/b/79203 fast/mediastream/argument-types.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/getusermedia.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStream-add-ended-tracks.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStream-add-remove-tracks.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStream-add-tracks-to-inactive-stream.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStream-clone.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStreamConstructor.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStream-construct-with-ended-tracks.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStream-getTracks.html [ Skip ]
 webkit.org/b/79203 fast/mediastream/MediaStream-MediaElement-srcObject.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStreamTrackEvent-constructor.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/MediaStreamTrack-getSources.html [ Skip ]
 webkit.org/b/79203 fast/mediastream/MediaStreamTrack.html [ Skip ]
 webkit.org/b/79203 fast/mediastream/MediaStreamTrack-onended.html [ Skip ]
-webkit.org/b/79203 fast/mediastream/no-interface-object.html [ Skip ]
 webkit.org/b/79203 fast/mediastream/RTCIceCandidate.html [ Skip ]
 webkit.org/b/79203 fast/mediastream/RTCPeerConnection-AddRemoveStream.html [ Skip ]
 webkit.org/b/79203 fast/mediastream/RTCPeerConnection-createAnswer.html [ Skip ]
@@ -467,13 +469,7 @@ webkit.org/b/131347 fast/borders/hidpi-simple-hairline-border-painting.html [ Im
 webkit.org/b/131347 fast/hidpi/clip-text-in-hidpi.html [ Failure Pass Missing ]
 webkit.org/b/131347 fast/hidpi/image-set-background-dynamic.html [ Failure Pass Missing ]
 webkit.org/b/131347 fast/hidpi/image-set-border-image-dynamic.html [ Failure Pass Missing ]
-webkit.org/b/131347 fast/hidpi/image-srcset-change-dynamically-from-js-2x.html [ Failure ]
-webkit.org/b/131347 fast/hidpi/image-srcset-fraction-1.5x.html [ Failure ]
-webkit.org/b/131347 fast/hidpi/image-srcset-fraction.html [ Failure ]
-webkit.org/b/131347 fast/hidpi/image-srcset-invalid-inputs-except-one.html [ Failure ]
 webkit.org/b/131347 fast/hidpi/image-srcset-png-canvas.html [ ImageOnlyFailure Pass ]
-webkit.org/b/131347 fast/hidpi/image-srcset-simple-2x.html [ Failure ]
-webkit.org/b/131347 fast/hidpi/image-srcset-src-selection-2x.html [ Failure ]
 webkit.org/b/131347 fast/inline-block/hidpi-margin-top-with-subpixel-value-and-overflow-hidden.html [ ImageOnlyFailure ]
 webkit.org/b/131347 fast/inline/hidpi-inline-selection-leaves-gap.html [ ImageOnlyFailure ]
 webkit.org/b/131347 fast/inline/hidpi-inline-text-decoration-with-subpixel-value.html [ ImageOnlyFailure ]
@@ -607,6 +603,26 @@ webkit.org/b/85958 fast/forms/file/file-input-capture.html [ Failure ]
 
 # CURSOR_VISIBILITY is not enabled in gtk
 webkit.org/b/107601 fullscreen/video-cursor-auto-hide.html [ Failure ]
+
+webkit.org/b/146718 accessibility/aria-hidden-false-works-in-subtrees.html [ Failure ]
+
+webkit.org/b/146719 accessibility/aria-roledescription.html [ Failure ]
+
+webkit.org/b/146720 http/tests/media/hls/hls-accessiblity-describes-video.html [ Failure ]
+webkit.org/b/146720 http/tests/media/hls/video-controller-getStartDate.html [ Failure ]
+webkit.org/b/146720 media/accessiblity-describes-video.html [ Failure ]
+
+webkit.org/b/146721 fast/forms/auto-fill-button/input-readonly-auto-fill-button.html [ ImageOnlyFailure ]
+
+webkit.org/b/146724 fast/text/word-break-keep-all.html [ ImageOnlyFailure ]
+
+# This tests fail since the upgrade of GTK to 3.16 and Cairo to 1.14 on the JHBuild
+webkit.org/b/146731 fast/backgrounds/hidpi-background-image-contain-cover-scale-needs-more-precision.html [ ImageOnlyFailure ]
+webkit.org/b/146731 fast/hidpi/filters-blur.html [ ImageOnlyFailure ]
+webkit.org/b/146731 fast/hidpi/filters-hue-rotate.html [ ImageOnlyFailure ]
+webkit.org/b/146731 fast/hidpi/filters-invert.html [ ImageOnlyFailure ]
+webkit.org/b/146731 fast/hidpi/filters-multiple.html [ ImageOnlyFailure ]
+webkit.org/b/146731 fast/hidpi/filters-reference.html [ ImageOnlyFailure ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Expected failures
@@ -978,7 +994,6 @@ webkit.org/b/132257 fast/history/form-submit-in-frame-via-onclick.html [ Timeout
 webkit.org/b/132260 fast/workers/worker-close.html [ Timeout Pass ]
 webkit.org/b/132261 html5lib/generated/run-tests16-data.html [ Timeout Pass ]
 webkit.org/b/132262 http/tests/media/video-redirect.html [ Timeout Pass ]
-webkit.org/b/132264 inspector-protocol/page/deny-X-FrameOption.html [ Failure Timeout Pass ]
 webkit.org/b/132267 mathml/wbr-in-mroot-crash.html [ Timeout Pass ]
 webkit.org/b/132272 fast/dom/gc-10.html [ Failure Pass ]
 webkit.org/b/132279 perf/mouse-event.html [ Failure Pass ]
@@ -1063,8 +1078,6 @@ webkit.org/b/134998 plugins/change-widget-and-click-crash.html [ Timeout Pass Cr
 webkit.org/b/135003 jquery/attributes.html [ Timeout Pass ]
 webkit.org/b/135003 jquery/core.html [ Timeout Pass ]
 
-webkit.org/b/135004 fast/forms/textarea/textarea-state-restore.html [ Timeout Pass ]
-
 
 webkit.org/b/135087 fast/frames/frame-programmatic-noresize.html [ Failure Pass ]
 webkit.org/b/135087 fast/frames/frame-with-noresize-can-be-resized-after-removal-of-noresize.html [ Failure Pass ]
@@ -1100,7 +1113,7 @@ webkit.org/b/136580 media/context-menu-actions.html [ Timeout Pass ]
 
 webkit.org/b/136581 editing/pasteboard/drag-drop-dead-frame.html [ Failure Timeout Pass ]
 
-webkit.org/b/139359 inspector-protocol/debugger/setBreakpoint-dfg-callee-and-examine-dfg-local.html [ Failure Pass ]
+webkit.org/b/139359 inspector/debugger/setBreakpoint-dfg-callee-and-examine-dfg-local.html [ Failure Pass ]
 
 webkit.org/b/139489 http/tests/css/link-css-disabled-value-with-slow-loading-sheet.html [ Failure Pass ]
 
@@ -1113,7 +1126,7 @@ webkit.org/b/131545 media/media-event-listeners.html [ Failure Pass ]
 webkit.org/b/143702 media/progress-events-generated-correctly.html [ Timeout Crash ]
 webkit.org/b/143704 media/media-source/media-source-append-media-segment-without-init.html [ Failure Pass ]
 
-webkit.org/b/139364 inspector-protocol/debugger/setBreakpoint-dfg.html [ Failure Pass ]
+webkit.org/b/139364 inspector/debugger/setBreakpoint-dfg.html [ Failure Pass ]
 webkit.org/b/143876 css3/viewport-percentage-lengths/vh-resize.html [ ImageOnlyFailure Pass ]
 
 webkit.org/b/143983 fast/hidpi/image-srcset-svg-canvas.html [ ImageOnlyFailure Pass ]
@@ -1246,32 +1259,32 @@ webkit.org/b/116957 media/track/track-automatic-subtitles.html [ Timeout ]
 webkit.org/b/116958 http/tests/navigation/scrollstate-after-http-equiv-refresh.html [ Timeout ]
 webkit.org/b/116958 http/tests/navigation/scrollstate-after-location-reload.html [ Timeout ]
 
-webkit.org/b/120682 inspector-protocol/page/archive.html [ Timeout ]
+webkit.org/b/120682 inspector/page/archive.html [ Timeout ]
 
-webkit.org/b/122571 http/tests/inspector-protocol/access-inspected-object.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setBreakpoint.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/call-frame-function-name.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setBreakpoint-options-exception.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setPauseOnExceptions-all.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setPauseOnExceptions-none.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/call-frame-this-host.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setBreakpoint-autoContinue.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setPauseOnExceptions-uncaught.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setBreakpoint-actions.html [ Failure Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/call-frame-this-nonstrict.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setBreakpoint-column.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setBreakpoint-condition.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/removeBreakpoint.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/setVariableValue.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/debugger/call-frame-this-strict.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/dom/request-child-nodes-depth.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/dom/focus.html [ Failure Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/runtime/getProperties.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/page/javascriptDialogEvents.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/page/frameStartedLoading.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/page/frameScheduledNavigation.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/page/setEmulatedMedia.html [ Timeout Pass ]
-webkit.org/b/122571 inspector-protocol/css/getSupportedCSSProperties.html [ Timeout Pass ]
+webkit.org/b/122571 http/tests/inspector/console/access-inspected-object.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setBreakpoint.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/call-frame-function-name.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setBreakpoint-options-exception.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setPauseOnExceptions-all.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setPauseOnExceptions-none.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/call-frame-this-host.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setBreakpoint-autoContinue.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setPauseOnExceptions-uncaught.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setBreakpoint-actions.html [ Failure Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/call-frame-this-nonstrict.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setBreakpoint-column.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setBreakpoint-condition.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/removeBreakpoint.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/setVariableValue.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/debugger/call-frame-this-strict.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/dom/request-child-nodes-depth.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/dom/focus.html [ Failure Timeout Pass ]
+webkit.org/b/122571 inspector/runtime/getProperties.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/page/javascriptDialogEvents.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/page/frameStartedLoading.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/page/frameScheduledNavigation.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/page/setEmulatedMedia.html [ Timeout Pass ]
+webkit.org/b/122571 inspector/css/getSupportedCSSProperties.html [ Timeout Pass ]
 
 Bug(GTK) plugins/reloadplugins-and-pages.html [ Timeout ]
 
@@ -1316,8 +1329,14 @@ webkit.org/b/136674 media/track/track-cue-rendering-with-padding.html [ Timeout 
 
 webkit.org/b/137698 media/video-controls-drag.html [ Timeout ]
 
+webkit.org/b/137131 inspector/debugger [ Skip ]
+webkit.org/b/147518 inspector/dom [ Skip ]
+webkit.org/b/147518 inspector/model [ Skip ]
+webkit.org/b/147518 inspector/timeline [ Skip ]
+
 webkit.org/b/139362 inspector/css/pseudo-element-matches.html [ Timeout ]
 webkit.org/b/139362 inspector/css/selector-specificity.html [ Timeout Pass ]
+webkit.org/b/147229 inspector/css/modify-rule-selector.html [ Skip ] # Timeout
 
 webkit.org/b/139363 media/media-controls-timeline-updates.html [ Timeout ]
 
@@ -1366,6 +1385,11 @@ webkit.org/b/145169 media/track/track-css-user-override.html [ Timeout Pass ]
 webkit.org/b/145171 fast/events/tabindex-focus-blur-all.html [ Timeout Pass ]
 
 webkit.org/b/145260 media/audio-playback-restriction-play.html  [ Timeout Pass ]
+
+# This tests timeout since the upgrade of GTK to 3.16 and Cairo to 1.14 on the JHBuild
+webkit.org/b/146731 fast/events/touch/tap-highlight-color.html [ Timeout ]
+webkit.org/b/146731 fast/events/touch/touch-scaled-scrolled.html [ Timeout ]
+webkit.org/b/146731 fast/events/touch/touch-stale-node-crash.html [ Timeout ]
 
 #////////////////////////////////////////////////////////////////////////////////////////
 # End of Tests timing out
@@ -1586,9 +1610,6 @@ Bug(GTK) fast/media/view-mode-media-feature.html [ ImageOnlyFailure ]
 webkit.org/b/139357 fast/workers/worker-crash-with-invalid-location.html [ Skip ]
 webkit.org/b/139357 http/tests/media/video-accept-encoding.html [ Failure ]
 
-# PingLoader is still in WebProcess. As a result, this test fails and also fails to delete its cookie, breaking many other cookie tests.
-webkit.org/b/138688 http/tests/navigation/ping-cookie.html [ Skip ]
-
 # Appcache manifest is still downloaded in the WebProcess
 webkit.org/b/138736 http/tests/appcache/auth.html [ Skip ]
 
@@ -1717,9 +1738,6 @@ Bug(GTK) sputnik/Conformance/15_Native_Objects/15.9_Date/15.9.3/S15.9.3.1_A5_T6.
 webkit.org/b/44316 platform/gtk/accessibility/object-attributes.html [ Failure ]
 webkit.org/b/44316 platform/gtk/accessibility/title-and-alt.html [ Failure ]
 
-# Rounding color problems inside pixman
-webkit.org/b/49964 fast/canvas/canvas-fillPath-shadow.html [ Failure ]
-
 # Expose title direction in WebKit API
 webkit.org/b/58845 fast/dom/title-directionality.html [ Failure ]
 webkit.org/b/58845 fast/dom/title-directionality-removeChild.html [ Failure ]
@@ -1811,8 +1829,8 @@ webkit.org/b/98613 css3/masking/clip-path-reference.html [ ImageOnlyFailure ]
 
 webkit.org/b/98950 transitions/blendmode-transitions.html [ Failure ]
 
-webkit.org/b/100846 inspector-protocol/debugger/pause-dedicated-worker.html [ Skip ]
-webkit.org/b/100846 inspector-protocol/debugger/terminate-dedicated-worker-while-paused.html [ Skip ]
+webkit.org/b/100846 inspector/debugger/pause-dedicated-worker.html [ Skip ]
+webkit.org/b/100846 inspector/debugger/terminate-dedicated-worker-while-paused.html [ Skip ]
 
 webkit.org/b/101539 editing/execCommand/switch-list-type-with-orphaned-li.html [ Failure ]
 
@@ -2204,10 +2222,6 @@ webkit.org/b/133803 editing/undo/undo-deleteWord.html [ Failure ]
 # Difference invisible at the naked eye with Latin Modern Math.
 webkit.org/b/134153 mathml/presentation/mo-stacked-glyphs.html [ ImageOnlyFailure ]
 
-webkit.org/b/134756 fast/dom/HTMLImageElement/sizes/image-sizes-2x.html [ Failure ]
-webkit.org/b/134756 fast/dom/HTMLImageElement/sizes/image-sizes-js-change.html [ Failure ]
-webkit.org/b/134756 http/tests/loading/sizes/preload-image-sizes-2x.html [ Failure ]
-
 webkit.org/b/134976 media/media-controls-invalid-url.html [ Failure ]
 webkit.org/b/134976 media/video-fast-seek.html [ Failure ]
 
@@ -2377,9 +2391,7 @@ webkit.org/b/144690 editing/spelling/delete-into-misspelled-word.html [ Timeout 
 
 # Touch events not working
 webkit.org/b/144765 fast/events/touch/touch-slider.html [ Failure ]
-webkit.org/b/144765 fast/events/touch/touch-inside-iframe-scrolled.html [ Failure ]
 webkit.org/b/144765 fast/events/touch/touch-slider-no-js-touch-listener.html [ Failure ]
-webkit.org/b/144765 fast/events/touch/touch-inside-iframe.html [ Timeout ]
 
 webkit.org/b/144763 fast/events/scroll-in-scaled-page-with-overflow-hidden.html
 
@@ -2401,3 +2413,19 @@ transitions/svg-text-shadow-transition.html [ Pass ]
 
 # This requires a specific font on Mac
 fast/text/hidpi-text-selection-gap-between-words.html [ Skip ]
+
+# Test requires hardcoded font names, which I do not have for this port.
+fast/text/han-generic-font-families.html [ WontFix ]
+fast/text/hangul-generic-font-families.html [ WontFix ]
+
+# This test hardcodes the result of a platform-dependent font lookup algorithm.
+fast/text/fallback-language-han.html [ Skip ]
+
+# This test relies on iOS-specific font fallback.
+fast/text/arabic-glyph-cache-fill-combine.html [ ImageOnlyFailure ]
+
+# This test uses an MPEG-4 video
+media/video-seek-to-current-time.html [ Skip ]
+
+# This operating system does not have language-sensitive font fallback.
+css3/line-break-language-sensitive [ Pass ImageOnlyFailure ]

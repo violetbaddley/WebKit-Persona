@@ -29,11 +29,12 @@ CheckSecurityForNode
 Clamp
 Conditional=*
 Constructor
-ConstructorCallWith=Document|ScriptExecutionContext
+ConstructorCallWith=Document|ScriptExecutionContext|ScriptState
 ConstructorConditional=*
 ConstructorRaisesException
 ConstructorTemplate=Event|TypedArray
 Custom
+CustomBinding
 CustomCall
 CustomConstructor
 CustomDeleteProperty
@@ -98,6 +99,7 @@ ObjCPolymorphic
 ObjCProtocol
 ObjCUseDefaultView
 OperationsNotDeletable
+OverrideBuiltins
 PassContext
 RaisesException
 Reflect=*
@@ -111,6 +113,7 @@ SkipVTableValidation
 StrictTypeChecking
 SuppressToJSObject
 TreatNullAs=NullString
+TreatReturnedNaNDateAs=Null|NaN
 TreatReturnedNullStringAs=Null|Undefined
 TreatUndefinedAs=NullString
 TypedArray=*

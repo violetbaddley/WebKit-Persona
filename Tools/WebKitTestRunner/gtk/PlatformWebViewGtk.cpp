@@ -29,14 +29,15 @@
 #include "PlatformWebView.h"
 
 #include <WebKit/WKImageCairo.h>
+#include <WebKit/WKPageConfigurationRef.h>
 #include <WebKit/WKViewPrivate.h>
 #include <gtk/gtk.h>
 #include <wtf/Assertions.h>
 
 namespace WTR {
 
-PlatformWebView::PlatformWebView(WKContextRef context, WKPageGroupRef pageGroup, WKPageRef relatedPage, WKDictionaryRef options)
-    : m_view(WKViewCreate(context, pageGroup, relatedPage))
+PlatformWebView::PlatformWebView(WKPageConfigurationRef configuration, const ViewOptions& options)
+    : m_view(WKViewCreate(WKPageConfigurationGetContext(configuration), WKPageConfigurationGetPageGroup(configuration), WKPageConfigurationGetRelatedPage(configuration)))
     , m_window(gtk_window_new(GTK_WINDOW_POPUP))
     , m_windowIsKey(true)
     , m_options(options)
@@ -139,6 +140,11 @@ WKRetainPtr<WKImageRef> PlatformWebView::windowSnapshotImage()
 
 void PlatformWebView::didInitializeClients()
 {
+}
+
+bool PlatformWebView::viewSupportsOptions(const ViewOptions&) const
+{
+    return true;
 }
 
 void PlatformWebView::dismissAllPopupMenus()

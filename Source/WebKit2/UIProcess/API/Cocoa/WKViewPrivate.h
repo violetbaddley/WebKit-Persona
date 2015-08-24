@@ -38,6 +38,7 @@
 #if TARGET_OS_IPHONE
 - (id)initWithFrame:(CGRect)frame contextRef:(WKContextRef)contextRef pageGroupRef:(WKPageGroupRef)pageGroupRef;
 - (id)initWithFrame:(CGRect)frame contextRef:(WKContextRef)contextRef pageGroupRef:(WKPageGroupRef)pageGroupRef relatedToPage:(WKPageRef)relatedPage;
+- (id)initWithFrame:(CGRect)frame configurationRef:(WKPageConfigurationRef)configuration;
 #else
 - (id)initWithFrame:(NSRect)frame contextRef:(WKContextRef)contextRef pageGroupRef:(WKPageGroupRef)pageGroupRef;
 - (id)initWithFrame:(NSRect)frame contextRef:(WKContextRef)contextRef pageGroupRef:(WKPageGroupRef)pageGroupRef relatedToPage:(WKPageRef)relatedPage;
@@ -128,6 +129,9 @@
 - (void)waitForAsyncDrawingAreaSizeUpdate;
 
 - (void)setMagnification:(double)magnification centeredAtPoint:(NSPoint)point;
+
+- (void)setAllowsLinkPreview:(BOOL)allowsLinkPreview;
+- (BOOL)allowsLinkPreview;
 
 - (void)saveBackForwardSnapshotForCurrentItem;
 - (void)saveBackForwardSnapshotForItem:(WKBackForwardListItemRef)item;

@@ -34,19 +34,22 @@
 #include "ResultType.h"
 #include "SourceCode.h"
 #include "SymbolTable.h"
+#include "VariableEnvironment.h"
 #include <wtf/MathExtras.h>
 
 namespace JSC {
 
     class ArgumentListNode;
     class BytecodeGenerator;
-    class FunctionBodyNode;
+    class FunctionMetadataNode;
+    class FunctionParameters;
     class Label;
     class PropertyListNode;
     class ReadModifyResolveNode;
     class RegisterID;
     class JSScope;
     class ScopeNode;
+    class ModuleAnalyzer;
 
     enum Operator {
         OpEqual,
@@ -76,18 +79,20 @@ namespace JSC {
     };
     inline FallThroughMode invert(FallThroughMode fallThroughMode) { return static_cast<FallThroughMode>(!fallThroughMode); }
 
-    typedef HashSet<RefPtr<UniquedStringImpl>, IdentifierRepHash> IdentifierSet;
-
     namespace DeclarationStacks {
-        enum VarAttrs { IsConstant = 1, HasInitializer = 2 };
-        typedef Vector<std::pair<Identifier, unsigned>> VarStack;
-        typedef Vector<FunctionBodyNode*> FunctionStack;
+        typedef Vector<FunctionMetadataNode*> FunctionStack;
     }
 
     struct SwitchInfo {
         enum SwitchType { SwitchNone, SwitchImmediate, SwitchCharacter, SwitchString };
         uint32_t bytecodeOffset;
         SwitchType switchType;
+    };
+
+    enum class AssignmentContext { 
+        DeclarationStatement, 
+        ConstDeclarationStatement, 
+        AssignmentExpression 
     };
 
     class ParserArenaFreeable {
@@ -156,8 +161,9 @@ namespace JSC {
         virtual bool isResolveNode() const { return false; }
         virtual bool isBracketAccessorNode() const { return false; }
         virtual bool isDotAccessorNode() const { return false; }
-        virtual bool isDeconstructionNode() const { return false; }
+        virtual bool isDestructuringNode() const { return false; }
         virtual bool isFuncExprNode() const { return false; }
+        virtual bool isArrowFuncExprNode() const { return false; }
         virtual bool isCommaNode() const { return false; }
         virtual bool isSimpleArray() const { return false; }
         virtual bool isAdd() const { return false; }
@@ -196,10 +202,25 @@ namespace JSC {
         virtual bool isContinue() const { return false; }
         virtual bool isBlock() const { return false; }
         virtual bool isFuncDeclNode() const { return false; }
+        virtual bool isModuleDeclarationNode() const { return false; }
 
     protected:
         StatementNode* m_next;
         int m_lastLine;
+    };
+
+    class VariableEnvironmentNode {
+    public:
+        VariableEnvironmentNode()
+        {
+        }
+
+        VariableEnvironmentNode(VariableEnvironment& lexicalDeclaredVariables);
+
+        VariableEnvironment& lexicalVariables() { return m_lexicalVariables; }
+
+    protected:
+        VariableEnvironment m_lexicalVariables;
     };
 
     class ConstantNode : public ExpressionNode {
@@ -527,6 +548,14 @@ namespace JSC {
         virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
     };
 
+    class NewTargetNode final : public ExpressionNode {
+    public:
+        NewTargetNode(const JSTokenLocation&);
+
+    private:
+        virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+    };
+
     class ResolveNode : public ExpressionNode {
     public:
         ResolveNode(const JSTokenLocation&, const Identifier&, const JSTextPosition& start);
@@ -584,7 +613,7 @@ namespace JSC {
         enum PutType { Unknown, KnownDirect };
 
         PropertyNode(const Identifier&, ExpressionNode*, Type, PutType, SuperBinding);
-        PropertyNode(ExpressionNode* propertyName, ExpressionNode*, Type, PutType);
+        PropertyNode(ExpressionNode* propertyName, ExpressionNode*, Type, PutType, SuperBinding);
 
         ExpressionNode* expressionName() const { return m_expression; }
         const Identifier* name() const { return m_name; }
@@ -1149,13 +1178,14 @@ namespace JSC {
 
     class AssignResolveNode : public ExpressionNode, public ThrowableExpressionData {
     public:
-        AssignResolveNode(const JSTokenLocation&, const Identifier&, ExpressionNode* right);
+        AssignResolveNode(const JSTokenLocation&, const Identifier&, ExpressionNode* right, AssignmentContext);
 
     private:
         virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
         const Identifier& m_ident;
         ExpressionNode* m_right;
+        AssignmentContext m_assignmentContext;
     };
 
     class ReadModifyBracketNode : public ExpressionNode, public ThrowableSubExpressionData {
@@ -1237,36 +1267,6 @@ namespace JSC {
         CommaNode* m_next;
     };
     
-    class ConstDeclNode : public ExpressionNode {
-    public:
-        ConstDeclNode(const JSTokenLocation&, const Identifier&, ExpressionNode*);
-
-        bool hasInitializer() const { return m_init; }
-        const Identifier& ident() { return m_ident; }
-
-    private:
-        virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
-        virtual RegisterID* emitCodeSingle(BytecodeGenerator&);
-
-        const Identifier& m_ident;
-
-    public:
-        ConstDeclNode* m_next;
-
-    private:
-        ExpressionNode* m_init;
-    };
-
-    class ConstStatementNode : public StatementNode {
-    public:
-        ConstStatementNode(const JSTokenLocation&, ConstDeclNode* next);
-
-    private:
-        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
-
-        ConstDeclNode* m_next;
-    };
-
     class SourceElements final : public ParserArenaFreeable {
     public:
         SourceElements();
@@ -1277,15 +1277,16 @@ namespace JSC {
         StatementNode* lastStatement() const;
 
         void emitBytecode(BytecodeGenerator&, RegisterID* destination);
+        void analyzeModule(ModuleAnalyzer&);
 
     private:
         StatementNode* m_head;
         StatementNode* m_tail;
     };
 
-    class BlockNode : public StatementNode {
+    class BlockNode : public StatementNode, public VariableEnvironmentNode {
     public:
-        BlockNode(const JSTokenLocation&, SourceElements* = 0);
+        BlockNode(const JSTokenLocation&, SourceElements*, VariableEnvironment&);
 
         StatementNode* singleStatement() const;
         StatementNode* lastStatement() const;
@@ -1330,9 +1331,9 @@ namespace JSC {
         ExpressionNode* m_expr;
     };
 
-    class VarStatementNode : public StatementNode {
+    class DeclarationStatement : public StatementNode {
     public:
-        VarStatementNode(const JSTokenLocation&, ExpressionNode*);
+        DeclarationStatement(const JSTokenLocation&, ExpressionNode*);
     private:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
@@ -1349,6 +1350,15 @@ namespace JSC {
         const Identifier& m_ident;
     };
 
+    class EmptyLetExpression : public ExpressionNode {
+    public:
+        EmptyLetExpression(const JSTokenLocation&, const Identifier&);
+
+    private:
+        virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+
+        const Identifier& m_ident;
+    };
 
     class IfElseNode : public StatementNode {
     public:
@@ -1386,9 +1396,9 @@ namespace JSC {
         StatementNode* m_statement;
     };
 
-    class ForNode : public StatementNode {
+    class ForNode : public StatementNode, public VariableEnvironmentNode {
     public:
-        ForNode(const JSTokenLocation&, ExpressionNode* expr1, ExpressionNode* expr2, ExpressionNode* expr3, StatementNode*);
+        ForNode(const JSTokenLocation&, ExpressionNode* expr1, ExpressionNode* expr2, ExpressionNode* expr3, StatementNode*, VariableEnvironment&);
 
     private:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
@@ -1399,11 +1409,11 @@ namespace JSC {
         StatementNode* m_statement;
     };
     
-    class DeconstructionPatternNode;
+    class DestructuringPatternNode;
     
-    class EnumerationNode : public StatementNode, public ThrowableExpressionData {
+    class EnumerationNode : public StatementNode, public ThrowableExpressionData, public VariableEnvironmentNode {
     public:
-        EnumerationNode(const JSTokenLocation&, ExpressionNode*, ExpressionNode*, StatementNode*);
+        EnumerationNode(const JSTokenLocation&, ExpressionNode*, ExpressionNode*, StatementNode*, VariableEnvironment&);
         
     protected:
         ExpressionNode* m_lexpr;
@@ -1413,7 +1423,7 @@ namespace JSC {
     
     class ForInNode : public EnumerationNode {
     public:
-        ForInNode(const JSTokenLocation&, ExpressionNode*, ExpressionNode*, StatementNode*);
+        ForInNode(const JSTokenLocation&, ExpressionNode*, ExpressionNode*, StatementNode*, VariableEnvironment&);
 
     private:
         RegisterID* tryGetBoundLocal(BytecodeGenerator&);
@@ -1425,7 +1435,7 @@ namespace JSC {
     
     class ForOfNode : public EnumerationNode {
     public:
-        ForOfNode(const JSTokenLocation&, ExpressionNode*, ExpressionNode*, StatementNode*);
+        ForOfNode(const JSTokenLocation&, ExpressionNode*, ExpressionNode*, StatementNode*, VariableEnvironment&);
         
     private:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
@@ -1505,7 +1515,7 @@ namespace JSC {
 
     class TryNode : public StatementNode {
     public:
-        TryNode(const JSTokenLocation&, StatementNode* tryBlock, const Identifier& exceptionIdent, StatementNode* catchBlock, StatementNode* finallyBlock);
+        TryNode(const JSTokenLocation&, StatementNode* tryBlock, const Identifier& exceptionIdent, StatementNode* catchBlock, VariableEnvironment& catchEnvironment, StatementNode* finallyBlock);
 
     private:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
@@ -1514,28 +1524,15 @@ namespace JSC {
         const Identifier& m_thrownValueIdent;
         StatementNode* m_catchBlock;
         StatementNode* m_finallyBlock;
+        VariableEnvironment m_catchEnvironment;
     };
 
-    class ParameterNode : public ParserArenaDeletable {
+    class ScopeNode : public StatementNode, public ParserArenaRoot, public VariableEnvironmentNode {
     public:
-        ParameterNode(PassRefPtr<DeconstructionPatternNode>);
-        ParameterNode(ParameterNode*, PassRefPtr<DeconstructionPatternNode>);
-
-        DeconstructionPatternNode* pattern() const { return m_pattern.get(); }
-        ParameterNode* nextParam() const { return m_next; }
-
-    private:
-        RefPtr<DeconstructionPatternNode> m_pattern;
-        ParameterNode* m_next;
-    };
-
-    class ScopeNode : public StatementNode, public ParserArenaRoot {
-    public:
-        typedef DeclarationStacks::VarStack VarStack;
         typedef DeclarationStacks::FunctionStack FunctionStack;
 
         ScopeNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, bool inStrictContext);
-        ScopeNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, const SourceCode&, SourceElements*, VarStack&, FunctionStack&, IdentifierSet&, CodeFeatures, int numConstants);
+        ScopeNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, const SourceCode&, SourceElements*, VariableEnvironment&, FunctionStack&, VariableEnvironment&, CodeFeatures, int numConstants);
 
         using ParserArenaRoot::operator new;
 
@@ -1559,13 +1556,11 @@ namespace JSC {
         bool usesThis() const { return m_features & ThisFeature; }
         bool needsActivationForMoreThanVariables() const { return m_features & (EvalFeature | WithFeature | CatchFeature); }
         bool needsActivation() const { return (hasCapturedVariables()) || (m_features & (EvalFeature | WithFeature | CatchFeature)); }
-        bool hasCapturedVariables() const { return !!m_capturedVariables.size(); }
-        size_t capturedVariableCount() const { return m_capturedVariables.size(); }
-        const IdentifierSet& capturedVariables() const { return m_capturedVariables; }
-        bool captures(UniquedStringImpl* uid) { return m_capturedVariables.contains(uid); }
+        bool hasCapturedVariables() const { return m_varDeclarations.hasCapturedVariables(); }
+        bool captures(UniquedStringImpl* uid) { return m_varDeclarations.captures(uid); }
         bool captures(const Identifier& ident) { return captures(ident.impl()); }
 
-        VarStack& varStack() { return m_varStack; }
+        VariableEnvironment& varDeclarations() { return m_varDeclarations; }
         FunctionStack& functionStack() { return m_functionStack; }
 
         int neededConstants()
@@ -1581,6 +1576,8 @@ namespace JSC {
         
         void setClosedVariables(Vector<RefPtr<UniquedStringImpl>>&&) { }
 
+        void analyzeModule(ModuleAnalyzer&);
+
     protected:
         int m_startLineNumber;
         unsigned m_startStartOffset;
@@ -1589,16 +1586,15 @@ namespace JSC {
     private:
         CodeFeatures m_features;
         SourceCode m_source;
-        VarStack m_varStack;
+        VariableEnvironment m_varDeclarations;
         FunctionStack m_functionStack;
         int m_numConstants;
         SourceElements* m_statements;
-        IdentifierSet m_capturedVariables;
     };
 
     class ProgramNode : public ScopeNode {
     public:
-        ProgramNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, unsigned startColumn, unsigned endColumn, SourceElements*, VarStack&, FunctionStack&, IdentifierSet&, const SourceCode&, CodeFeatures, int numConstants);
+        ProgramNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, unsigned startColumn, unsigned endColumn, SourceElements*, VariableEnvironment&, FunctionStack&, VariableEnvironment&, FunctionParameters*, const SourceCode&, CodeFeatures, int numConstants);
 
         unsigned startColumn() const { return m_startColumn; }
         unsigned endColumn() const { return m_endColumn; }
@@ -1617,7 +1613,7 @@ namespace JSC {
 
     class EvalNode : public ScopeNode {
     public:
-        EvalNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, unsigned startColumn, unsigned endColumn, SourceElements*, VarStack&, FunctionStack&, IdentifierSet&, const SourceCode&, CodeFeatures, int numConstants);
+        EvalNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, unsigned startColumn, unsigned endColumn, SourceElements*, VariableEnvironment&, FunctionStack&, VariableEnvironment&, FunctionParameters*, const SourceCode&, CodeFeatures, int numConstants);
 
         ALWAYS_INLINE unsigned startColumn() const { return 0; }
         unsigned endColumn() const { return m_endColumn; }
@@ -1630,40 +1626,191 @@ namespace JSC {
         unsigned m_endColumn;
     };
 
-    class FunctionParameters : public RefCounted<FunctionParameters> {
-        WTF_MAKE_FAST_ALLOCATED;
-        WTF_MAKE_NONCOPYABLE(FunctionParameters);
+    class ModuleProgramNode : public ScopeNode {
     public:
-        static Ref<FunctionParameters> create(ParameterNode*);
-        ~FunctionParameters();
+        ModuleProgramNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, unsigned startColumn, unsigned endColumn, SourceElements*, VariableEnvironment&, FunctionStack&, VariableEnvironment&, FunctionParameters*, const SourceCode&, CodeFeatures, int numConstants);
 
-        unsigned size() const { return m_size; }
-        DeconstructionPatternNode* at(unsigned index) { ASSERT(index < m_size); return patterns()[index]; }
+        unsigned startColumn() const { return m_startColumn; }
+        unsigned endColumn() const { return m_endColumn; }
+
+        static const bool scopeIsFunction = false;
 
     private:
-        FunctionParameters(ParameterNode*, unsigned size);
-
-        DeconstructionPatternNode** patterns() { return &m_storage; }
-
-        unsigned m_size;
-        DeconstructionPatternNode* m_storage;
+        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+        unsigned m_startColumn;
+        unsigned m_endColumn;
     };
 
-    class FunctionBodyNode final : public StatementNode, public ParserArenaDeletable {
+    class ModuleNameNode : public Node {
+    public:
+        ModuleNameNode(const JSTokenLocation&, const Identifier& moduleName);
+
+        const Identifier& moduleName() { return m_moduleName; }
+
+    private:
+        const Identifier& m_moduleName;
+    };
+
+    class ImportSpecifierNode : public Node {
+    public:
+        ImportSpecifierNode(const JSTokenLocation&, const Identifier& importedName, const Identifier& localName);
+
+        const Identifier& importedName() { return m_importedName; }
+        const Identifier& localName() { return m_localName; }
+
+    private:
+        const Identifier& m_importedName;
+        const Identifier& m_localName;
+    };
+
+    class ImportSpecifierListNode : public ParserArenaDeletable {
+    public:
+        typedef Vector<ImportSpecifierNode*, 3> Specifiers;
+
+        const Specifiers& specifiers() const { return m_specifiers; }
+        void append(ImportSpecifierNode* specifier)
+        {
+            m_specifiers.append(specifier);
+        }
+
+    private:
+        Specifiers m_specifiers;
+    };
+
+    class ModuleDeclarationNode : public StatementNode {
+    public:
+        virtual void analyzeModule(ModuleAnalyzer&) = 0;
+        virtual bool isModuleDeclarationNode() const { return true; }
+
+    protected:
+        ModuleDeclarationNode(const JSTokenLocation&);
+    };
+
+    class ImportDeclarationNode : public ModuleDeclarationNode {
+    public:
+        ImportDeclarationNode(const JSTokenLocation&, ImportSpecifierListNode*, ModuleNameNode*);
+
+        ImportSpecifierListNode* specifierList() const { return m_specifierList; }
+        ModuleNameNode* moduleName() const { return m_moduleName; }
+
+    private:
+        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+        virtual void analyzeModule(ModuleAnalyzer&) override;
+
+        ImportSpecifierListNode* m_specifierList;
+        ModuleNameNode* m_moduleName;
+    };
+
+    class ExportAllDeclarationNode : public ModuleDeclarationNode {
+    public:
+        ExportAllDeclarationNode(const JSTokenLocation&, ModuleNameNode*);
+
+        ModuleNameNode* moduleName() const { return m_moduleName; }
+
+    private:
+        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+        virtual void analyzeModule(ModuleAnalyzer&) override;
+
+        ModuleNameNode* m_moduleName;
+    };
+
+    class ExportDefaultDeclarationNode : public ModuleDeclarationNode {
+    public:
+        ExportDefaultDeclarationNode(const JSTokenLocation&, StatementNode*, const Identifier& localName);
+
+        const StatementNode& declaration() const { return *m_declaration; }
+        const Identifier& localName() const { return m_localName; }
+
+    private:
+        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+        virtual void analyzeModule(ModuleAnalyzer&) override;
+        StatementNode* m_declaration;
+        const Identifier& m_localName;
+    };
+
+    class ExportLocalDeclarationNode : public ModuleDeclarationNode {
+    public:
+        ExportLocalDeclarationNode(const JSTokenLocation&, StatementNode*);
+
+        const StatementNode& declaration() const { return *m_declaration; }
+
+    private:
+        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+        virtual void analyzeModule(ModuleAnalyzer&) override;
+        StatementNode* m_declaration;
+    };
+
+    class ExportSpecifierNode : public Node {
+    public:
+        ExportSpecifierNode(const JSTokenLocation&, const Identifier& localName, const Identifier& exportedName);
+
+        const Identifier& exportedName() { return m_exportedName; }
+        const Identifier& localName() { return m_localName; }
+
+    private:
+        const Identifier& m_localName;
+        const Identifier& m_exportedName;
+    };
+
+    class ExportSpecifierListNode : public ParserArenaDeletable {
+    public:
+        typedef Vector<ExportSpecifierNode*, 3> Specifiers;
+
+        const Specifiers& specifiers() const { return m_specifiers; }
+        void append(ExportSpecifierNode* specifier)
+        {
+            m_specifiers.append(specifier);
+        }
+
+    private:
+        Specifiers m_specifiers;
+    };
+
+    class ExportNamedDeclarationNode : public ModuleDeclarationNode {
+    public:
+        ExportNamedDeclarationNode(const JSTokenLocation&, ExportSpecifierListNode*, ModuleNameNode*);
+
+        ExportSpecifierListNode* specifierList() const { return m_specifierList; }
+        ModuleNameNode* moduleName() const { return m_moduleName; }
+
+    private:
+        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+        virtual void analyzeModule(ModuleAnalyzer&) override;
+        ExportSpecifierListNode* m_specifierList;
+        ModuleNameNode* m_moduleName { nullptr };
+    };
+
+    class FunctionParameters : public ParserArenaDeletable {
+    public:
+        FunctionParameters();
+        ALWAYS_INLINE unsigned size() const { return m_patterns.size(); }
+        ALWAYS_INLINE std::pair<DestructuringPatternNode*, ExpressionNode*> at(unsigned index) { return m_patterns[index]; }
+        bool hasDefaultParameterValues() const { return m_hasDefaultParameterValues; }
+        ALWAYS_INLINE void append(DestructuringPatternNode* pattern, ExpressionNode* defaultValue) 
+        { 
+            ASSERT(pattern); 
+            m_patterns.append(std::make_pair(pattern, defaultValue));
+            if (defaultValue)
+                m_hasDefaultParameterValues = true;
+        }
+
+    private:
+
+        Vector<std::pair<DestructuringPatternNode*, ExpressionNode*>, 3> m_patterns;
+        bool m_hasDefaultParameterValues { false };
+    };
+
+    class FunctionMetadataNode final : public Node, public ParserArenaDeletable {
     public:
         using ParserArenaDeletable::operator new;
 
-        FunctionBodyNode(
+        FunctionMetadataNode(
             ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, 
             unsigned startColumn, unsigned endColumn, int functionKeywordStart, 
             int functionNameStart, int parametersStart, bool isInStrictContext, 
-            ConstructorKind);
+            ConstructorKind, unsigned, SourceParseMode, bool isArrowFunction);
 
-        FunctionParameters* parameters() const { return m_parameters.get(); }
-
-        virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
-
-        void finishParsing(const SourceCode&, ParameterNode*, const Identifier&, FunctionMode);
+        void finishParsing(const SourceCode&, const Identifier&, FunctionMode);
         
         void overrideName(const Identifier& ident) { m_ident = ident; }
         const Identifier& ident() { return m_ident; }
@@ -1677,6 +1824,8 @@ namespace JSC {
         int parametersStart() const { return m_parametersStart; }
         unsigned startColumn() const { return m_startColumn; }
         unsigned endColumn() const { return m_endColumn; }
+        unsigned parameterCount() const { return m_parameterCount; }
+        SourceParseMode parseMode() const { return m_parseMode; }
 
         void setEndPosition(JSTextPosition);
 
@@ -1685,12 +1834,20 @@ namespace JSC {
         int startStartOffset() const { return m_startStartOffset; }
         bool isInStrictContext() const { return m_isInStrictContext; }
         ConstructorKind constructorKind() { return static_cast<ConstructorKind>(m_constructorKind); }
+        bool isArrowFunction() const { return m_isArrowFunction; }
+
+        void setLoc(unsigned firstLine, unsigned lastLine, int startOffset, int lineStartOffset)
+        {
+            m_lastLine = lastLine;
+            m_position = JSTextPosition(firstLine, startOffset, lineStartOffset);
+            ASSERT(m_position.offset >= m_position.lineStartOffset);
+        }
+        unsigned lastLine() const { return m_lastLine; }
 
     protected:
         Identifier m_ident;
         Identifier m_inferredName;
         FunctionMode m_functionMode;
-        RefPtr<FunctionParameters> m_parameters;
         unsigned m_startColumn;
         unsigned m_endColumn;
         int m_functionKeywordStart;
@@ -1698,19 +1855,23 @@ namespace JSC {
         int m_parametersStart;
         SourceCode m_source;
         int m_startStartOffset;
+        unsigned m_parameterCount;
+        int m_lastLine;
+        SourceParseMode m_parseMode;
         unsigned m_isInStrictContext : 1;
         unsigned m_constructorKind : 2;
+        unsigned m_isArrowFunction : 1;
     };
 
     class FunctionNode final : public ScopeNode {
     public:
-        FunctionNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, unsigned startColumn, unsigned endColumn, SourceElements*, VarStack&, FunctionStack&, IdentifierSet&, const SourceCode&, CodeFeatures, int numConstants);
+        FunctionNode(ParserArena&, const JSTokenLocation& start, const JSTokenLocation& end, unsigned startColumn, unsigned endColumn, SourceElements*, VariableEnvironment&, FunctionStack&, VariableEnvironment&, FunctionParameters*, const SourceCode&, CodeFeatures, int numConstants);
 
-        FunctionParameters* parameters() const { return m_parameters.get(); }
+        FunctionParameters* parameters() const { return m_parameters; }
 
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
-        void finishParsing(PassRefPtr<FunctionParameters>, const Identifier&, FunctionMode);
+        void finishParsing(const Identifier&, FunctionMode);
         
         const Identifier& ident() { return m_ident; }
 
@@ -1724,23 +1885,40 @@ namespace JSC {
     private:
         Identifier m_ident;
         FunctionMode m_functionMode;
-        RefPtr<FunctionParameters> m_parameters;
+        FunctionParameters* m_parameters;
         unsigned m_startColumn;
         unsigned m_endColumn;
     };
 
-    class FuncExprNode : public ExpressionNode {
+    class BaseFuncExprNode : public ExpressionNode {
     public:
-        FuncExprNode(const JSTokenLocation&, const Identifier&, FunctionBodyNode*, const SourceCode&, ParameterNode* = 0);
+        BaseFuncExprNode(const JSTokenLocation&, const Identifier&, FunctionMetadataNode*, const SourceCode&);
 
-        FunctionBodyNode* body() { return m_body; }
+        FunctionMetadataNode* metadata() { return m_metadata; }
+
+    protected:
+        FunctionMetadataNode* m_metadata;
+    };
+
+
+    class FuncExprNode : public BaseFuncExprNode {
+    public:
+        FuncExprNode(const JSTokenLocation&, const Identifier&, FunctionMetadataNode*, const SourceCode&);
 
     private:
         virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
         virtual bool isFuncExprNode() const override { return true; }
+    };
 
-        FunctionBodyNode* m_body;
+    class ArrowFuncExprNode : public BaseFuncExprNode {
+    public:
+        ArrowFuncExprNode(const JSTokenLocation&, const Identifier&, FunctionMetadataNode*, const SourceCode&);
+
+    private:
+        virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
+
+        virtual bool isArrowFuncExprNode() const override { return true; }
     };
 
 #if ENABLE(ES6_CLASS_SYNTAX)
@@ -1762,11 +1940,9 @@ namespace JSC {
     };
 #endif
 
-    class DeconstructionPatternNode : public RefCounted<DeconstructionPatternNode> {
-        WTF_MAKE_NONCOPYABLE(DeconstructionPatternNode);
-        WTF_MAKE_FAST_ALLOCATED;
-
+    class DestructuringPatternNode : public ParserArenaFreeable {
     public:
+        virtual ~DestructuringPatternNode() { }
         virtual void collectBoundIdentifiers(Vector<Identifier>&) const = 0;
         virtual void bindValue(BytecodeGenerator&, RegisterID* source) const = 0;
         virtual void toString(StringBuilder&) const = 0;
@@ -1774,68 +1950,72 @@ namespace JSC {
         virtual bool isBindingNode() const { return false; }
         virtual RegisterID* emitDirectBinding(BytecodeGenerator&, RegisterID*, ExpressionNode*) { return 0; }
         
-        virtual ~DeconstructionPatternNode() = 0;
-        
     protected:
-        DeconstructionPatternNode();
+        DestructuringPatternNode();
     };
 
-    class ArrayPatternNode : public DeconstructionPatternNode {
+    class ArrayPatternNode : public DestructuringPatternNode, public ThrowableExpressionData, public ParserArenaDeletable {
     public:
-        static Ref<ArrayPatternNode> create();
-        void appendIndex(const JSTokenLocation&, DeconstructionPatternNode* node)
+        using ParserArenaDeletable::operator new;
+
+        ArrayPatternNode();
+        enum class BindingType {
+            Elision,
+            Element,
+            RestElement
+        };
+
+        void appendIndex(BindingType bindingType, const JSTokenLocation&, DestructuringPatternNode* node, ExpressionNode* defaultValue)
         {
-            m_targetPatterns.append(node);
+            m_targetPatterns.append({ bindingType, node, defaultValue });
         }
 
     private:
-        ArrayPatternNode();
+        struct Entry {
+            BindingType bindingType;
+            DestructuringPatternNode* pattern;
+            ExpressionNode* defaultValue;
+        };
         virtual void collectBoundIdentifiers(Vector<Identifier>&) const override;
         virtual void bindValue(BytecodeGenerator&, RegisterID*) const override;
         virtual RegisterID* emitDirectBinding(BytecodeGenerator&, RegisterID* dst, ExpressionNode*) override;
         virtual void toString(StringBuilder&) const override;
 
-        Vector<RefPtr<DeconstructionPatternNode>> m_targetPatterns;
+        Vector<Entry> m_targetPatterns;
     };
     
-    class ObjectPatternNode : public DeconstructionPatternNode {
+    class ObjectPatternNode : public DestructuringPatternNode, public ParserArenaDeletable {
     public:
-        static Ref<ObjectPatternNode> create();
-        void appendEntry(const JSTokenLocation&, const Identifier& identifier, bool wasString, DeconstructionPatternNode* pattern)
-        {
-            m_targetPatterns.append(Entry(identifier, wasString, pattern));
-        }
+        using ParserArenaDeletable::operator new;
         
-    private:
         ObjectPatternNode();
+        void appendEntry(const JSTokenLocation&, const Identifier& identifier, bool wasString, DestructuringPatternNode* pattern, ExpressionNode* defaultValue)
+        {
+            m_targetPatterns.append(Entry{ identifier, wasString, pattern, defaultValue });
+        }
+
+    private:
         virtual void collectBoundIdentifiers(Vector<Identifier>&) const override;
         virtual void bindValue(BytecodeGenerator&, RegisterID*) const override;
         virtual void toString(StringBuilder&) const override;
         struct Entry {
-            Entry(const Identifier& propertyName, bool wasString, DeconstructionPatternNode* pattern)
-                : propertyName(propertyName)
-                , wasString(wasString)
-                , pattern(pattern)
-            {
-            }
-            Identifier propertyName;
+            const Identifier& propertyName;
             bool wasString;
-            RefPtr<DeconstructionPatternNode> pattern;
+            DestructuringPatternNode* pattern;
+            ExpressionNode* defaultValue;
         };
         Vector<Entry> m_targetPatterns;
     };
 
-    class BindingNode : public DeconstructionPatternNode {
+    class BindingNode : public DestructuringPatternNode {
     public:
-        static Ref<BindingNode> create(const Identifier& boundProperty, const JSTextPosition& start, const JSTextPosition& end);
+        BindingNode(const Identifier& boundProperty, const JSTextPosition& start, const JSTextPosition& end, AssignmentContext);
         const Identifier& boundProperty() const { return m_boundProperty; }
 
         const JSTextPosition& divotStart() const { return m_divotStart; }
         const JSTextPosition& divotEnd() const { return m_divotEnd; }
         
     private:
-        BindingNode(const Identifier& boundProperty, const JSTextPosition& start, const JSTextPosition& end);
-
         virtual void collectBoundIdentifiers(Vector<Identifier>&) const override;
         virtual void bindValue(BytecodeGenerator&, RegisterID*) const override;
         virtual void toString(StringBuilder&) const override;
@@ -1844,36 +2024,35 @@ namespace JSC {
 
         JSTextPosition m_divotStart;
         JSTextPosition m_divotEnd;
-        Identifier m_boundProperty;
+        const Identifier& m_boundProperty;
+        AssignmentContext m_bindingContext;
     };
 
-    class DeconstructingAssignmentNode : public ExpressionNode, public ParserArenaDeletable {
+    class DestructuringAssignmentNode : public ExpressionNode {
     public:
-        DeconstructingAssignmentNode(const JSTokenLocation&, PassRefPtr<DeconstructionPatternNode>, ExpressionNode*);
-        DeconstructionPatternNode* bindings() { return m_bindings.get(); }
+        DestructuringAssignmentNode(const JSTokenLocation&, DestructuringPatternNode*, ExpressionNode*);
+        DestructuringPatternNode* bindings() { return m_bindings; }
         
-        using ParserArenaDeletable::operator new;
-
     private:
         virtual bool isAssignmentLocation() const override { return true; }
-        virtual bool isDeconstructionNode() const override { return true; }
+        virtual bool isDestructuringNode() const override { return true; }
         virtual RegisterID* emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
-        RefPtr<DeconstructionPatternNode> m_bindings;
+        DestructuringPatternNode* m_bindings;
         ExpressionNode* m_initializer;
     };
 
     class FuncDeclNode : public StatementNode {
     public:
-        FuncDeclNode(const JSTokenLocation&, const Identifier&, FunctionBodyNode*, const SourceCode&, ParameterNode* = 0);
+        FuncDeclNode(const JSTokenLocation&, const Identifier&, FunctionMetadataNode*, const SourceCode&);
 
         virtual bool isFuncDeclNode() const override { return true; }
-        FunctionBodyNode* body() { return m_body; }
+        FunctionMetadataNode* metadata() { return m_metadata; }
 
     private:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
 
-        FunctionBodyNode* m_body;
+        FunctionMetadataNode* m_metadata;
     };
 
 #if ENABLE(ES6_CLASS_SYNTAX)
@@ -1930,9 +2109,9 @@ namespace JSC {
         ClauseListNode* m_list2;
     };
 
-    class SwitchNode : public StatementNode {
+    class SwitchNode : public StatementNode, public VariableEnvironmentNode {
     public:
-        SwitchNode(const JSTokenLocation&, ExpressionNode*, CaseBlockNode*);
+        SwitchNode(const JSTokenLocation&, ExpressionNode*, CaseBlockNode*, VariableEnvironment&);
 
     private:
         virtual void emitBytecode(BytecodeGenerator&, RegisterID* = 0) override;
@@ -1954,16 +2133,6 @@ namespace JSC {
     struct ArgumentList {
         ArgumentListNode* head;
         ArgumentListNode* tail;
-    };
-
-    struct ConstDeclList {
-        ConstDeclNode* head;
-        ConstDeclNode* tail;
-    };
-
-    struct ParameterList {
-        ParameterNode* head;
-        ParameterNode* tail;
     };
 
     struct ClauseList {

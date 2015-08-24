@@ -34,11 +34,11 @@ static IntPoint innerBottomRight(const IntRect& rect)
     return IntPoint(rect.maxX() - 1, rect.maxY() - 1);
 }
 
-TiledBackingStore::TiledBackingStore(TiledBackingStoreClient* client)
+TiledBackingStore::TiledBackingStore(TiledBackingStoreClient* client, float contentsScale)
     : m_client(client)
     , m_tileSize(defaultTileDimension, defaultTileDimension)
     , m_coverAreaMultiplier(2.0f)
-    , m_contentsScale(1.f)
+    , m_contentsScale(contentsScale)
     , m_supportsAlpha(false)
     , m_pendingTileCreation(false)
 {
@@ -46,12 +46,6 @@ TiledBackingStore::TiledBackingStore(TiledBackingStoreClient* client)
 
 TiledBackingStore::~TiledBackingStore()
 {
-}
-
-void TiledBackingStore::setTileSize(const IntSize& size)
-{
-    m_tileSize = size;
-    m_tiles.clear();
 }
 
 void TiledBackingStore::setTrajectoryVector(const FloatPoint& trajectoryVector)
@@ -113,16 +107,6 @@ void TiledBackingStore::updateTileBuffers()
 IntRect TiledBackingStore::visibleRect() const
 {
     return mapFromContents(m_client->tiledBackingStoreVisibleRect());
-}
-
-void TiledBackingStore::setContentsScale(float scale)
-{
-    if (scale == m_contentsScale)
-        return;
-
-    m_contentsScale = scale;
-    m_tiles.clear();
-    coverWithTilesIfNeeded();
 }
 
 double TiledBackingStore::tileDistance(const IntRect& viewport, const Tile::Coordinate& tileCoordinate) const

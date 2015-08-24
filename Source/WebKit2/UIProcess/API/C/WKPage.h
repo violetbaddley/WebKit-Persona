@@ -59,6 +59,8 @@ WK_EXPORT WKTypeID WKPageGetTypeID();
 WK_EXPORT WKContextRef WKPageGetContext(WKPageRef page);
 WK_EXPORT WKPageGroupRef WKPageGetPageGroup(WKPageRef page);
 
+WK_EXPORT WKPageConfigurationRef WKPageCopyPageConfiguration(WKPageRef page);
+
 // URL Requests
 WK_EXPORT void WKPageLoadURL(WKPageRef page, WKURLRef url);
 WK_EXPORT void WKPageLoadURLWithUserData(WKPageRef page, WKURLRef url, WKTypeRef userData);
@@ -123,6 +125,8 @@ WK_EXPORT void WKPageSetApplicationNameForUserAgent(WKPageRef page, WKStringRef 
 WK_EXPORT WKStringRef WKPageCopyCustomUserAgent(WKPageRef page);
 WK_EXPORT void WKPageSetCustomUserAgent(WKPageRef page, WKStringRef userAgent);
 
+WK_EXPORT void WKPageSetUserContentExtensionsEnabled(WKPageRef, bool);
+    
 WK_EXPORT bool WKPageSupportsTextEncoding(WKPageRef page);
 WK_EXPORT WKStringRef WKPageCopyCustomTextEncodingName(WKPageRef page);
 WK_EXPORT void WKPageSetCustomTextEncodingName(WKPageRef page, WKStringRef encodingName);

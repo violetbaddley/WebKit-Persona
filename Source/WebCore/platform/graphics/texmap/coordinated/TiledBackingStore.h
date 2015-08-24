@@ -33,13 +33,12 @@
 namespace WebCore {
 
 class GraphicsContext;
-class TiledBackingStore;
 class TiledBackingStoreClient;
 
 class TiledBackingStore {
     WTF_MAKE_NONCOPYABLE(TiledBackingStore); WTF_MAKE_FAST_ALLOCATED;
 public:
-    TiledBackingStore(TiledBackingStoreClient*);
+    TiledBackingStore(TiledBackingStoreClient*, float contentsScale = 1.f);
     ~TiledBackingStore();
 
     TiledBackingStoreClient* client() { return m_client; }
@@ -48,14 +47,10 @@ public:
     void coverWithTilesIfNeeded();
 
     float contentsScale() { return m_contentsScale; }
-    void setContentsScale(float);
 
     void updateTileBuffers();
 
     void invalidate(const IntRect& dirtyRect);
-
-    IntSize tileSize() { return m_tileSize; }
-    void setTileSize(const IntSize&);
 
     IntRect mapToContents(const IntRect&) const;
     IntRect mapFromContents(const IntRect&) const;

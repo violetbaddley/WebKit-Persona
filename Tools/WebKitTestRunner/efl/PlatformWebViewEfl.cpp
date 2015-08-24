@@ -53,14 +53,16 @@ static Ecore_Evas* initEcoreEvas()
     return ecoreEvas;
 }
 
-PlatformWebView::PlatformWebView(WKContextRef context, WKPageGroupRef pageGroup, WKPageRef /* relatedPage */, WKDictionaryRef options)
+PlatformWebView::PlatformWebView(WKPageConfigurationRef configuration, const ViewOptions& options)
     : m_options(options)
 {
     WKRetainPtr<WKStringRef> useFixedLayoutKey(AdoptWK, WKStringCreateWithUTF8CString("UseFixedLayout"));
-    m_usingFixedLayout = options ? WKBooleanGetValue(static_cast<WKBooleanRef>(WKDictionaryGetItemForKey(options, useFixedLayoutKey.get()))) : false;
+    m_usingFixedLayout = options.useFixedLayout;
 
     m_window = initEcoreEvas();
 
+    WKContextRef context = WKPageConfigurationGetContext(configuration);
+    WKPageGroupRef pageGroup = WKPageConfigurationGetPageGroup(configuration);
     m_view = EWKViewCreate(context, pageGroup, ecore_evas_get(m_window), /* smart */ 0);
 
     WKPageSetUseFixedLayout(WKViewGetPage(EWKViewGetWKView(m_view)), m_usingFixedLayout);
@@ -142,11 +144,12 @@ WKRetainPtr<WKImageRef> PlatformWebView::windowSnapshotImage()
     return adoptWK(WKViewCreateSnapshot(EWKViewGetWKView(m_view)));
 }
 
-bool PlatformWebView::viewSupportsOptions(WKDictionaryRef options) const
+bool PlatformWebView::viewSupportsOptions(const ViewOptions& options) const
 {
-    WKRetainPtr<WKStringRef> useFixedLayoutKey(AdoptWK, WKStringCreateWithUTF8CString("UseFixedLayout"));
+    if (m_options.useFixedLayout != options.useFixedLayout)
+        return false;
 
-    return m_usingFixedLayout == (options ? WKBooleanGetValue(static_cast<WKBooleanRef>(WKDictionaryGetItemForKey(options, useFixedLayoutKey.get()))) : false);
+    return true;
 }
 
 void PlatformWebView::didInitializeClients()

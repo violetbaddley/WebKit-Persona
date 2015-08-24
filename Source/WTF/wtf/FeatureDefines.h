@@ -156,6 +156,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_VIEW_MODE_CSS_MEDIA 0
 #endif
 
+#if !defined(ENABLE_WEBASSEMBLY)
+#define ENABLE_WEBASSEMBLY 0
+#endif
+
 #if !defined(ENABLE_WEBGL)
 #define ENABLE_WEBGL 1
 #endif
@@ -164,6 +168,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 the public iOS SDK. We will also need to update the FeatureDefines.xcconfig files. */
 #if !defined(ENABLE_XSLT) && !USE(APPLE_INTERNAL_SDK)
 #define ENABLE_XSLT 0
+#endif
+
+#if !defined(ENABLE_PRIMARY_SNAPSHOTTED_PLUGIN_HEURISTIC)
+#define ENABLE_PRIMARY_SNAPSHOTTED_PLUGIN_HEURISTIC 1
 #endif
 
 #endif /* PLATFORM(IOS) */
@@ -246,6 +254,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_FILE_REPLACEMENT 1
 #endif
 
+#if !defined(ENABLE_PRIMARY_SNAPSHOTTED_PLUGIN_HEURISTIC)
+#define ENABLE_PRIMARY_SNAPSHOTTED_PLUGIN_HEURISTIC 1
+#endif
+
 #endif /* PLATFORM(MAC) */
 
 /* --------- Apple Windows port --------- */
@@ -260,12 +272,7 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #endif
 
 #if !defined(ENABLE_WEBGL)
-// FIXME: Get WebGL working on Windows with CMake. https://bugs.webkit.org/show_bug.cgi?id=143311
-#if defined(BUILDING_WITH_CMAKE)
 #define ENABLE_WEBGL 0
-#else
-#define ENABLE_WEBGL 0
-#endif
 #endif
 
 #if !defined(ENABLE_GEOLOCATION)
@@ -288,12 +295,7 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #endif
 
 #if !defined(ENABLE_WEBGL)
-// FIXME: Get WebGL working on Windows with CMake. https://bugs.webkit.org/show_bug.cgi?id=143311
-#if defined(BUILDING_WITH_CMAKE)
-#define ENABLE_WEBGL 0
-#else
 #define ENABLE_WEBGL 1
-#endif
 #endif
 
 #if !defined(ENABLE_GEOLOCATION)
@@ -351,6 +353,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 
 #if !defined(ENABLE_ES6_CLASS_SYNTAX)
 #define ENABLE_ES6_CLASS_SYNTAX 1
+#endif
+
+#if !defined(ENABLE_ES6_MODULES)
+#define ENABLE_ES6_MODULES 0
 #endif
 
 #if !defined(ENABLE_ES6_TEMPLATE_LITERAL_SYNTAX)
@@ -535,6 +541,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_INSPECTOR_ALTERNATE_DISPATCHERS 0
 #endif
 
+#if !defined(ENABLE_INTL)
+#define ENABLE_INTL 0
+#endif
+
 #if !defined(ENABLE_JAVASCRIPT_I18N_API)
 #define ENABLE_JAVASCRIPT_I18N_API 0
 #endif
@@ -641,10 +651,6 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_POINTER_LOCK 0
 #endif
 
-#if !defined(ENABLE_PROMISES)
-#define ENABLE_PROMISES 0
-#endif
-
 #if !defined(ENABLE_PROXIMITY_EVENTS)
 #define ENABLE_PROXIMITY_EVENTS 0
 #endif
@@ -749,6 +755,10 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #define ENABLE_WEBGL 0
 #endif
 
+#if !defined(ENABLE_WEBGL2)
+#define ENABLE_WEBGL2 0
+#endif
+
 #if !defined(ENABLE_GRAPHICS_CONTEXT_3D)
 #define ENABLE_GRAPHICS_CONTEXT_3D ENABLE_WEBGL
 #endif
@@ -770,7 +780,7 @@ the public iOS SDK. We will also need to update the FeatureDefines.xcconfig file
 #endif
 
 #if !defined(ENABLE_PICTURE_SIZES)
-#define ENABLE_PICTURE_SIZES 1
+#define ENABLE_PICTURE_SIZES 0
 #endif
 
 #if !defined(ENABLE_WEB_TIMING)

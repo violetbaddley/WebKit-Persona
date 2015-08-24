@@ -27,7 +27,6 @@
 #define RenderObject_h
 
 #include "CachedImageClient.h"
-#include "DocumentStyleSheetCollection.h"
 #include "Element.h"
 #include "FloatQuad.h"
 #include "Frame.h"
@@ -35,18 +34,18 @@
 #include "PaintPhase.h"
 #include "RenderStyle.h"
 #include "ScrollBehavior.h"
-#include "StyleInheritedData.h"
+#include "StyleImage.h"
 #include "TextAffinity.h"
-#include <wtf/HashSet.h>
-#include <wtf/TypeCasts.h>
 
 namespace WebCore {
 
 class AffineTransform;
 class AnimationController;
+class Color;
 class Cursor;
 class Document;
 class HitTestLocation;
+class HitTestRequest;
 class HitTestResult;
 class InlineBox;
 class Path;
@@ -60,12 +59,14 @@ class RenderFlowThread;
 class RenderGeometryMap;
 class RenderLayer;
 class RenderLayerModelObject;
+class RenderNamedFlowFragment;
 class RenderNamedFlowThread;
 class RenderRegion;
 class RenderTheme;
 class SelectionSubtreeRoot;
 class TransformState;
 class VisiblePosition;
+
 #if PLATFORM(IOS)
 class SelectionRect;
 #endif
@@ -104,6 +105,8 @@ enum MarkingBehavior {
     MarkOnlyThis,
     MarkContainingBlockChain,
 };
+
+enum class ScheduleRelayout { No, Yes };
 
 enum MapCoordinatesMode {
     IsFixed             = 1 << 0,
@@ -566,8 +569,8 @@ public:
 
     RenderView& view() const { return *document().renderView(); };
 
-    // Returns true if this renderer is rooted, and optionally returns the hosting view (the root of the hierarchy).
-    bool isRooted(RenderView** = nullptr) const;
+    // Returns true if this renderer is rooted.
+    bool isRooted() const;
 
     Node* node() const { return isAnonymous() ? nullptr : &m_node; }
     Node* nonPseudoNode() const { return isPseudoElement() ? nullptr : node(); }
@@ -590,7 +593,7 @@ public:
 
     RenderBoxModelObject* offsetParent() const;
 
-    void markContainingBlocksForLayout(bool scheduleRelayout = true, RenderElement* newRoot = nullptr);
+    void markContainingBlocksForLayout(ScheduleRelayout = ScheduleRelayout::Yes, RenderElement* newRoot = nullptr);
     void setNeedsLayout(MarkingBehavior = MarkContainingBlockChain);
     void clearNeedsLayout();
     void setPreferredLogicalWidthsDirty(bool, MarkingBehavior = MarkContainingBlockChain);
@@ -761,7 +764,7 @@ public:
     bool isFloatingOrOutOfFlowPositioned() const { return (isFloating() || isOutOfFlowPositioned()); }
 
     // Applied as a "slop" to dirty rect checks during the outline painting phase's dirty-rect checks.
-    int maximalOutlineSize(PaintPhase) const;
+    void adjustRectWithMaximumOutline(PaintPhase, LayoutRect&) const;
 
     enum SelectionState {
         SelectionNone, // The object is not selected.
@@ -855,16 +858,12 @@ public:
 
     RespectImageOrientationEnum shouldRespectImageOrientation() const;
 
-    void drawLineForBoxSide(GraphicsContext*, float x1, float y1, float x2, float y2, BoxSide, Color, EBorderStyle, float adjbw1, float adjbw2, bool antialias = false) const;
 protected:
-    void paintFocusRing(PaintInfo&, const LayoutPoint&, RenderStyle*);
-    void paintOutline(PaintInfo&, const LayoutRect&);
     void addPDFURLRect(PaintInfo&, const LayoutPoint&);
     Node& nodeForNonAnonymous() const { ASSERT(!isAnonymous()); return m_node; }
 
     void adjustRectForOutlineAndShadow(LayoutRect&) const;
 
-    void clearLayoutRootIfNeeded() const;
     virtual void willBeDestroyed();
 
     virtual void insertedIntoTree();

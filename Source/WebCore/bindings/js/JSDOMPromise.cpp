@@ -26,9 +26,8 @@
 #include "config.h"
 #include "JSDOMPromise.h"
 
-#if ENABLE(PROMISES)
-
 #include "ExceptionCode.h"
+#include <runtime/Exception.h>
 
 using namespace JSC;
 
@@ -40,12 +39,11 @@ DeferredWrapper::DeferredWrapper(ExecState* exec, JSDOMGlobalObject* globalObjec
 {
 }
 
-JSObject* DeferredWrapper::promise() const
+JSDOMGlobalObject& DeferredWrapper::globalObject() const
 {
-    // FIXME: Remove this accessor once ReadableStreamReader custom binding does not need it.
-    ASSERT(m_deferred);
-    return m_deferred->promise();
-}
+    ASSERT(m_globalObject);
+    return *m_globalObject.get();
+} 
 
 void DeferredWrapper::callFunction(ExecState& exec, JSValue function, JSValue resolution)
 {
@@ -62,6 +60,15 @@ void DeferredWrapper::callFunction(ExecState& exec, JSValue function, JSValue re
     m_deferred.clear();
 }
 
+void rejectPromiseWithExceptionIfAny(JSC::ExecState& state, JSDOMGlobalObject& globalObject, JSPromiseDeferred& promiseDeferred)
+{
+    if (!state.hadException())
+        return;
+
+    JSValue error = state.exception()->value();
+    state.clearException();
+
+    DeferredWrapper(&state, &globalObject, &promiseDeferred).reject(error);
 }
 
-#endif // ENABLE(PROMISES)
+}

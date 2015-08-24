@@ -42,7 +42,6 @@
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
 #include "KeyboardEvent.h"
-#include "LocalizedStrings.h"
 #include "NodeRenderStyle.h"
 #include "Page.h"
 #include "PlatformKeyboardEvent.h"
@@ -206,15 +205,19 @@ void TextFieldInputType::forwardEvent(Event* event)
                 }
 
                 capsLockStateMayHaveChanged();
-            } else if (event->type() == eventNames().focusEvent) {
-                if (Frame* frame = element().document().frame())
-                    frame->editor().textFieldDidBeginEditing(&element());
+            } else if (event->type() == eventNames().focusEvent)
                 capsLockStateMayHaveChanged();
-            }
 
             element().forwardEvent(event);
         }
     }
+}
+
+void TextFieldInputType::handleFocusEvent(Node* oldFocusedNode, FocusDirection)
+{
+    ASSERT_UNUSED(oldFocusedNode, oldFocusedNode != &element());
+    if (Frame* frame = element().document().frame())
+        frame->editor().textFieldDidBeginEditing(&element());
 }
 
 void TextFieldInputType::handleBlurEvent()
@@ -459,7 +462,7 @@ void TextFieldInputType::updatePlaceholderText()
     if (placeholderText.isEmpty()) {
         if (m_placeholder) {
             m_placeholder->parentNode()->removeChild(m_placeholder.get(), ASSERT_NO_EXCEPTION);
-            m_placeholder.clear();
+            m_placeholder = nullptr;
         }
         return;
     }
@@ -609,8 +612,6 @@ void TextFieldInputType::createAutoFillButton()
 
     m_autoFillButton = AutoFillButtonElement::create(element().document(), *this);
     m_autoFillButton->setPseudo(AtomicString("-webkit-auto-fill-button", AtomicString::ConstructFromLiteral));
-    m_autoFillButton->setAttribute(aria_labelAttr, AtomicString(AXAutoFillButtonText()));
-    m_autoFillButton->setAttribute(roleAttr, AtomicString("button", AtomicString::ConstructFromLiteral));
     m_container->appendChild(m_autoFillButton, IGNORE_EXCEPTION);
 }
 

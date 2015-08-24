@@ -179,10 +179,6 @@ NSDictionary* Editor::fontAttributesForSelectionStart() const
         [result setObject:s.get() forKey:NSShadowAttributeName];
     }
 
-    int decoration = style->textDecorationsInEffect();
-    if (decoration & TextDecorationLineThrough)
-        [result setObject:[NSNumber numberWithInt:NSUnderlineStyleSingle] forKey:NSStrikethroughStyleAttributeName];
-
     int superscriptInt = 0;
     switch (style->verticalAlign()) {
         case BASELINE:
@@ -204,8 +200,7 @@ NSDictionary* Editor::fontAttributesForSelectionStart() const
     if (superscriptInt)
         [result setObject:[NSNumber numberWithInt:superscriptInt] forKey:NSSuperscriptAttributeName];
 
-    if (decoration & TextDecorationUnderline)
-        [result setObject:[NSNumber numberWithInt:NSUnderlineStyleSingle] forKey:NSUnderlineStyleAttributeName];
+    getTextDecorationAttributesRespectingTypingStyle(*style, result);
 
     if (nodeToRemove)
         nodeToRemove->remove(ASSERT_NO_EXCEPTION);
@@ -693,11 +688,12 @@ void Editor::replaceSelectionWithAttributedString(NSAttributedString *attributed
 
 void Editor::applyFontStyles(const String& fontFamily, double fontSize, unsigned fontTraits)
 {
+    auto& cssValuePool = CSSValuePool::singleton();
     Ref<MutableStyleProperties> style = MutableStyleProperties::create();
-    style->setProperty(CSSPropertyFontFamily, cssValuePool().createFontFamilyValue(fontFamily));
+    style->setProperty(CSSPropertyFontFamily, cssValuePool.createFontFamilyValue(fontFamily));
     style->setProperty(CSSPropertyFontStyle, (fontTraits & NSFontItalicTrait) ? CSSValueItalic : CSSValueNormal);
-    style->setProperty(CSSPropertyFontWeight, cssValuePool().createValue(fontTraits & NSFontBoldTrait ? FontWeightBold : FontWeightNormal));
-    style->setProperty(CSSPropertyFontSize, cssValuePool().createValue(fontSize, CSSPrimitiveValue::CSS_PX));
+    style->setProperty(CSSPropertyFontWeight, cssValuePool.createValue(fontTraits & NSFontBoldTrait ? FontWeightBold : FontWeightNormal));
+    style->setProperty(CSSPropertyFontSize, cssValuePool.createValue(fontSize, CSSPrimitiveValue::CSS_PX));
     applyStyleToSelection(style.ptr(), EditActionSetFont);
 }
 

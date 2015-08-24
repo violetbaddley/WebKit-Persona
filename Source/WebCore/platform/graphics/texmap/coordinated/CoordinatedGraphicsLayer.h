@@ -62,6 +62,8 @@ public:
     explicit CoordinatedGraphicsLayer(Type, GraphicsLayerClient&);
     virtual ~CoordinatedGraphicsLayer();
 
+    PlatformLayerID primaryLayerID() const override { return id(); }
+
     // Reimplementations from GraphicsLayer.h.
     virtual bool setChildren(const Vector<GraphicsLayer*>&) override;
     virtual void addChild(GraphicsLayer*) override;
@@ -97,8 +99,8 @@ public:
     virtual void setNeedsDisplayInRect(const FloatRect&, ShouldClipToLayer = ClipToLayer) override;
     virtual void setContentsNeedsDisplay() override;
     virtual void deviceOrPageScaleFactorChanged() override;
-    virtual void flushCompositingState(const FloatRect&) override;
-    virtual void flushCompositingStateForThisLayerOnly() override;
+    virtual void flushCompositingState(const FloatRect&, bool) override;
+    virtual void flushCompositingStateForThisLayerOnly(bool) override;
     virtual bool setFilters(const FilterOperations&) override;
     virtual bool addAnimation(const KeyframeValueList&, const FloatSize&, const Animation*, const String&, double) override;
     virtual void pauseAnimation(const String&, double) override;
@@ -119,7 +121,7 @@ public:
     bool isScrollable() const { return !!m_scrollableArea; }
     void commitScrollOffset(const IntSize&);
 
-    CoordinatedLayerID id() const;
+    CoordinatedLayerID id() const { return m_id; }
 
     void setFixedToViewport(bool isFixed);
 

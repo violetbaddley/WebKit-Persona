@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <Filter Include="DerivedSources">
@@ -483,12 +483,6 @@
     <ClCompile Include="..\Modules\webdatabase\DatabaseAuthorizer.cpp">
       <Filter>Modules\webdatabase</Filter>
     </ClCompile>
-    <ClCompile Include="..\Modules\webdatabase\DatabaseBackend.cpp">
-      <Filter>Modules\webdatabase</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Modules\webdatabase\DatabaseBackendBase.cpp">
-      <Filter>Modules\webdatabase</Filter>
-    </ClCompile>
     <ClCompile Include="..\Modules\webdatabase\DatabaseContext.cpp">
       <Filter>Modules\webdatabase</Filter>
     </ClCompile>
@@ -523,9 +517,6 @@
       <Filter>Modules\webdatabase</Filter>
     </ClCompile>
     <ClCompile Include="..\Modules\webdatabase\SQLStatement.cpp">
-      <Filter>Modules\webdatabase</Filter>
-    </ClCompile>
-    <ClCompile Include="..\Modules\webdatabase\SQLStatementBackend.cpp">
       <Filter>Modules\webdatabase</Filter>
     </ClCompile>
     <ClCompile Include="..\Modules\webdatabase\SQLTransaction.cpp">
@@ -667,6 +658,12 @@
       <Filter>accessibility</Filter>
     </ClCompile>
     <ClCompile Include="..\accessibility\AccessibilityTableRow.cpp">
+      <Filter>accessibility</Filter>
+    </ClCompile>
+    <ClCompile Include="..\accessibility\AccessibilityTree.cpp">
+      <Filter>accessibility</Filter>
+    </ClCompile>
+    <ClCompile Include="..\accessibility\AccessibilityTreeItem.cpp">
       <Filter>accessibility</Filter>
     </ClCompile>
     <ClCompile Include="..\accessibility\AXObjectCache.cpp">
@@ -816,7 +813,7 @@
     <ClCompile Include="..\fileapi\WebKitBlobBuilder.cpp">
       <Filter>page</Filter>
     </ClCompile>
-    <ClCompile Include="..\page\WheelEventDeltaTracker.cpp">
+    <ClCompile Include="..\page\WheelEventDeltaFilter.cpp">
       <Filter>page</Filter>
     </ClCompile>
     <ClCompile Include="..\page\WheelEventTestTrigger.cpp">
@@ -1377,6 +1374,9 @@
     <ClCompile Include="..\platform\graphics\MediaPlayer.cpp">
       <Filter>platform\graphics</Filter>
     </ClCompile>
+    <ClCompile Include="..\platform\graphics\NamedImageGeneratedImage.cpp">
+      <Filter>platform\graphics</Filter>
+    </ClCompile>
     <ClCompile Include="..\platform\graphics\Path.cpp">
       <Filter>platform\graphics</Filter>
     </ClCompile>
@@ -1720,9 +1720,6 @@
       <Filter>platform\graphics\ca\win</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\graphics\ca\win\LayerChangesFlusher.cpp">
-      <Filter>platform\graphics\ca\win</Filter>
-    </ClCompile>
-    <ClCompile Include="..\platform\graphics\ca\win\LegacyCACFLayerTreeHost.cpp">
       <Filter>platform\graphics\ca\win</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\graphics\ca\win\PlatformCAAnimationWin.cpp">
@@ -2148,6 +2145,9 @@
     <ClCompile Include="..\css\CSSMediaRule.cpp">
       <Filter>css</Filter>
     </ClCompile>
+    <ClCompile Include="..\css\CSSNamedImageValue.cpp">
+      <Filter>css</Filter>
+    </ClCompile>
     <ClCompile Include="..\css\CSSOMUtils.cpp">
       <Filter>css</Filter>
     </ClCompile>
@@ -2221,9 +2221,6 @@
       <Filter>css</Filter>
     </ClCompile>
     <ClCompile Include="..\css\LengthFunctions.cpp">
-      <Filter>css</Filter>
-    </ClCompile>
-    <ClCompile Include="..\css\MediaAllInOne.cpp">
       <Filter>css</Filter>
     </ClCompile>
     <ClCompile Include="..\css\MediaFeatureNames.cpp">
@@ -2826,6 +2823,9 @@
     <ClCompile Include="..\rendering\style\StyleVisualData.cpp">
       <Filter>rendering\style</Filter>
     </ClCompile>
+    <ClCompile Include="..\rendering\style\WillChangeData.cpp">
+      <Filter>rendering\style</Filter>
+    </ClCompile>
     <ClCompile Include="..\rendering\style\SVGRenderStyle.cpp">
       <Filter>rendering\style</Filter>
     </ClCompile>
@@ -3333,7 +3333,7 @@
     <ClCompile Include="..\dom\StyledElement.cpp">
       <Filter>dom</Filter>
     </ClCompile>
-    <ClCompile Include="..\dom\TagNodeList.cpp">
+    <ClCompile Include="..\dom\TagCollection.cpp">
       <Filter>dom</Filter>
     </ClCompile>
     <ClCompile Include="..\dom\Text.cpp">
@@ -4254,6 +4254,9 @@
     <ClCompile Include="..\bindings\js\JSCommandLineAPIHostCustom.cpp">
       <Filter>bindings\js</Filter>
     </ClCompile>
+    <ClCompile Include="..\bindings\js\JSCountQueuingStrategyCustom.cpp">
+      <Filter>bindings\js</Filter>
+    </ClCompile>
     <ClCompile Include="..\bindings\js\JSCSSRuleCustom.cpp">
       <Filter>bindings\js</Filter>
     </ClCompile>
@@ -4303,6 +4306,9 @@
       <Filter>bindings\js</Filter>
     </ClCompile>
     <ClCompile Include="..\bindings\js\JSDOMMimeTypeArrayCustom.cpp">
+      <Filter>bindings\js</Filter>
+    </ClCompile>
+    <ClCompile Include="..\bindings\js\JSDOMNamedFlowCollectionCustom.cpp">
       <Filter>bindings\js</Filter>
     </ClCompile>
     <ClCompile Include="..\bindings\js\JSDOMPluginArrayCustom.cpp">
@@ -4525,9 +4531,6 @@
       <Filter>plugins</Filter>
     </ClCompile>
     <ClCompile Include="..\plugins\PluginData.cpp">
-      <Filter>plugins</Filter>
-    </ClCompile>
-    <ClCompile Include="..\plugins\PluginMainThreadScheduler.cpp">
       <Filter>plugins</Filter>
     </ClCompile>
     <ClCompile Include="..\svg\animation\SMILTime.cpp">
@@ -5131,6 +5134,9 @@
     <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSCounter.cpp">
       <Filter>DerivedSources</Filter>
     </ClCompile>
+    <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSCountQueuingStrategy.cpp">
+      <Filter>DerivedSources</Filter>
+    </ClCompile>
     <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSCrypto.cpp">
       <Filter>DerivedSources</Filter>
     </ClCompile>
@@ -5717,6 +5723,9 @@
       <Filter>DerivedSources</Filter>
     </ClCompile>
     <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSScreen.cpp">
+      <Filter>DerivedSources</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSSecurityPolicyViolationEvent.cpp">
       <Filter>DerivedSources</Filter>
     </ClCompile>
     <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSSQLError.cpp">
@@ -6529,17 +6538,11 @@
     <ClCompile Include="..\platform\graphics\GraphicsContext3D.cpp">
       <Filter>platform\graphics</Filter>
     </ClCompile>
-    <ClCompile Include="..\platform\graphics\OpenGLShims.cpp">
-      <Filter>platform\graphics</Filter>
-    </ClCompile>
     <ClCompile Include="..\platform\graphics\gpu\Texture.cpp">
       <Filter>platform\graphics\gpu</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\graphics\gpu\TilingData.cpp">
       <Filter>platform\graphics\gpu</Filter>
-    </ClCompile>
-    <ClCompile Include="..\platform\graphics\opengl\Extensions3DOpenGL.cpp">
-      <Filter>platform\graphics\opengl</Filter>
     </ClCompile>
     <ClCompile Include="..\platform\graphics\opengl\Extensions3DOpenGLCommon.cpp">
       <Filter>platform\graphics\opengl</Filter>
@@ -7108,15 +7111,6 @@
     <ClCompile Include="..\editing\win\EditorWin.cpp">
       <Filter>editing</Filter>
     </ClCompile>
-    <ClCompile Include="..\platform\graphics\MaskImageOperation.cpp">
-      <Filter>platform\graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="..\rendering\RenderLayerMaskImageInfo.cpp">
-      <Filter>rendering</Filter>
-    </ClCompile>
-    <ClCompile Include="..\css\WebKitCSSResourceValue.cpp">
-      <Filter>css</Filter>
-    </ClCompile>
     <ClCompile Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\WebCore\DerivedSources\JSEXTsRGB.cpp">
       <Filter>DerivedSources</Filter>
     </ClCompile>
@@ -7266,6 +7260,26 @@
     </ClCompile>
     <ClCompile Include="..\platform\graphics\PlatformDisplay.cpp">
       <Filter>platform\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\win\MemoryPressureHandlerWin.cpp">
+      <Filter>platform\win</Filter>
+    </ClCompile>
+    <ClCompile Include="..\dom\NodeOrString.cpp" />
+    <ClCompile Include="..\bindings\js\JSCharacterDataCustom.cpp" />
+    <ClCompile Include="..\bindings\js\JSDocumentFragmentCustom.cpp" />
+    <ClCompile Include="..\bindings\js\JSDocumentTypeCustom.cpp" />
+    <ClCompile Include="..\bindings\js\JSNodeOrString.cpp" />
+    <ClCompile Include="..\html\canvas\DOMPath.cpp">
+      <Filter>html\canvas</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\graphics\PathUtilities.cpp">
+      <Filter>platform\graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="..\platform\win\GDIUtilities.cpp">
+      <Filter>platform\graphics\win</Filter>
+    </ClCompile>
+    <ClCompile Include="..\page\DOMSecurityPolicy.cpp">
+      <Filter>page</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -7437,12 +7451,6 @@
     <ClInclude Include="..\Modules\webdatabase\DatabaseAuthorizer.h">
       <Filter>Modules\webdatabase</Filter>
     </ClInclude>
-    <ClInclude Include="..\Modules\webdatabase\DatabaseBackend.h">
-      <Filter>Modules\webdatabase</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Modules\webdatabase\DatabaseBackendBase.h">
-      <Filter>Modules\webdatabase</Filter>
-    </ClInclude>
     <ClInclude Include="..\Modules\webdatabase\DatabaseBasicTypes.h">
       <Filter>Modules\webdatabase</Filter>
     </ClInclude>
@@ -7492,9 +7500,6 @@
       <Filter>Modules\webdatabase</Filter>
     </ClInclude>
     <ClInclude Include="..\Modules\webdatabase\SQLStatement.h">
-      <Filter>Modules\webdatabase</Filter>
-    </ClInclude>
-    <ClInclude Include="..\Modules\webdatabase\SQLStatementBackend.h">
       <Filter>Modules\webdatabase</Filter>
     </ClInclude>
     <ClInclude Include="..\Modules\webdatabase\SQLStatementCallback.h">
@@ -7659,11 +7664,17 @@
     <ClInclude Include="..\accessibility\AccessibilityTableRow.h">
       <Filter>accessibility</Filter>
     </ClInclude>
+    <ClInclude Include="..\accessibility\AccessibilityTree.h">
+      <Filter>accessibility</Filter>
+    </ClInclude>
+    <ClInclude Include="..\accessibility\AccessibilityTreeItem.h">
+      <Filter>accessibility</Filter>
+    </ClInclude>
     <ClInclude Include="..\accessibility\AXObjectCache.h">
       <Filter>accessibility</Filter>
     </ClInclude>
     <ClInclude Include="..\accessibility\AXTextStateChangeIntent.h">
-        <Filter>accessibility</Filter>
+      <Filter>accessibility</Filter>
     </ClInclude>
     <ClInclude Include="..\accessibility\win\AccessibilityObjectWrapperWin.h">
       <Filter>accessibility\win</Filter>
@@ -7833,7 +7844,7 @@
     <ClInclude Include="..\page\WebKitPoint.h">
       <Filter>page</Filter>
     </ClInclude>
-    <ClInclude Include="..\page\WheelEventDeltaTracker.h">
+    <ClInclude Include="..\page\WheelEventDeltaFilter.h">
       <Filter>page</Filter>
     </ClInclude>
     <ClInclude Include="..\page\WheelEventTestTrigger.h">
@@ -8277,9 +8288,6 @@
     <ClInclude Include="..\platform\ScrollbarTheme.h">
       <Filter>platform</Filter>
     </ClInclude>
-    <ClInclude Include="..\platform\ScrollbarThemeClient.h">
-      <Filter>platform</Filter>
-    </ClInclude>
     <ClInclude Include="..\platform\ScrollbarThemeComposite.h">
       <Filter>platform</Filter>
     </ClInclude>
@@ -8502,6 +8510,9 @@
     <ClInclude Include="..\platform\graphics\MediaPlayer.h">
       <Filter>platform\graphics</Filter>
     </ClInclude>
+    <ClInclude Include="..\platform\graphics\NamedImageGeneratedImage.h">
+      <Filter>platform\graphics</Filter>
+    </ClInclude>
     <ClInclude Include="..\platform\graphics\NativeImagePtr.h">
       <Filter>platform\graphics</Filter>
     </ClInclude>
@@ -8716,9 +8727,6 @@
       <Filter>platform\graphics\ca\win</Filter>
     </ClInclude>
     <ClInclude Include="..\platform\graphics\ca\win\CACFLayerTreeHostClient.h">
-      <Filter>platform\graphics\ca\win</Filter>
-    </ClInclude>
-    <ClInclude Include="..\platform\graphics\ca\win\LegacyCACFLayerTreeHost.h">
       <Filter>platform\graphics\ca\win</Filter>
     </ClInclude>
     <ClInclude Include="..\platform\graphics\ca\win\PlatformCALayerWinInternal.h">
@@ -9124,6 +9132,9 @@
       <Filter>css</Filter>
     </ClInclude>
     <ClInclude Include="..\css\CSSMediaRule.h">
+      <Filter>css</Filter>
+    </ClInclude>
+    <ClInclude Include="..\css\CSSNamedImageValue.h">
       <Filter>css</Filter>
     </ClInclude>
     <ClInclude Include="..\css\CSSOMUtils.h">
@@ -9885,6 +9896,9 @@
     <ClInclude Include="..\rendering\style\StyleVisualData.h">
       <Filter>rendering\style</Filter>
     </ClInclude>
+    <ClInclude Include="..\rendering\style\WillChangeData.h">
+      <Filter>rendering\style</Filter>
+    </ClInclude>
     <ClInclude Include="..\rendering\style\SVGRenderStyle.h">
       <Filter>rendering\style</Filter>
     </ClInclude>
@@ -10446,7 +10460,7 @@
     <ClInclude Include="..\dom\StyledElement.h">
       <Filter>dom</Filter>
     </ClInclude>
-    <ClInclude Include="..\dom\TagNodeList.h">
+    <ClInclude Include="..\dom\TagCollection.h">
       <Filter>dom</Filter>
     </ClInclude>
     <ClInclude Include="..\dom\TemplateContentDocumentFragment.h">
@@ -11559,9 +11573,6 @@
     <ClInclude Include="..\plugins\PluginData.h">
       <Filter>plugins</Filter>
     </ClInclude>
-    <ClInclude Include="..\plugins\PluginMainThreadScheduler.h">
-      <Filter>plugins</Filter>
-    </ClInclude>
     <ClInclude Include="..\svg\animation\SMILTime.h">
       <Filter>svg\animation</Filter>
     </ClInclude>
@@ -12196,6 +12207,9 @@
     <ClInclude Include="..\ForwardingHeaders\runtime\SymbolTable.h">
       <Filter>ForwardingHeaders\runtime</Filter>
     </ClInclude>
+    <ClInclude Include="..\ForwardingHeaders\runtime\Watchdog.h">
+      <Filter>ForwardingHeaders\runtime</Filter>
+    </ClInclude>
     <ClInclude Include="..\ForwardingHeaders\runtime\WeakGCMap.h">
       <Filter>ForwardingHeaders\runtime</Filter>
     </ClInclude>
@@ -12516,6 +12530,9 @@
       <Filter>DerivedSources</Filter>
     </ClInclude>
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSCounter.h">
+      <Filter>DerivedSources</Filter>
+    </ClInclude>
+    <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSCountQueuingStrategy.h">
       <Filter>DerivedSources</Filter>
     </ClInclude>
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSCrypto.h">
@@ -13922,17 +13939,11 @@
     <ClInclude Include="..\platform\graphics\GraphicsContext3D.h">
       <Filter>platform\graphics</Filter>
     </ClInclude>
-    <ClInclude Include="..\platform\graphics\OpenGLShims.h">
-      <Filter>platform\graphics</Filter>
-    </ClInclude>
     <ClInclude Include="..\platform\graphics\gpu\Texture.h">
       <Filter>platform\graphics\gpu</Filter>
     </ClInclude>
     <ClInclude Include="..\platform\graphics\gpu\TilingData.h">
       <Filter>platform\graphics\gpu</Filter>
-    </ClInclude>
-    <ClInclude Include="..\platform\graphics\opengl\Extensions3DOpenGL.h">
-      <Filter>platform\graphics\opengl</Filter>
     </ClInclude>
     <ClInclude Include="..\platform\graphics\opengl\Extensions3DOpenGLCommon.h">
       <Filter>platform\graphics\opengl</Filter>
@@ -14303,9 +14314,6 @@
     <ClInclude Include="..\platform\network\soup\GUniquePtrSoup.h">
       <Filter>platform\network\soup</Filter>
     </ClInclude>
-    <ClInclude Include="..\platform\network\soup\ProxyResolverSoup.h">
-      <Filter>platform\network\soup</Filter>
-    </ClInclude>
     <ClInclude Include="..\platform\network\soup\ResourceError.h">
       <Filter>platform\network\soup</Filter>
     </ClInclude>
@@ -14554,15 +14562,6 @@
     </ClInclude>
     <ClInclude Include="..\platform\graphics\avfoundation\MediaTimeAVFoundation.h">
       <Filter>platform\graphics\avfoundation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\platform\graphics\MaskImageOperation.h">
-      <Filter>platform\graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="..\rendering\RenderLayerMaskImageInfo.h">
-      <Filter>rendering</Filter>
-    </ClInclude>
-    <ClInclude Include="..\css\WebKitCSSResourceValue.h">
-      <Filter>css</Filter>
     </ClInclude>
     <ClInclude Include="$(ConfigurationBuildDir)\obj$(PlatformArchitecture)\$(ProjectName)\DerivedSources\JSEXTsRGB.h">
       <Filter>DerivedSources</Filter>
@@ -15227,6 +15226,9 @@
     <ClInclude Include="..\platform\graphics\FontCascadeFonts.h">
       <Filter>platform\graphics</Filter>
     </ClInclude>
+    <ClInclude Include="..\Modules\streams\CountQueuingStrategy.h">
+      <Filter>Modules\streams</Filter>
+    </ClInclude>
     <ClInclude Include="..\Modules\streams\ReadableStream.h">
       <Filter>Modules\streams</Filter>
     </ClInclude>
@@ -15262,6 +15264,23 @@
     </ClInclude>
     <ClInclude Include="..\platform\graphics\win\PlatformDisplayWin.h">
       <Filter>platform\graphics\win</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\VNodeTracker.h">
+      <Filter>platform</Filter>
+    </ClInclude>
+    <ClInclude Include="..\dom\NodeOrString.h" />
+    <ClInclude Include="..\bindings\js\JSNodeOrString.h" />
+    <ClInclude Include="..\html\canvas\DOMPath.h">
+      <Filter>html\canvas</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\graphics\PathUtilities.h">
+      <Filter>platform\graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="..\platform\win\GDIUtilities.h">
+      <Filter>platform\graphics\win</Filter>
+    </ClInclude>
+    <ClInclude Include="..\page\DOMSecurityPolicy.h">
+      <Filter>page</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

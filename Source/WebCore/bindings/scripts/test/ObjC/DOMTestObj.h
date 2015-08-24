@@ -29,7 +29,6 @@
 @class DOMDictionary;
 @class DOMDocument;
 @class DOMNode;
-@class DOMPromise;
 @class DOMSVGDocument;
 @class DOMSVGPoint;
 @class DOMTestEnumType;
@@ -121,7 +120,6 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 @property int nullableLongSettableAttribute;
 @property int nullableStringValue;
 @property (readonly, copy) NSString *attribute;
-@property (readonly, strong) DOMPromise *testPromiseAttr;
 
 - (void)voidMethod;
 - (void)voidMethodWithArgs:(int)longArg strArg:(NSString *)strArg objArg:(DOMTestObj *)objArg;
@@ -173,5 +171,4 @@ WEBCORE_EXPORT @interface DOMTestObj : DOMObject
 - (void)variadicDoubleMethod:(double)head tail:(double)tail;
 - (void)variadicNodeMethod:(DOMNode *)head tail:(DOMNode *)tail;
 - (void)any:(float)a b:(int)b;
-- (DOMPromise *)testPromiseFunction;
 @end

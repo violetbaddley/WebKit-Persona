@@ -59,6 +59,7 @@ struct PluginInfo;
 namespace WebKit {
 
 class DownloadProxyMap;
+class NetworkProcessProxy;
 class WebBackForwardListItem;
 class WebPageGroup;
 class WebProcessPool;
@@ -83,7 +84,7 @@ public:
     WebProcessPool& processPool() { return m_processPool; }
 
     static WebPageProxy* webPage(uint64_t pageID);
-    Ref<WebPageProxy> createWebPage(PageClient&, const WebPageConfiguration&);
+    Ref<WebPageProxy> createWebPage(PageClient&, Ref<API::PageConfiguration>&&);
     void addExistingWebPage(WebPageProxy*, uint64_t pageID);
     void removeWebPage(uint64_t pageID);
 
@@ -149,6 +150,10 @@ public:
     void setIsHoldingLockedFiles(bool);
 
     ProcessThrottler& throttler() { return m_throttler; }
+
+#if ENABLE(NETWORK_PROCESS)
+    void reinstateNetworkProcessAssertionState(NetworkProcessProxy&);
+#endif
 
 private:
     explicit WebProcessProxy(WebProcessPool&);

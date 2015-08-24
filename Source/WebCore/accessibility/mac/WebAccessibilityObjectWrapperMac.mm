@@ -229,6 +229,10 @@ using namespace HTMLNames;
 #define NSAccessibilityExpandedTextValueAttribute @"AXExpandedTextValue"
 #endif
 
+#ifndef NSAccessibilityIsMultiSelectableAttribute
+#define NSAccessibilityIsMultiSelectableAttribute @"AXIsMultiSelectable"
+#endif
+
 #define NSAccessibilityDOMIdentifierAttribute @"AXDOMIdentifier"
 #define NSAccessibilityDOMClassListAttribute @"AXDOMClassList"
 
@@ -1918,7 +1922,7 @@ static const AccessibilityRoleMap& createAccessibilityRoleMap()
         { RulerMarkerRole, NSAccessibilityRulerMarkerRole },
         { LinkRole, NSAccessibilityLinkRole },
         { DisclosureTriangleRole, NSAccessibilityDisclosureTriangleRole },
-        { GridRole, NSAccessibilityGridRole },
+        { GridRole, NSAccessibilityTableRole },
         { WebCoreLinkRole, NSAccessibilityLinkRole },
         { ImageMapLinkRole, NSAccessibilityLinkRole },
         { ImageMapRole, @"AXImageMap" },
@@ -1928,6 +1932,7 @@ static const AccessibilityRoleMap& createAccessibilityRoleMap()
         { ListBoxRole, NSAccessibilityListRole },
         { ListBoxOptionRole, NSAccessibilityStaticTextRole },
         { CellRole, NSAccessibilityCellRole },
+        { GridCellRole, NSAccessibilityCellRole },
         { TableHeaderContainerRole, NSAccessibilityGroupRole },
         { ColumnHeaderRole, NSAccessibilityCellRole },
         { RowHeaderRole, NSAccessibilityCellRole },
@@ -2206,6 +2211,10 @@ static NSString* roleValueToNSString(AccessibilityRole value)
         return [[self attachmentView] accessibilityAttributeValue:NSAccessibilityRoleDescriptionAttribute];
 #pragma clang diagnostic pop
 
+    const AtomicString& overrideRoleDescription = m_object->roleDescription();
+    if (!overrideRoleDescription.isNull())
+        return overrideRoleDescription;
+    
     NSString* axRole = [self role];
     
     if ([axRole isEqualToString:NSAccessibilityGroupRole]) {
@@ -2573,7 +2582,7 @@ static NSString* roleValueToNSString(AccessibilityRole value)
         return [NSNumber numberWithBool: m_object->isEnabled()];
     
     if ([attributeName isEqualToString: NSAccessibilitySizeAttribute]) {
-        IntSize s = m_object->elementRect().pixelSnappedSize();
+        IntSize s = snappedIntRect(m_object->elementRect()).size();
         return [NSValue valueWithSize: NSMakeSize(s.width(), s.height())];
     }
     
@@ -3034,6 +3043,10 @@ static NSString* roleValueToNSString(AccessibilityRole value)
     if (m_object->isWebArea() && [attributeName isEqualToString:NSAccessibilityCaretBrowsingEnabledAttribute])
         return [NSNumber numberWithBool:m_object->caretBrowsingEnabled()];
     
+    // Multi-selectable
+    if ([attributeName isEqualToString:NSAccessibilityIsMultiSelectableAttribute])
+        return [NSNumber numberWithBool:m_object->isMultiSelectable()];
+    
     return nil;
 }
 
@@ -3092,7 +3105,8 @@ static NSString* roleValueToNSString(AccessibilityRole value)
     if ([attributeName isEqualToString: NSAccessibilitySelectedChildrenAttribute])
         return m_object->canSetSelectedChildrenAttribute();
     
-    if ([attributeName isEqualToString:NSAccessibilityDisclosingAttribute])
+    if ([attributeName isEqualToString:NSAccessibilityDisclosingAttribute]
+        || [attributeName isEqualToString:NSAccessibilityExpandedAttribute])
         return m_object->canSetExpandedAttribute();
     
     if ([attributeName isEqualToString:NSAccessibilitySelectedRowsAttribute])
@@ -3419,7 +3433,7 @@ static NSString* roleValueToNSString(AccessibilityRole value)
         } else if ([attributeName isEqualToString: NSAccessibilityVisibleCharacterRangeAttribute]) {
             m_object->makeRangeVisible(PlainTextRange(range.location, range.length));
         }
-    } else if ([attributeName isEqualToString:NSAccessibilityDisclosingAttribute])
+    } else if ([attributeName isEqualToString:NSAccessibilityDisclosingAttribute] || [attributeName isEqualToString:NSAccessibilityExpandedAttribute])
         m_object->setIsExpanded([number boolValue]);
     else if ([attributeName isEqualToString:NSAccessibilitySelectedRowsAttribute]) {
         AccessibilityObject::AccessibilityChildrenVector selectedRows;
@@ -4042,8 +4056,9 @@ static void formatForDebugger(const VisiblePositionRange& range, char* buffer, u
             
             NSUInteger arrayLength = std::min(childCount - index, maxCount);
             return [children subarrayWithRange:NSMakeRange(index, arrayLength)];
-        } else if (m_object->isTree()) {
-            // Tree objects return their rows as their children. We can use the original method in this case.
+        } else if (m_object->isTree() || m_object->isTreeItem()) {
+            // Tree objects return their rows as their children & tree items return their contents sans rows.
+            // We can use the original method in this case.
             return [super accessibilityArrayAttributeValues:attribute index:index maxCount:maxCount];
         }
         

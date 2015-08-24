@@ -20,30 +20,32 @@ find_path(PDFKIT_INCLUDE_DIRECTORY PDFKit.h HINTS ${PDFKIT_FRAMEWORK}/Versions/*
 
 if ("${CURRENT_OSX_VERSION}" MATCHES "10.9")
 set(WEBKITSYSTEMINTERFACE_LIBRARY libWebKitSystemInterfaceMavericks.a)
-else ()
+elif ("${CURRENT_OSX_VERSION}" MATCHES "10.10")
 set(WEBKITSYSTEMINTERFACE_LIBRARY libWebKitSystemInterfaceYosemite.a)
+else ()
+set(WEBKITSYSTEMINTERFACE_LIBRARY libWebKitSystemInterfaceElCapitan.a)
 endif ()
 link_directories(../../WebKitLibraries)
 
 list(APPEND WebKit_LIBRARIES
-    ${ACCELERATE_LIBRARY}
-    ${AUDIOTOOLBOX_LIBRARY}
-    ${AUDIOUNIT_LIBRARY}
-    ${CARBON_LIBRARY}
-    ${COCOA_LIBRARY}
-    ${COREAUDIO_LIBRARY}
-    ${DISKARBITRATION_LIBRARY}
-    ${IOKIT_LIBRARY}
-    ${IOSURFACE_LIBRARY}
-    ${OPENGL_LIBRARY}
-    ${PDFKIT_FRAMEWORK}/PDFKit
-    ${QUARTZ_LIBRARY}
-    ${QUARTZCORE_LIBRARY}
-    ${SECURITY_LIBRARY}
-    ${SQLITE3_LIBRARY}
-    ${WEBKITSYSTEMINTERFACE_LIBRARY}
-    ${XML2_LIBRARY}
-    ${ZLIB_LIBRARIES}
+    PRIVATE ${ACCELERATE_LIBRARY}
+    PRIVATE ${AUDIOTOOLBOX_LIBRARY}
+    PRIVATE ${AUDIOUNIT_LIBRARY}
+    PRIVATE ${CARBON_LIBRARY}
+    PRIVATE ${COCOA_LIBRARY}
+    PRIVATE ${COREAUDIO_LIBRARY}
+    PRIVATE ${DISKARBITRATION_LIBRARY}
+    PRIVATE ${IOKIT_LIBRARY}
+    PRIVATE ${IOSURFACE_LIBRARY}
+    PRIVATE ${OPENGL_LIBRARY}
+    PRIVATE ${PDFKIT_FRAMEWORK}/PDFKit
+    PRIVATE ${QUARTZ_LIBRARY}
+    PRIVATE ${QUARTZCORE_LIBRARY}
+    PRIVATE ${SECURITY_LIBRARY}
+    PRIVATE ${SQLITE3_LIBRARY}
+    PRIVATE ${WEBKITSYSTEMINTERFACE_LIBRARY}
+    PRIVATE ${XML2_LIBRARY}
+    PRIVATE ${ZLIB_LIBRARIES}
 )
 
 list(APPEND WebKit_INCLUDE_DIRECTORIES
@@ -136,11 +138,9 @@ list(APPEND WebKit_SOURCES
     mac/Misc/WebKitLogging.m
     mac/Misc/WebKitNSStringExtras.mm
     mac/Misc/WebKitStatistics.m
-    mac/Misc/WebKitSystemBits.m
     mac/Misc/WebKitVersionChecks.m
     mac/Misc/WebLocalizableStrings.mm
     mac/Misc/WebLocalizableStringsInternal.mm
-    mac/Misc/WebNSArrayExtras.m
     mac/Misc/WebNSControlExtras.m
     mac/Misc/WebNSDataExtras.m
     mac/Misc/WebNSDictionaryExtras.m
@@ -177,7 +177,6 @@ list(APPEND WebKit_SOURCES
     mac/Plugins/WebPluginDatabase.mm
     mac/Plugins/WebPluginPackage.mm
     mac/Plugins/WebPluginRequest.m
-    mac/Plugins/WebPluginsPrivate.m
     mac/Plugins/npapi.mm
 
     mac/Plugins/Hosted/HostedNetscapePluginStream.mm
@@ -226,7 +225,6 @@ list(APPEND WebKit_SOURCES
     mac/WebCoreSupport/WebSecurityOrigin.mm
     mac/WebCoreSupport/WebSystemInterface.mm
     mac/WebCoreSupport/WebUserMediaClient.mm
-    mac/WebCoreSupport/WebViewGroup.mm
 
     mac/WebInspector/WebInspector.mm
     mac/WebInspector/WebInspectorFrontend.mm

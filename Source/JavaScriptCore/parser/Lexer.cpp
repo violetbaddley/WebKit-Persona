@@ -44,10 +44,9 @@
 
 namespace JSC {
 
-Keywords::Keywords(VM& vm)
-    : m_vm(vm)
-    , m_keywordTable(JSC::mainTable)
+bool isLexerKeyword(const Identifier& identifier)
 {
+    return JSC::mainTable.entry(identifier);
 }
 
 enum CharacterType {
@@ -494,7 +493,7 @@ static const LChar singleCharacterEscapeValuesForASCII[128] = {
 
 template <typename T>
 Lexer<T>::Lexer(VM* vm, JSParserBuiltinMode builtinMode)
-    : m_isReparsing(false)
+    : m_isReparsingFunction(false)
     , m_vm(vm)
     , m_parsingBuiltinFunction(builtinMode == JSParserBuiltinMode::Builtin)
 {
@@ -935,7 +934,7 @@ template <bool shouldCreateIdentifier> ALWAYS_INLINE JSTokenType Lexer<LChar>::p
                 return ERRORTOK;
             }
             if (isPrivateName)
-                ident = m_vm->propertyNames->getPrivateName(*ident);
+                ident = m_vm->propertyNames->lookUpPrivateName(*ident);
             else if (*ident == m_vm->propertyNames->undefinedKeyword)
                 tokenData->ident = &m_vm->propertyNames->undefinedPrivateName;
             if (!ident)
@@ -948,7 +947,7 @@ template <bool shouldCreateIdentifier> ALWAYS_INLINE JSTokenType Lexer<LChar>::p
     if (UNLIKELY((remaining < maxTokenLength) && !(lexerFlags & LexerFlagsIgnoreReservedWords)) && !isPrivateName) {
         ASSERT(shouldCreateIdentifier);
         if (remaining < maxTokenLength) {
-            const HashTableValue* entry = m_vm->keywords->getKeyword(*ident);
+            const HashTableValue* entry = JSC::mainTable.entry(*ident);
             ASSERT((remaining < maxTokenLength) || !entry);
             if (!entry)
                 return IDENT;
@@ -1012,7 +1011,7 @@ template <bool shouldCreateIdentifier> ALWAYS_INLINE JSTokenType Lexer<UChar>::p
                 return ERRORTOK;
             }
             if (isPrivateName)
-                ident = m_vm->propertyNames->getPrivateName(*ident);
+                ident = m_vm->propertyNames->lookUpPrivateName(*ident);
             else if (*ident == m_vm->propertyNames->undefinedKeyword)
                 tokenData->ident = &m_vm->propertyNames->undefinedPrivateName;
             if (!ident)
@@ -1025,7 +1024,7 @@ template <bool shouldCreateIdentifier> ALWAYS_INLINE JSTokenType Lexer<UChar>::p
     if (UNLIKELY((remaining < maxTokenLength) && !(lexerFlags & LexerFlagsIgnoreReservedWords)) && !isPrivateName) {
         ASSERT(shouldCreateIdentifier);
         if (remaining < maxTokenLength) {
-            const HashTableValue* entry = m_vm->keywords->getKeyword(*ident);
+            const HashTableValue* entry = JSC::mainTable.entry(*ident);
             ASSERT((remaining < maxTokenLength) || !entry);
             if (!entry)
                 return IDENT;
@@ -1089,7 +1088,7 @@ template<typename CharacterType> template<bool shouldCreateIdentifier> JSTokenTy
 
     if (LIKELY(!(lexerFlags & LexerFlagsIgnoreReservedWords))) {
         ASSERT(shouldCreateIdentifier);
-        const HashTableValue* entry = m_vm->keywords->getKeyword(*ident);
+        const HashTableValue* entry = JSC::mainTable.entry(*ident);
         if (!entry)
             return IDENT;
         JSTokenType token = static_cast<JSTokenType>(entry->lexerValue());
@@ -1716,10 +1715,22 @@ bool Lexer<T>::nextTokenIsColon()
 }
 
 template <typename T>
+void Lexer<T>::setTokenPosition(JSToken* tokenRecord)
+{
+    JSTokenData* tokenData = &tokenRecord->m_data;
+    tokenData->line = lineNumber();
+    tokenData->offset = currentOffset();
+    tokenData->lineStartOffset = currentLineStartOffset();
+    ASSERT(tokenData->offset >= tokenData->lineStartOffset);
+}
+
+template <typename T>
 JSTokenType Lexer<T>::lex(JSToken* tokenRecord, unsigned lexerFlags, bool strictMode)
 {
     JSTokenData* tokenData = &tokenRecord->m_data;
     JSTokenLocation* tokenLocation = &tokenRecord->m_location;
+    m_lastTockenLocation = JSTokenLocation(tokenRecord->m_location);
+    
     ASSERT(!m_error);
     ASSERT(m_buffer8.isEmpty());
     ASSERT(m_buffer16.isEmpty());
@@ -1778,7 +1789,19 @@ start:
         }
         token = GT;
         break;
-    case CharacterEqual:
+    case CharacterEqual: {
+#if ENABLE(ES6_ARROWFUNCTION_SYNTAX)
+        if (peek(1) == '>') {
+            token = ARROWFUNCTION;
+            tokenData->line = lineNumber();
+            tokenData->offset = currentOffset();
+            tokenData->lineStartOffset = currentLineStartOffset();
+            ASSERT(tokenData->offset >= tokenData->lineStartOffset);
+            shift();
+            shift();
+            break;
+        }
+#endif
         shift();
         if (m_current == '=') {
             shift();
@@ -1792,6 +1815,7 @@ start:
         }
         token = EQUAL;
         break;
+    }
     case CharacterLess:
         shift();
         if (m_current == '!' && peek(1) == '-' && peek(2) == '-') {
@@ -2103,9 +2127,8 @@ inNumberAfterDecimalPoint:
                 token = tokenTypeForIntegerLikeToken(tokenData->doubleValue);
         }
 
-        // No identifiers allowed directly after numeric literal, e.g. "3in" is bad.
         if (UNLIKELY(isIdentStart(m_current))) {
-            m_lexErrorMessage = ASCIILiteral("At least one digit must occur after a decimal point");
+            m_lexErrorMessage = ASCIILiteral("No identifiers allowed directly after numeric literal");
             token = atEnd() ? UNTERMINATED_NUMERIC_LITERAL_ERRORTOK : INVALID_NUMERIC_LITERAL_ERRORTOK;
             goto returnError;
         }
@@ -2384,7 +2407,7 @@ void Lexer<T>::clear()
     Vector<UChar> newBufferForRawTemplateString16;
     m_bufferForRawTemplateString16.swap(newBufferForRawTemplateString16);
 
-    m_isReparsing = false;
+    m_isReparsingFunction = false;
 }
 
 // Instantiate the two flavors of Lexer we need instead of putting most of this file in Lexer.h

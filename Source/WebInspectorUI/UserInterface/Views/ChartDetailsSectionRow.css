@@ -24,7 +24,7 @@
  */
 
 .details-section > .content > .group > .row.chart > .title {
-    color: rgb(57, 57, 57);
+    color: hsl(0, 0%, 22%);
 
     white-space: nowrap;
     overflow: hidden;
@@ -52,18 +52,14 @@
     height: 16px;
 }
 
-.details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > .label > .color-swatch {
+.details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > label > .color-key {
     display: inline-block;
-
-    width: 8px;
-    height: 8px;
-    margin-right: 6px;
-
-    border: solid 1px rgb(102, 102, 102);
+    border: solid 1px hsla(0, 0%, 0%, 0.15);
+    border-radius: 2px;
 }
 
-.details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > .label {
-    color: rgb(51, 51, 51);
+.details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > label {
+    color: hsl(0, 0%, 20%);
 }
 
 .details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > .value {
@@ -73,4 +69,22 @@
 .details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > * {
     display: table-cell;
     vertical-align: middle;
+}
+
+.details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > label > .color-key,
+.details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > label > input[type=checkbox] {
+    width: 10px;
+    height: 10px;
+    vertical-align: top;
+    margin: 0 8px 0 3px;
+}
+
+.details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > label > input[type=checkbox]:not(:checked),
+body.window-docked-inactive .details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > label > input[type=checkbox],
+body.window-inactive .details-section > .content > .group > .row.chart > .chart-content > .legend > .legend-item > label > input[type=checkbox] {
+    filter: none !important;
+}
+
+.details-section > .content > .group > .row.chart > .defs-only {
+    display: none;
 }

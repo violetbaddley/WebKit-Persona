@@ -40,6 +40,7 @@
 #include "JSLock.h"
 #include "LLIntData.h"
 #include "MacroAssemblerCodeRef.h"
+#include "Microtask.h"
 #include "NumericStrings.h"
 #include "PrivateName.h"
 #include "PrototypeMap.h"
@@ -49,12 +50,12 @@
 #include "ThunkGenerators.h"
 #include "TypedArrayController.h"
 #include "VMEntryRecord.h"
-#include "Watchdog.h"
 #include "Watchpoint.h"
 #include "WeakRandom.h"
 #include <wtf/Bag.h>
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/DateMath.h>
+#include <wtf/Deque.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
@@ -85,7 +86,6 @@ class Identifier;
 class Interpreter;
 class JSGlobalObject;
 class JSObject;
-class Keywords;
 class LLIntOffsetsExtractor;
 class LegacyProfiler;
 class NativeExecutable;
@@ -105,6 +105,7 @@ class UnlinkedFunctionExecutable;
 class UnlinkedProgramCodeBlock;
 class VirtualRegister;
 class VMEntryScope;
+class Watchdog;
 class Watchpoint;
 class WatchpointSet;
 
@@ -151,6 +152,23 @@ struct LocalTimeOffsetCache {
     double end;
     double increment;
     WTF::TimeType timeType;
+};
+
+class QueuedTask {
+    WTF_MAKE_NONCOPYABLE(QueuedTask);
+    WTF_MAKE_FAST_ALLOCATED;
+public:
+    void run();
+
+    QueuedTask(VM& vm, JSGlobalObject* globalObject, PassRefPtr<Microtask> microtask)
+        : m_globalObject(vm, globalObject)
+        , m_microtask(microtask)
+    {
+    }
+
+private:
+    Strong<JSGlobalObject> m_globalObject;
+    RefPtr<Microtask> m_microtask;
 };
 
 class ConservativeRoots;
@@ -218,6 +236,8 @@ public:
     static Ref<VM> createContextGroup(HeapType = SmallHeap);
     JS_EXPORT_PRIVATE ~VM();
 
+    Watchdog& ensureWatchdog();
+
 private:
     RefPtr<JSLock> m_apiLock;
 
@@ -240,7 +260,7 @@ public:
     ClientData* clientData;
     VMEntryFrame* topVMEntryFrame;
     ExecState* topCallFrame;
-    std::unique_ptr<Watchdog> watchdog;
+    RefPtr<Watchdog> watchdog;
 
     Strong<Structure> structureStructure;
     Strong<Structure> structureRareDataStructure;
@@ -275,10 +295,8 @@ public:
     Strong<Structure> inferredValueStructure;
     Strong<Structure> functionRareDataStructure;
     Strong<Structure> exceptionStructure;
-#if ENABLE(PROMISES)
     Strong<Structure> promiseDeferredStructure;
-    Strong<Structure> promiseReactionStructure;
-#endif
+    Strong<Structure> internalPromiseDeferredStructure;
     Strong<JSCell> iterationTerminator;
     Strong<JSCell> emptyPropertyNameEnumerator;
 
@@ -330,7 +348,6 @@ public:
 
     typedef HashMap<RefPtr<SourceProvider>, RefPtr<SourceProviderCache>> SourceProviderCacheMap;
     SourceProviderCacheMap sourceProviderCacheMap;
-    std::unique_ptr<Keywords> keywords;
     Interpreter* interpreter;
 #if ENABLE(JIT)
     std::unique_ptr<JITThunks> jitStubs;
@@ -458,6 +475,14 @@ public:
         return result;
     }
 
+    EncodedJSValue* exceptionFuzzingBuffer(size_t size)
+    {
+        ASSERT(Options::enableExceptionFuzz());
+        if (!m_exceptionFuzzBuffer)
+            m_exceptionFuzzBuffer = MallocPtr<EncodedJSValue>::malloc(size);
+        return m_exceptionFuzzBuffer.get();
+    }
+
     void gatherConservativeRoots(ConservativeRoots&);
 
     VMEntryScope* entryScope;
@@ -496,7 +521,6 @@ public:
     JS_EXPORT_PRIVATE void dumpRegExpTrace();
 
     bool isCollectorBusy() { return heap.isBusy(); }
-    JS_EXPORT_PRIVATE void releaseExecutableMemory();
 
 #if ENABLE(GC_VALIDATION)
     bool isInitializingObject() const; 
@@ -515,11 +539,12 @@ public:
     JSLock& apiLock() { return *m_apiLock; }
     CodeCache* codeCache() { return m_codeCache.get(); }
 
-    void prepareToDiscardCode();
-        
-    JS_EXPORT_PRIVATE void discardAllCode();
+    void whenIdle(std::function<void()>);
+
+    JS_EXPORT_PRIVATE void deleteAllCode();
 
     void registerWatchpointForImpureProperty(const Identifier&, Watchpoint*);
+    
     // FIXME: Use AtomicString once it got merged with Identifier.
     JS_EXPORT_PRIVATE void addImpureProperty(const String&);
 
@@ -536,6 +561,9 @@ public:
     ControlFlowProfiler* controlFlowProfiler() { return m_controlFlowProfiler.get(); }
     bool enableControlFlowProfiler();
     bool disableControlFlowProfiler();
+
+    JS_EXPORT_PRIVATE void queueMicrotask(JSGlobalObject*, PassRefPtr<Microtask>);
+    JS_EXPORT_PRIVATE void drainMicrotasks();
 
 private:
     friend class LLIntOffsetsExtractor;
@@ -591,6 +619,8 @@ private:
     FunctionHasExecutedCache m_functionHasExecutedCache;
     std::unique_ptr<ControlFlowProfiler> m_controlFlowProfiler;
     unsigned m_controlFlowProfilerEnabledCount;
+    Deque<std::unique_ptr<QueuedTask>> m_microtaskQueue;
+    MallocPtr<EncodedJSValue> m_exceptionFuzzBuffer;
 };
 
 #if ENABLE(GC_VALIDATION)

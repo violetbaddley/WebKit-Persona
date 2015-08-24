@@ -28,17 +28,13 @@
 
 #include "FloatRoundedRect.h"
 #include "GraphicsLayer.h"
-#include "PlatformCALayerClient.h"
 #include <QuartzCore/CABase.h>
 #include <wtf/CurrentTime.h>
-#include <wtf/HashMap.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/TypeCasts.h>
 #include <wtf/Vector.h>
-#include <wtf/text/StringHash.h>
-#include <wtf/text/WTFString.h>
 
 OBJC_CLASS AVPlayerLayer;
 
@@ -51,12 +47,13 @@ namespace WebCore {
 class LayerPool;
 class PlatformCALayer;
 class PlatformCAAnimation;
+class PlatformCALayerClient;
 
 typedef Vector<RefPtr<PlatformCALayer>> PlatformCALayerList;
 
 class WEBCORE_EXPORT PlatformCALayer : public RefCounted<PlatformCALayer> {
 #if PLATFORM(COCOA)
-    friend class PlatformCALayerMac;
+    friend class PlatformCALayerCocoa;
 #elif PLATFORM(WIN)
     friend class PlatformCALayerWin;
 #endif
@@ -93,7 +90,7 @@ public:
 
     GraphicsLayer::PlatformLayerID layerID() const { return m_layerID; }
 
-    virtual bool isPlatformCALayerMac() const { return false; }
+    virtual bool isPlatformCALayerCocoa() const { return false; }
     virtual bool isPlatformCALayerRemote() const { return false; }
     virtual bool isPlatformCALayerRemoteCustom() const { return false; }
 
@@ -243,7 +240,6 @@ public:
     void setBoundsOnMainThread(CGRect);
     void setPositionOnMainThread(CGPoint);
     void setAnchorPointOnMainThread(FloatPoint3D);
-    void setTileSize(const IntSize&);
 #endif
 
     virtual PassRefPtr<PlatformCALayer> createCompatibleLayer(LayerType, PlatformCALayerClient*) const = 0;

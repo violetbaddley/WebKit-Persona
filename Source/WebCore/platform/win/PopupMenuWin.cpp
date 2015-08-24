@@ -288,7 +288,7 @@ void PopupMenuWin::calculatePositionAndSize(const IntRect& r, FrameView* v)
     IntRect absoluteBounds = ((RenderMenuList*)m_popupClient)->absoluteBoundingBoxRect();
     IntRect absoluteScreenCoords(v->contentsToWindow(absoluteBounds.location()), absoluteBounds.size());
     POINT absoluteLocation(absoluteScreenCoords.location());
-    if (!::ClientToScreen(v->hostWindow()->platformPageClient(), &absoluteLocation))
+    if (!::ClientToScreen(hostWindow, &absoluteLocation))
         return;
     absoluteScreenCoords.setLocation(absoluteLocation);
 
@@ -314,10 +314,12 @@ void PopupMenuWin::calculatePositionAndSize(const IntRect& r, FrameView* v)
 
     // First, move to WebView coordinates
     IntRect rScreenCoords(v->contentsToWindow(r.location()), r.size());
+    if (Page* page = v->frame().page())
+        rScreenCoords.scale(page->deviceScaleFactor());
 
     // Then, translate to screen coordinates
     POINT location(rScreenCoords.location());
-    if (!::ClientToScreen(v->hostWindow()->platformPageClient(), &location))
+    if (!::ClientToScreen(hostWindow, &location))
         return;
 
     rScreenCoords.setLocation(location);
@@ -1282,9 +1284,10 @@ HRESULT AccessiblePopupMenu::accLocation(long* left, long* top, long* width, lon
         if (!m_popupMenu.scrollbar())
             return E_FAIL;
 
+        Scrollbar& scrollbar = *m_popupMenu.scrollbar();
         WebCore::ScrollbarPart part = static_cast<WebCore::ScrollbarPart>(-vChild.lVal);
 
-        ScrollbarThemeWin* theme = static_cast<ScrollbarThemeWin*>(m_popupMenu.scrollbar()->theme());
+        ScrollbarThemeWin* theme = static_cast<ScrollbarThemeWin*>(scrollbar.theme());
         if (!theme)
             return E_FAIL;
 
@@ -1293,17 +1296,17 @@ HRESULT AccessiblePopupMenu::accLocation(long* left, long* top, long* width, lon
         switch (part) {
         case BackTrackPart:
         case BackButtonStartPart:
-            partRect = theme->backButtonRect(m_popupMenu.scrollbar(), WebCore::BackTrackPart);
+            partRect = theme->backButtonRect(scrollbar, WebCore::BackTrackPart);
             break;
         case ThumbPart:
-            partRect = theme->thumbRect(m_popupMenu.scrollbar());
+            partRect = theme->thumbRect(scrollbar);
             break;
         case ForwardTrackPart:
         case ForwardButtonEndPart:
-            partRect = theme->forwardButtonRect(m_popupMenu.scrollbar(), WebCore::ForwardTrackPart);
+            partRect = theme->forwardButtonRect(scrollbar, WebCore::ForwardTrackPart);
             break;
         case ScrollbarBGPart:
-            partRect = theme->trackRect(m_popupMenu.scrollbar());
+            partRect = theme->trackRect(scrollbar);
             break;
         default:
             return E_FAIL;
@@ -1354,12 +1357,13 @@ HRESULT AccessiblePopupMenu::accHitTest(long x, long y, VARIANT* pvChildAtPoint)
         scrollRect = m_popupMenu.scrollbar()->frameRect();
 
     if (m_popupMenu.scrollbar() && scrollRect.contains(pt)) {
-        if (!m_popupMenu.scrollbar()->theme())
+        Scrollbar& scrollbar = *m_popupMenu.scrollbar();
+        if (!scrollbar.theme())
             return E_FAIL;
 
         pt.move(-scrollRect.x(), -scrollRect.y());
 
-        WebCore::ScrollbarPart part = m_popupMenu.scrollbar()->theme()->hitTest(m_popupMenu.scrollbar(), pt);
+        WebCore::ScrollbarPart part = scrollbar.theme()->hitTest(scrollbar, pt);
 
         V_VT(pvChildAtPoint) = VT_I4;
         V_I4(pvChildAtPoint) = -part; // Scrollbar parts are encoded as negative, to avoid mixup with item indexes.

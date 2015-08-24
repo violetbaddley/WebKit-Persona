@@ -433,6 +433,14 @@ Object.defineProperty(Array.prototype, "remove",
     }
 });
 
+Object.defineProperty(Array.prototype, "insertAtIndex",
+{
+    value: function(value, index)
+    {
+        this.splice(index, 0, value);
+    }
+});
+
 Object.defineProperty(Array.prototype, "keySet",
 {
     value: function()
@@ -588,7 +596,7 @@ Object.defineProperty(String.prototype, "hash",
 {
     get: function()
     {
-        // Matches the wtf/StringHasher.h (SuperFastHash) algorithm.
+        // Matches the wtf/Hasher.h (SuperFastHash) algorithm.
 
         // Arbitrary start value to avoid mapping all 0's to all 0's.
         const stringHashingStartValue = 0x9e3779b9;
@@ -745,6 +753,63 @@ Object.defineProperty(String.prototype, "removeWordBreakCharacters",
     {
         // Undoes what insertWordBreakCharacters did.
         return this.replace(/\u200b/g, "");
+    }
+});
+
+Object.defineProperty(String.prototype, "getMatchingIndexes",
+{
+    value: function(needle)
+    {
+        var indexesOfNeedle = [];
+        var index = this.indexOf(needle);
+
+        while (index >= 0) {
+            indexesOfNeedle.push(index);
+            index = this.indexOf(needle, index + 1);
+        }
+
+        return indexesOfNeedle;
+    }
+});
+
+Object.defineProperty(String.prototype, "levenshteinDistance",
+{
+    value: function(s)
+    {
+        var m = this.length;
+        var n = s.length;
+        var d = new Array(m + 1);
+
+        for (var i = 0; i <= m; ++i) {
+            d[i] = new Array(n + 1);
+            d[i][0] = i;
+        }
+
+        for (var j = 0; j <= n; ++j)
+            d[0][j] = j;
+
+        for (var j = 1; j <= n; ++j) {
+            for (var i = 1; i <= m; ++i) {
+                if (this[i - 1] === s[j - 1])
+                    d[i][j] = d[i - 1][j - 1];
+                else {
+                    var deletion = d[i - 1][j] + 1;
+                    var insertion = d[i][j - 1] + 1;
+                    var substitution = d[i - 1][j - 1] + 1;
+                    d[i][j] = Math.min(deletion, insertion, substitution);
+                }
+            }
+        }
+
+        return d[m][n];
+    }
+});
+
+Object.defineProperty(Math, "roundTo",
+{
+    value: function(num, step)
+    {
+        return Math.round(num / step) * step;
     }
 });
 
@@ -1007,6 +1072,11 @@ Object.defineProperty(Array.prototype, "binaryIndexOf",
     }
 });
 
+function appendWebInspectorSourceURL(string)
+{
+    return string + "\n//# sourceURL=__WebInspectorInternal__\n";
+}
+
 function isFunctionStringNativeCode(str)
 {
     return str.endsWith("{\n    [native code]\n}");
@@ -1015,11 +1085,6 @@ function isFunctionStringNativeCode(str)
 function doubleQuotedString(str)
 {
     return "\"" + str.replace(/"/g, "\\\"") + "\"";
-}
-
-function clamp(min, value, max)
-{
-    return Math.min(Math.max(min, value), max);
 }
 
 function insertionIndexForObjectInListSortedByFunction(object, list, comparator, insertionIndexAfter)

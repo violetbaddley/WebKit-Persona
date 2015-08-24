@@ -467,13 +467,19 @@ void RenderLayerCompositor::flushPendingLayerChanges(bool isFlushRoot)
 
     if (GraphicsLayer* rootLayer = rootGraphicsLayer()) {
 #if PLATFORM(IOS)
-        rootLayer->flushCompositingState(frameView.exposedContentRect());
+        FloatRect exposedRect = frameView.exposedContentRect();
+        LOG(Compositing, "RenderLayerCompositor %p flushPendingLayerChanges(%d) %.2f, %.2f, %.2fx%.2f (stable viewport %d)", this, isFlushRoot,
+            exposedRect.x(), exposedRect.y(), exposedRect.width(), exposedRect.height(), frameView.viewportIsStable());
+        rootLayer->flushCompositingState(exposedRect, frameView.viewportIsStable());
 #else
         // Having a m_clipLayer indicates that we're doing scrolling via GraphicsLayers.
         IntRect visibleRect = m_clipLayer ? IntRect(IntPoint(), frameView.unscaledVisibleContentSizeIncludingObscuredArea()) : frameView.visibleContentRect();
         if (!frameView.exposedRect().isInfinite())
             visibleRect.intersect(IntRect(frameView.exposedRect()));
-        rootLayer->flushCompositingState(visibleRect);
+
+        LOG(Compositing, "RenderLayerCompositor %p flushPendingLayerChanges(%d) %d, %d, %dx%d (stable viewport %d)", this, isFlushRoot,
+            visibleRect.x(), visibleRect.y(), visibleRect.width(), visibleRect.height(), frameView.viewportIsStable());
+        rootLayer->flushCompositingState(visibleRect, frameView.viewportIsStable());
 #endif
     }
     
@@ -1159,6 +1165,14 @@ RenderLayer* RenderLayerCompositor::enclosingNonStackingClippingLayer(const Rend
     return nullptr;
 }
 
+#if PLATFORM(IOS)
+// FIXME: Share with RenderView.
+static inline LayoutSize fixedPositionOffset(const FrameView& frameView)
+{
+    return frameView.useCustomFixedPositionLayoutRect() ? (frameView.customFixedPositionLayoutRect().location() - LayoutPoint()) : frameView.scrollOffset();
+}
+#endif
+
 void RenderLayerCompositor::computeExtent(const OverlapMap& overlapMap, const RenderLayer& layer, OverlapExtent& extent) const
 {
     if (extent.extentComputed)
@@ -1178,6 +1192,34 @@ void RenderLayerCompositor::computeExtent(const OverlapMap& overlapMap, const Re
     if (extent.bounds.isEmpty())
         extent.bounds.setSize(LayoutSize(1, 1));
 
+
+    RenderLayerModelObject& renderer = layer.renderer();
+    if (renderer.isOutOfFlowPositioned() && renderer.style().position() == FixedPosition && renderer.container() == &m_renderView) {
+        // Because fixed elements get moved around without re-computing overlap, we have to compute an overlap
+        // rect that covers all the locations that the fixed element could move to.
+        // FIXME: need to handle sticky too.
+        LayoutRect viewportRect;
+        if (m_renderView.frameView().useFixedLayout())
+            viewportRect = m_renderView.unscaledDocumentRect();
+        else
+            viewportRect = m_renderView.frameView().viewportConstrainedVisibleContentRect();
+
+#if PLATFORM(IOS)
+        LayoutSize scrollPosition = fixedPositionOffset(m_renderView.frameView());
+#else
+        LayoutSize scrollPosition = m_renderView.frameView().scrollOffsetForFixedPosition();
+#endif
+
+        LayoutPoint minimumScrollPosition = m_renderView.frameView().minimumScrollPosition();
+        LayoutPoint maximumScrollPosition = m_renderView.frameView().maximumScrollPosition();
+        
+        LayoutSize topLeftExpansion = scrollPosition - toLayoutSize(minimumScrollPosition);
+        LayoutSize bottomRightExpansion = toLayoutSize(maximumScrollPosition) - scrollPosition;
+
+        extent.bounds.setLocation(extent.bounds.location() - topLeftExpansion);
+        extent.bounds.setSize(extent.bounds.size() + topLeftExpansion + bottomRightExpansion);
+    }
+
     extent.extentComputed = true;
 }
 
@@ -1191,12 +1233,9 @@ void RenderLayerCompositor::addToOverlapMap(OverlapMap& overlapMap, const Render
     LayoutRect clipRect = layer.backgroundClipRect(RenderLayer::ClipRectsContext(&rootRenderLayer(), AbsoluteClipRects)).rect(); // FIXME: Incorrect for CSS regions.
 
     // On iOS, pageScaleFactor() is not applied by RenderView, so we should not scale here.
-    // FIXME: Set Settings::delegatesPageScaling to true for iOS.
-#if !PLATFORM(IOS)
     const Settings& settings = m_renderView.frameView().frame().settings();
     if (!settings.delegatesPageScaling())
         clipRect.scale(pageScaleFactor());
-#endif
     clipRect.intersect(extent.bounds);
     overlapMap.add(clipRect);
 }
@@ -2151,6 +2190,7 @@ bool RenderLayerCompositor::requiresCompositingLayer(const RenderLayer& layer, R
         || clipsCompositingDescendants(*renderer.layer())
         || requiresCompositingForAnimation(renderer)
         || requiresCompositingForFilters(renderer)
+        || requiresCompositingForWillChange(renderer)
         || requiresCompositingForPosition(renderer, *renderer.layer(), viewportConstrainedNotCompositedReason)
 #if PLATFORM(IOS)
         || requiresCompositingForScrolling(*renderer.layer())
@@ -2193,6 +2233,7 @@ bool RenderLayerCompositor::requiresOwnBackingStore(const RenderLayer& layer, co
         || requiresCompositingForBackfaceVisibility(renderer)
         || requiresCompositingForAnimation(renderer)
         || requiresCompositingForFilters(renderer)
+        || requiresCompositingForWillChange(renderer)
         || requiresCompositingForPosition(renderer, layer)
         || requiresCompositingForOverflowScrolling(layer)
         || renderer.isTransparent()
@@ -2253,6 +2294,9 @@ CompositingReasons RenderLayerCompositor::reasonsForCompositing(const RenderLaye
 
     if (requiresCompositingForFilters(renderer))
         reasons |= CompositingReasonFilters;
+
+    if (requiresCompositingForWillChange(renderer))
+        reasons |= CompositingReasonWillChange;
 
     if (requiresCompositingForPosition(renderer, *renderer.layer()))
         reasons |= renderer.style().position() == FixedPosition ? CompositingReasonPositionFixed : CompositingReasonPositionSticky;
@@ -2570,7 +2614,7 @@ bool RenderLayerCompositor::requiresCompositingForAnimation(RenderLayerModelObje
     AnimationController& animController = renderer.animation();
     return (animController.isRunningAnimationOnRenderer(renderer, CSSPropertyOpacity, activeAnimationState)
             && (inCompositingMode() || (m_compositingTriggers & ChromeClient::AnimatedOpacityTrigger)))
-            || animController.isRunningAnimationOnRenderer(renderer, CSSPropertyWebkitFilter, activeAnimationState)
+            || animController.isRunningAnimationOnRenderer(renderer, CSSPropertyFilter, activeAnimationState)
 #if ENABLE(FILTERS_LEVEL_2)
             || animController.isRunningAnimationOnRenderer(renderer, CSSPropertyWebkitBackdropFilter, activeAnimationState)
 #endif
@@ -2617,6 +2661,17 @@ bool RenderLayerCompositor::requiresCompositingForFilters(RenderLayerModelObject
         return false;
 
     return renderer.hasFilter();
+}
+
+bool RenderLayerCompositor::requiresCompositingForWillChange(RenderLayerModelObject& renderer) const
+{
+    if (!renderer.style().willChange() || !renderer.style().willChange()->canTriggerCompositing())
+        return false;
+
+    if (is<RenderBox>(renderer))
+        return true;
+
+    return renderer.style().willChange()->canTriggerCompositingOnInline();
 }
 
 bool RenderLayerCompositor::isAsyncScrollableStickyLayer(const RenderLayer& layer, const RenderLayer** enclosingAcceleratedOverflowLayer) const
@@ -2733,7 +2788,12 @@ bool RenderLayerCompositor::requiresCompositingForPosition(RenderLayerModelObjec
     }
 
     // Fixed position elements that are invisible in the current view don't get their own layer.
-    LayoutRect viewBounds = m_renderView.frameView().viewportConstrainedVisibleContentRect();
+    // FIXME: We shouldn't have to check useFixedLayout() here; one of the viewport rects needs to give the correct answer.
+    LayoutRect viewBounds;
+    if (m_renderView.frameView().useFixedLayout())
+        viewBounds = m_renderView.unscaledDocumentRect();
+    else
+        viewBounds = m_renderView.frameView().viewportConstrainedVisibleContentRect();
     LayoutRect layerBounds = layer.calculateLayerBounds(&layer, LayoutSize(), RenderLayer::UseLocalClipRectIfPossible | RenderLayer::IncludeLayerFilterOutsets | RenderLayer::UseFragmentBoxesExcludingCompositing
         | RenderLayer::ExcludeHiddenDescendants | RenderLayer::DontConstrainForMask | RenderLayer::IncludeCompositedDescendants);
     // Map to m_renderView to ignore page scale.
@@ -2796,7 +2856,7 @@ bool RenderLayerCompositor::requiresScrollLayer(RootLayerAttachment attachment) 
         || attachment == RootLayerAttachedViaEnclosingFrame; // a composited frame on Mac
 }
 
-static void paintScrollbar(Scrollbar* scrollbar, GraphicsContext& context, const IntRect& clip)
+void paintScrollbar(Scrollbar* scrollbar, GraphicsContext& context, const IntRect& clip)
 {
     if (!scrollbar)
         return;
@@ -2841,6 +2901,8 @@ bool RenderLayerCompositor::needsFixedRootBackgroundLayer(const RenderLayer& lay
 
     if (m_renderView.frameView().frame().settings().fixedBackgroundsPaintRelativeToDocument())
         return false;
+
+    LOG(Compositing, "RenderLayerCompositor %p needsFixedRootBackgroundLayer returning %d", this, supportsFixedRootBackgroundCompositing() && m_renderView.rootBackgroundIsEntirelyFixed());
 
     return supportsFixedRootBackgroundCompositing() && m_renderView.rootBackgroundIsEntirelyFixed();
 }
@@ -3192,11 +3254,13 @@ void RenderLayerCompositor::rootBackgroundTransparencyChanged()
     if (!inCompositingMode())
         return;
 
-    Color documentBackgroundColor = m_renderView.frameView().documentBackgroundColor();
-    Color lastDocumentBackgroundColor = m_lastDocumentBackgroundColor;
-    m_lastDocumentBackgroundColor = documentBackgroundColor;
-    if (lastDocumentBackgroundColor.isValid() && lastDocumentBackgroundColor.hasAlpha() == documentBackgroundColor.hasAlpha())
+    bool isTransparent = viewHasTransparentBackground();
+
+    LOG(Compositing, "RenderLayerCompositor %p rootBackgroundTransparencyChanged. isTransparent=%d, changed=%d", this, isTransparent, m_viewBackgroundIsTransparent == isTransparent);
+    if (m_viewBackgroundIsTransparent == isTransparent)
         return;
+
+    m_viewBackgroundIsTransparent = isTransparent;
 
     // FIXME: We should do something less expensive than a full layer rebuild.
     setCompositingLayersNeedRebuild();
@@ -3933,6 +3997,8 @@ void RenderLayerCompositor::updateScrollCoordinatedLayer(RenderLayer& layer, Lay
                 scrollingGeometry.horizontalSnapOffsets = *offsets;
             if (const Vector<LayoutUnit>* offsets = layer.verticalSnapOffsets())
                 scrollingGeometry.verticalSnapOffsets = *offsets;
+            scrollingGeometry.currentHorizontalSnapPointIndex = layer.currentHorizontalSnapPointIndex();
+            scrollingGeometry.currentVerticalSnapPointIndex = layer.currentVerticalSnapPointIndex();
 #endif
             scrollingCoordinator->updateOverflowScrollingNode(nodeID, backing->scrollingLayer(), backing->scrollingContentsLayer(), &scrollingGeometry);
         }

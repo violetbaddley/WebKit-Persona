@@ -2699,6 +2699,11 @@ class OrderOfIncludesTest(CppStyleTestBase):
                                          '#include <assert.h>\n',
                                          '')
 
+        self.assert_language_rules_check('foo.h',
+                                         '#include "bar.h"\n'
+                                         '#include "array.lut.h"\n',
+                                         '')
+
     def test_check_alphabetical_include_order_errors_reported_for_both_lines(self):
         # If one of the two lines of out of order headers are filtered, the error should be
         # reported on the other line.
@@ -3634,15 +3639,6 @@ class PassPtrTest(CppStyleTestBase):
             'Local variables should never be PassRefPtr (see '
             'http://webkit.org/coding/RefPtr.html).  [readability/pass_ptr] [5]')
 
-    def test_pass_own_ptr_in_function(self):
-        self.assert_pass_ptr_check(
-            'int myFunction()\n'
-            '{\n'
-            '    PassOwnPtr<Type1> variable = variable2;\n'
-            '}',
-            'Local variables should never be PassOwnPtr (see '
-            'http://webkit.org/coding/RefPtr.html).  [readability/pass_ptr] [5]')
-
     def test_pass_other_type_ptr_in_function(self):
         self.assert_pass_ptr_check(
             'int myFunction()\n'
@@ -3668,15 +3664,7 @@ class PassPtrTest(CppStyleTestBase):
             'PassRefPtr<Type1> myFunction();\n',
             '')
         self.assert_pass_ptr_check(
-            'OwnRefPtr<Type1> myFunction();\n',
-            '')
-        self.assert_pass_ptr_check(
             'RefPtr<Type1> myFunction(int)\n'
-            '{\n'
-            '}',
-            '')
-        self.assert_pass_ptr_check(
-            'OwnPtr<Type1> myFunction(int)\n'
             '{\n'
             '}',
             '')
@@ -3699,23 +3687,6 @@ class PassPtrTest(CppStyleTestBase):
             '')
         self.assert_pass_ptr_check(
             'int myFunction(RefPtr<Type1>*)\n'
-            '{\n'
-            '}',
-            '')
-
-    def test_own_ptr_parameter_value(self):
-        self.assert_pass_ptr_check(
-            'int myFunction(PassOwnPtr<Type1>)\n'
-            '{\n'
-            '}',
-            '')
-        self.assert_pass_ptr_check(
-            'int myFunction(OwnPtr<Type1>)\n'
-            '{\n'
-            '}',
-            '')
-        self.assert_pass_ptr_check(
-            'int myFunction(OwnPtr<Type1>& simple)\n'
             '{\n'
             '}',
             '')
@@ -5094,12 +5065,6 @@ class WebKitStyleTest(CppStyleTestBase):
         # Bitfields.
         self.assert_lint('unsigned _fillRule : 1;',
                          '_fillRule' + name_underscore_error_message)
-
-        # new operators in initialization.
-        self.assert_lint('OwnPtr<uint32_t> variable(new uint32_t);', '')
-        self.assert_lint('OwnPtr<uint32_t> variable(new (expr) uint32_t);', '')
-        self.assert_lint('OwnPtr<uint32_t> under_score(new uint32_t);',
-                         'under_score' + name_underscore_error_message)
 
     def test_parameter_names(self):
         # Leave meaningless variable names out of function declarations.

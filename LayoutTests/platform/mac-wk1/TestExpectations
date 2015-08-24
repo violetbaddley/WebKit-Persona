@@ -1,6 +1,16 @@
 # This file should contain entries for expectations that are specific
 # to the Apple Mac port running WebKit1 (DumpRenderTree)
 
+#//////////////////////////////////////////////////////////////////////////////////////////
+# Platform-specific tests. Skipped globally, then re-enabled here.
+#//////////////////////////////////////////////////////////////////////////////////////////
+
+fast/forms/attributed-strings.html [ Pass ]
+
+#//////////////////////////////////////////////////////////////////////////////////////////
+# End platform-specific directories.
+#//////////////////////////////////////////////////////////////////////////////////////////
+
 ###### This file has two sections. When adding new tests, make sure to
 ###### add to the right section:
 
@@ -36,10 +46,7 @@ webkit.org/b/144127 compositing/scrolling/touch-scroll-to-clip.html [ Pass Failu
 
 webkit.org/b/145432 media/video-transformed-by-javascript.html [ Failure ]
 
-# <rdar://problem/21344582>
-[ ElCapitan+ ] fast/history/history-back-while-pdf-in-pagecache.html
-[ ElCapitan+ ] http/tests/loading/pdf-commit-load-callbacks.html
-[ ElCapitan+ ] platform/mac/fast/loader/non-html-load-event.html
+webkit.org/b/146622 [ Yosemite Debug ] webgl/1.0.2/conformance/more/functions/copyTexImage2DBadArgs.html [ Pass Failure ]
 
 ### END OF (1) Failures with bug reports
 ########################################
@@ -58,6 +65,7 @@ http/tests/security/cross-origin-worker-indexeddb.html
 http/tests/security/no-indexeddb-from-sandbox.html
 crypto/subtle/rsa-indexeddb.html
 crypto/subtle/rsa-indexeddb-non-exportable.html
+inspector/indexeddb
 
 # But since it is disabled at runtime, we should make sure it is correctly disabled
 storage/indexeddb/properties-disabled-at-runtime.html [ Pass ]
@@ -80,6 +88,9 @@ plugins/snapshotting
 # WK1 doesn't do pending WebGL policies 
 fast/canvas/webgl/useWhilePending.html [ Skip ]
 
+# Mac-WK1 only caches frames containing HTML at the moment.
+http/tests/navigation/page-cache-iframe-no-current-historyItem.html
+
 # Animated image throttling behaves differently on WK1.
 fast/images/animated-gif-body-outside-viewport.html [ Skip ]
 fast/images/animated-gif-window-resizing.html [ Skip ]
@@ -88,7 +99,7 @@ fast/images/animated-gif-zooming.html [ Skip ]
 # Mavericks and prior do not support contentInset
 [ Mavericks ] platform/mac/fast/events/content-inset-hit-testing.html [ Skip ]
 [ Mavericks ] platform/mac/fast/events/content-inset-hit-testing-in-frame.html [ Skip ]
-[ Mavericks ] platform/mac/fast/scrolling/scroll-select-bottom-test.html [ Skip ]
+[ Mavericks ] fast/scrolling/latching/scroll-select-bottom-test.html [ Skip ]
 [ Mavericks ] platform/mac-wk1/fast/backgrounds/top-content-inset-fixed-attachment.html [ Skip ]
 
 # WK1 uses the native scrollview for scrolling by page.
@@ -100,6 +111,9 @@ scrollbars/scrolling-by-page-accounting-top-fixed-elements-with-negative-top-on-
 scrollbars/scrolling-by-page-ignoring-hidden-fixed-elements-on-keyboard-spacebar.html
 scrollbars/scrolling-by-page-ignoring-transparent-fixed-elements-on-keyboard-spacebar.html
 scrollbars/scrolling-by-page-on-keyboard-spacebar.html
+
+# This test times out.
+webkit.org/b/147683 fast/scrolling/latching/scroll-div-with-nested-nonscrollable-iframe.html [ Skip ]
 
 compositing/rtl/rtl-fixed-overflow-scrolled.html [ Failure ]
 
@@ -113,10 +127,17 @@ fast/events/mouse-force-changed.html [ Skip ]
 fast/events/mouse-force-down.html [ Skip ]
 fast/events/mouse-force-up.html [ Skip ]
 
-[ Yosemite+ ] platform/mac/fast/ruby/ruby-expansion-cjk-2.html [ ImageOnlyFailure ]
+[ Yosemite+ ] fast/ruby/ruby-expansion-cjk-2.html [ ImageOnlyFailure ]
 
 # ShouldOpenExternalURLs not yet supported in WK1
 loader/navigation-policy [ Skip ]
+
+[ Mavericks Debug ] fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgba4444.html [ Pass Timeout ]
+[ Mavericks Debug ] fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgba5551.html [ Pass Timeout ]
+[ Mavericks Debug ] fast/canvas/webgl/tex-image-and-sub-image-2d-with-video.html [ Pass Timeout ]
+[ Mavericks Debug ] fast/canvas/webgl/tex-image-and-uniform-binding-bugs.html [ Pass Timeout ]
+
+[ ElCapitan+ ] css3/masking/mask-repeat-space-padding.html [ ImageOnlyFailure ]
 
 ### END OF (2) Failures without bug reports
 ########################################

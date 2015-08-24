@@ -29,6 +29,7 @@
 #include "BytecodeConventions.h"
 #include "CodeSpecializationKind.h"
 #include "CodeType.h"
+#include "ConstructAbility.h"
 #include "ExpressionRangeInfo.h"
 #include "HandlerInfo.h"
 #include "Identifier.h"
@@ -38,17 +39,17 @@
 #include "RegExp.h"
 #include "SpecialPointer.h"
 #include "SymbolTable.h"
+#include "UnlinkedFunctionExecutable.h"
+#include "VariableEnvironment.h"
 #include "VirtualRegister.h"
-
 #include <wtf/RefCountedArray.h>
 #include <wtf/Vector.h>
 
 namespace JSC {
 
 class Debugger;
-class FunctionBodyNode;
+class FunctionMetadataNode;
 class FunctionExecutable;
-class FunctionParameters;
 class JSScope;
 class ParserError;
 class ScriptExecutable;
@@ -57,168 +58,15 @@ class SourceProvider;
 class SymbolTable;
 class UnlinkedCodeBlock;
 class UnlinkedFunctionCodeBlock;
+class UnlinkedFunctionExecutable;
 class UnlinkedInstructionStream;
+struct ExecutableInfo;
 
 typedef unsigned UnlinkedValueProfile;
 typedef unsigned UnlinkedArrayProfile;
 typedef unsigned UnlinkedArrayAllocationProfile;
 typedef unsigned UnlinkedObjectAllocationProfile;
 typedef unsigned UnlinkedLLIntCallLinkInfo;
-
-struct ExecutableInfo {
-    ExecutableInfo(bool needsActivation, bool usesEval, bool isStrictMode, bool isConstructor, bool isBuiltinFunction, ConstructorKind constructorKind)
-        : m_needsActivation(needsActivation)
-        , m_usesEval(usesEval)
-        , m_isStrictMode(isStrictMode)
-        , m_isConstructor(isConstructor)
-        , m_isBuiltinFunction(isBuiltinFunction)
-        , m_constructorKind(static_cast<unsigned>(constructorKind))
-    {
-        ASSERT(m_constructorKind == static_cast<unsigned>(constructorKind));
-    }
-
-    bool needsActivation() const { return m_needsActivation; }
-    bool usesEval() const { return m_usesEval; }
-    bool isStrictMode() const { return m_isStrictMode; }
-    bool isConstructor() const { return m_isConstructor; }
-    bool isBuiltinFunction() const { return m_isBuiltinFunction; }
-    ConstructorKind constructorKind() const { return static_cast<ConstructorKind>(m_constructorKind); }
-
-private:
-    unsigned m_needsActivation : 1;
-    unsigned m_usesEval : 1;
-    unsigned m_isStrictMode : 1;
-    unsigned m_isConstructor : 1;
-    unsigned m_isBuiltinFunction : 1;
-    unsigned m_constructorKind : 2;
-};
-
-enum UnlinkedFunctionKind {
-    UnlinkedNormalFunction,
-    UnlinkedBuiltinFunction,
-};
-
-class UnlinkedFunctionExecutable final : public JSCell {
-public:
-    friend class BuiltinExecutables;
-    friend class CodeCache;
-    friend class VM;
-
-    typedef JSCell Base;
-    static const unsigned StructureFlags = Base::StructureFlags | StructureIsImmortal;
-
-    static UnlinkedFunctionExecutable* create(VM* vm, const SourceCode& source, FunctionBodyNode* node, UnlinkedFunctionKind unlinkedFunctionKind, RefPtr<SourceProvider>&& sourceOverride = nullptr)
-    {
-        UnlinkedFunctionExecutable* instance = new (NotNull, allocateCell<UnlinkedFunctionExecutable>(vm->heap))
-            UnlinkedFunctionExecutable(vm, vm->unlinkedFunctionExecutableStructure.get(), source, WTF::move(sourceOverride), node, unlinkedFunctionKind);
-        instance->finishCreation(*vm);
-        return instance;
-    }
-
-    const Identifier& name() const { return m_name; }
-    const Identifier& inferredName() const { return m_inferredName; }
-    JSString* nameValue() const { return m_nameValue.get(); }
-    SymbolTable* symbolTable(CodeSpecializationKind kind)
-    {
-        return (kind == CodeForCall) ? m_symbolTableForCall.get() : m_symbolTableForConstruct.get();
-    }
-    size_t parameterCount() const;
-    bool isInStrictContext() const { return m_isInStrictContext; }
-    FunctionMode functionMode() const { return static_cast<FunctionMode>(m_functionMode); }
-    ConstructorKind constructorKind() const { return static_cast<ConstructorKind>(m_constructorKind); }
-
-    unsigned unlinkedFunctionNameStart() const { return m_unlinkedFunctionNameStart; }
-    unsigned unlinkedBodyStartColumn() const { return m_unlinkedBodyStartColumn; }
-    unsigned unlinkedBodyEndColumn() const { return m_unlinkedBodyEndColumn; }
-    unsigned startOffset() const { return m_startOffset; }
-    unsigned sourceLength() { return m_sourceLength; }
-    unsigned parametersStartOffset() const { return m_parametersStartOffset; }
-    unsigned typeProfilingStartOffset() const { return m_typeProfilingStartOffset; }
-    unsigned typeProfilingEndOffset() const { return m_typeProfilingEndOffset; }
-
-    UnlinkedFunctionCodeBlock* codeBlockFor(
-        VM&, const SourceCode&, CodeSpecializationKind, DebuggerMode, ProfilerMode, 
-        ParserError&);
-
-    static UnlinkedFunctionExecutable* fromGlobalCode(
-        const Identifier&, ExecState&, const SourceCode&, JSObject*& exception, 
-        int overrideLineNumber);
-
-    FunctionExecutable* link(VM&, const SourceCode&, int overrideLineNumber = -1);
-
-    void clearCodeForRecompilation()
-    {
-        m_symbolTableForCall.clear();
-        m_symbolTableForConstruct.clear();
-        m_codeBlockForCall.clear();
-        m_codeBlockForConstruct.clear();
-    }
-
-    FunctionParameters* parameters() { return m_parameters.get(); }
-
-    void recordParse(CodeFeatures features, bool hasCapturedVariables)
-    {
-        m_features = features;
-        m_hasCapturedVariables = hasCapturedVariables;
-    }
-
-    CodeFeatures features() const { return m_features; }
-    bool hasCapturedVariables() const { return m_hasCapturedVariables; }
-
-    static const bool needsDestruction = true;
-    static void destroy(JSCell*);
-
-    bool isBuiltinFunction() const { return m_isBuiltinFunction; }
-    bool isClassConstructorFunction() const { return constructorKind() != ConstructorKind::None; }
-
-private:
-    UnlinkedFunctionExecutable(VM*, Structure*, const SourceCode&, RefPtr<SourceProvider>&& sourceOverride, FunctionBodyNode*, UnlinkedFunctionKind);
-    WriteBarrier<UnlinkedFunctionCodeBlock> m_codeBlockForCall;
-    WriteBarrier<UnlinkedFunctionCodeBlock> m_codeBlockForConstruct;
-
-    Identifier m_name;
-    Identifier m_inferredName;
-    WriteBarrier<JSString> m_nameValue;
-    WriteBarrier<SymbolTable> m_symbolTableForCall;
-    WriteBarrier<SymbolTable> m_symbolTableForConstruct;
-    RefPtr<FunctionParameters> m_parameters;
-    RefPtr<SourceProvider> m_sourceOverride;
-    unsigned m_firstLineOffset;
-    unsigned m_lineCount;
-    unsigned m_unlinkedFunctionNameStart;
-    unsigned m_unlinkedBodyStartColumn;
-    unsigned m_unlinkedBodyEndColumn;
-    unsigned m_startOffset;
-    unsigned m_sourceLength;
-    unsigned m_parametersStartOffset;
-    unsigned m_typeProfilingStartOffset;
-    unsigned m_typeProfilingEndOffset;
-
-    CodeFeatures m_features;
-
-    unsigned m_isInStrictContext : 1;
-    unsigned m_hasCapturedVariables : 1;
-    unsigned m_isBuiltinFunction : 1;
-    unsigned m_constructorKind : 2;
-    unsigned m_functionMode : 1; // FunctionMode
-
-protected:
-    void finishCreation(VM& vm)
-    {
-        Base::finishCreation(vm);
-        m_nameValue.set(vm, this, jsString(&vm, name().string()));
-    }
-
-    static void visitChildren(JSCell*, SlotVisitor&);
-
-public:
-    static Structure* createStructure(VM& vm, JSGlobalObject* globalObject, JSValue proto)
-    {
-        return Structure::create(vm, globalObject, proto, TypeInfo(UnlinkedFunctionExecutableType, StructureFlags), info());
-    }
-
-    DECLARE_EXPORT_INFO;
-};
 
 struct UnlinkedStringJumpTable {
     typedef HashMap<RefPtr<StringImpl>, int32_t> StringOffsetTable;
@@ -270,6 +118,7 @@ public:
     bool isConstructor() const { return m_isConstructor; }
     bool isStrictMode() const { return m_isStrictMode; }
     bool usesEval() const { return m_usesEval; }
+    bool isArrowFunction() const { return m_isArrowFunction; }
 
     bool needsFullScopeChain() const { return m_needsFullScopeChain; }
 
@@ -421,9 +270,6 @@ public:
     void addExceptionHandler(const UnlinkedHandlerInfo& handler) { createRareDataIfNecessary(); return m_rareData->m_exceptionHandlers.append(handler); }
     UnlinkedHandlerInfo& exceptionHandler(int index) { ASSERT(m_rareData); return m_rareData->m_exceptionHandlers[index]; }
 
-    SymbolTable* symbolTable() const { return m_symbolTable.get(); }
-    void setSymbolTable(SymbolTable* table) { m_symbolTable.set(*m_vm, this, table); }
-
     VM* vm() const { return m_vm; }
 
     UnlinkedArrayProfile addArrayProfile() { return m_arrayProfileCount++; }
@@ -546,6 +392,7 @@ private:
     unsigned m_hasCapturedVariables : 1;
     unsigned m_isBuiltinFunction : 1;
     unsigned m_constructorKind : 2;
+    unsigned m_isArrowFunction : 1;
 
     unsigned m_firstLine;
     unsigned m_lineCount;
@@ -645,14 +492,8 @@ public:
 
     static void destroy(JSCell*);
 
-    void addVariableDeclaration(const Identifier& name, bool isConstant)
-    {
-        m_varDeclarations.append(std::make_pair(name, isConstant));
-    }
-
-    typedef Vector<std::pair<Identifier, bool>> VariableDeclations;
-
-    const VariableDeclations& variableDeclarations() const { return m_varDeclarations; }
+    void setVariableDeclarations(const VariableEnvironment& environment) { m_varDeclarations = environment; }
+    const VariableEnvironment& variableDeclarations() const { return m_varDeclarations; }
 
     static void visitChildren(JSCell*, SlotVisitor&);
 
@@ -662,7 +503,7 @@ private:
     {
     }
 
-    VariableDeclations m_varDeclarations;
+    VariableEnvironment m_varDeclarations;
 
 public:
     static Structure* createStructure(VM& vm, JSGlobalObject* globalObject, JSValue proto)

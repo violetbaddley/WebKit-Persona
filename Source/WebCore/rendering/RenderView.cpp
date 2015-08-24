@@ -54,26 +54,34 @@
 
 namespace WebCore {
 
-struct SelectionIterator {
-    RenderObject* m_current;
-    Vector<RenderMultiColumnSpannerPlaceholder*> m_spannerStack;
-    
-    SelectionIterator(RenderObject* o)
+struct FrameFlatteningLayoutDisallower {
+    FrameFlatteningLayoutDisallower(FrameView& frameView)
+        : m_frameView(frameView)
+        , m_disallowLayout(frameView.frame().settings().frameFlatteningEnabled())
     {
-        m_current = o;
+        if (m_disallowLayout)
+            m_frameView.startDisallowingLayout();
+    }
+
+    ~FrameFlatteningLayoutDisallower()
+    {
+        if (m_disallowLayout)
+            m_frameView.endDisallowingLayout();
+    }
+
+private:
+    FrameView& m_frameView;
+    bool m_disallowLayout { false };
+};
+
+struct SelectionIterator {
+    SelectionIterator(RenderObject* start)
+        : m_current(start)
+    {
         checkForSpanner();
     }
     
-    void checkForSpanner()
-    {
-        if (!is<RenderMultiColumnSpannerPlaceholder>(m_current))
-            return;
-        auto& placeholder = downcast<RenderMultiColumnSpannerPlaceholder>(*m_current);
-        m_spannerStack.append(&placeholder);
-        m_current = placeholder.spanner();
-    }
-    
-    RenderObject* current()
+    RenderObject* current() const
     {
         return m_current;
     }
@@ -91,6 +99,19 @@ struct SelectionIterator {
         }
         return m_current;
     }
+
+private:
+    void checkForSpanner()
+    {
+        if (!is<RenderMultiColumnSpannerPlaceholder>(m_current))
+            return;
+        auto& placeholder = downcast<RenderMultiColumnSpannerPlaceholder>(*m_current);
+        m_spannerStack.append(&placeholder);
+        m_current = placeholder.spanner();
+    }
+
+    RenderObject* m_current { nullptr };
+    Vector<RenderMultiColumnSpannerPlaceholder*> m_spannerStack;
 };
 
 RenderView::RenderView(Document& document, Ref<RenderStyle>&& style)
@@ -100,8 +121,6 @@ RenderView::RenderView(Document& document, Ref<RenderStyle>&& style)
     , m_selectionUnsplitEnd(nullptr)
     , m_selectionUnsplitStartPos(-1)
     , m_selectionUnsplitEndPos(-1)
-    , m_rendererCount(0)
-    , m_maximalOutlineSize(0)
     , m_lazyRepaintTimer(*this, &RenderView::lazyRepaintTimerFired)
     , m_pageLogicalHeight(0)
     , m_pageLogicalHeightChanged(false)
@@ -175,6 +194,8 @@ bool RenderView::hitTest(const HitTestRequest& request, HitTestResult& result)
 bool RenderView::hitTest(const HitTestRequest& request, const HitTestLocation& location, HitTestResult& result)
 {
     document().updateLayout();
+
+    FrameFlatteningLayoutDisallower disallower(frameView());
 
     if (layer()->hitTest(request, location, result))
         return true;
@@ -589,7 +610,8 @@ void RenderView::paintBoxDecorations(PaintInfo& paintInfo, const LayoutPoint&)
     if (frameView().isTransparent()) // FIXME: This needs to be dynamic. We should be able to go back to blitting if we ever stop being transparent.
         frameView().setCannotBlitToWindow(); // The parent must show behind the child.
     else {
-        Color backgroundColor = backgroundShouldExtendBeyondPage ? frameView().documentBackgroundColor() : frameView().baseBackgroundColor();
+        Color documentBackgroundColor = frameView().documentBackgroundColor();
+        Color backgroundColor = (backgroundShouldExtendBeyondPage && documentBackgroundColor.isValid()) ? documentBackgroundColor : frameView().baseBackgroundColor();
         if (backgroundColor.alpha()) {
             CompositeOperator previousOperator = paintInfo.context->compositeOperation();
             paintInfo.context->setCompositeOperation(CompositeCopy);
@@ -830,14 +852,15 @@ void RenderView::repaintSubtreeSelection(const SelectionSubtreeRoot& root) const
 // Compositing layer dimensions take outline size into account, so we have to recompute layer
 // bounds when it changes.
 // FIXME: This is ugly; it would be nice to have a better way to do this.
-void RenderView::setMaximalOutlineSize(int o)
+void RenderView::setMaximalOutlineSize(int outlineSize)
 {
-    if (o != m_maximalOutlineSize) {
-        m_maximalOutlineSize = o;
-
-        // maximalOutlineSize affects compositing layer dimensions.
-        compositor().setCompositingLayersNeedRebuild();    // FIXME: this really just needs to be a geometry update.
-    }
+    if (outlineSize == m_maximalOutlineSize)
+        return;
+    
+    m_maximalOutlineSize = outlineSize;
+    // maximalOutlineSize affects compositing layer dimensions.
+    // FIXME: this really just needs to be a geometry update.
+    compositor().setCompositingLayersNeedRebuild();
 }
 
 void RenderView::setSelection(RenderObject* start, int startPos, RenderObject* end, int endPos, SelectionRepaintMode blockRepaintMode)
@@ -997,14 +1020,18 @@ void RenderView::applySubtreeSelection(const SelectionSubtreeRoot& root, Selecti
             root.selectionData().selectionEnd()->setSelectionStateIfNeeded(SelectionEnd);
     }
 
-    RenderObject* o = root.selectionData().selectionStart();
-    RenderObject* stop = rendererAfterPosition(root.selectionData().selectionEnd(), root.selectionData().selectionEndPos());
-    SelectionIterator selectionIterator(o);
-    
-    while (o && o != stop) {
-        if (o != root.selectionData().selectionStart() && o != root.selectionData().selectionEnd() && o->canBeSelectionLeaf())
-            o->setSelectionStateIfNeeded(SelectionInside);
-        o = selectionIterator.next();
+    RenderObject* selectionStart = root.selectionData().selectionStart();
+    RenderObject* selectionEnd = rendererAfterPosition(root.selectionData().selectionEnd(), root.selectionData().selectionEndPos());
+    SelectionIterator selectionIterator(selectionStart);
+    for (RenderObject* currentRenderer = selectionStart; currentRenderer && currentRenderer != selectionEnd; currentRenderer = selectionIterator.next()) {
+        if (currentRenderer == root.selectionData().selectionStart() || currentRenderer == root.selectionData().selectionEnd())
+            continue;
+        if (!currentRenderer->canBeSelectionLeaf())
+            continue;
+        // FIXME: Move this logic to SelectionIterator::next()
+        if (&currentRenderer->selectionRoot() != &root)
+            continue;
+        currentRenderer->setSelectionStateIfNeeded(SelectionInside);
     }
 
     if (blockRepaintMode != RepaintNothing)
@@ -1014,36 +1041,33 @@ void RenderView::applySubtreeSelection(const SelectionSubtreeRoot& root, Selecti
     // put them in the new objects list.
     SelectedObjectMap newSelectedObjects;
     SelectedBlockMap newSelectedBlocks;
-    o = root.selectionData().selectionStart();
-    selectionIterator = SelectionIterator(o);
-    while (o && o != stop) {
-        if (isValidObjectForNewSelection(root, *o)) {
-            std::unique_ptr<RenderSelectionInfo> selectionInfo = std::make_unique<RenderSelectionInfo>(*o, true);
+    selectionIterator = SelectionIterator(selectionStart);
+    for (RenderObject* currentRenderer = selectionStart; currentRenderer && currentRenderer != selectionEnd; currentRenderer = selectionIterator.next()) {
+        if (isValidObjectForNewSelection(root, *currentRenderer)) {
+            std::unique_ptr<RenderSelectionInfo> selectionInfo = std::make_unique<RenderSelectionInfo>(*currentRenderer, true);
 
 #if ENABLE(SERVICE_CONTROLS)
             for (auto& rect : selectionInfo->collectedSelectionRects())
                 m_selectionRectGatherer.addRect(selectionInfo->repaintContainer(), rect);
-            if (!o->isTextOrLineBreak())
+            if (!currentRenderer->isTextOrLineBreak())
                 m_selectionRectGatherer.setTextOnly(false);
 #endif
 
-            newSelectedObjects.set(o, WTF::move(selectionInfo));
+            newSelectedObjects.set(currentRenderer, WTF::move(selectionInfo));
 
-            RenderBlock* cb = o->containingBlock();
-            while (cb && !cb->isRenderView()) {
-                std::unique_ptr<RenderBlockSelectionInfo>& blockInfo = newSelectedBlocks.add(cb, nullptr).iterator->value;
+            RenderBlock* containingBlock = currentRenderer->containingBlock();
+            while (containingBlock && !containingBlock->isRenderView()) {
+                std::unique_ptr<RenderBlockSelectionInfo>& blockInfo = newSelectedBlocks.add(containingBlock, nullptr).iterator->value;
                 if (blockInfo)
                     break;
-                blockInfo = std::make_unique<RenderBlockSelectionInfo>(*cb);
-                cb = cb->containingBlock();
+                blockInfo = std::make_unique<RenderBlockSelectionInfo>(*containingBlock);
+                containingBlock = containingBlock->containingBlock();
 
 #if ENABLE(SERVICE_CONTROLS)
                 m_selectionRectGatherer.addGapRects(blockInfo->repaintContainer(), blockInfo->rects());
 #endif
             }
         }
-
-        o = selectionIterator.next();
     }
 
     if (blockRepaintMode == RepaintNothing)
@@ -1137,19 +1161,19 @@ bool RenderView::rootBackgroundIsEntirelyFixed() const
     return rootObject->rendererForRootBackground().hasEntirelyFixedBackground();
 }
     
-LayoutRect RenderView::unextendedBackgroundRect(RenderBox*) const
+LayoutRect RenderView::unextendedBackgroundRect() const
 {
     // FIXME: What is this? Need to patch for new columns?
     return unscaledDocumentRect();
 }
     
-LayoutRect RenderView::backgroundRect(RenderBox* backgroundRenderer) const
+LayoutRect RenderView::backgroundRect() const
 {
     // FIXME: New columns care about this?
     if (frameView().hasExtendedBackgroundRectForPainting())
         return frameView().extendedBackgroundRectForPainting();
 
-    return unextendedBackgroundRect(backgroundRenderer);
+    return unextendedBackgroundRect();
 }
 
 IntRect RenderView::documentRect() const

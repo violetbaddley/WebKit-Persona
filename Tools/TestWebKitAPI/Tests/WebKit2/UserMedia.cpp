@@ -18,6 +18,8 @@
 
 #include "config.h"
 
+#if WK_HAVE_C_SPI
+
 #if ENABLE(MEDIA_STREAM)
 #include "PlatformUtilities.h"
 #include "PlatformWebView.h"
@@ -32,7 +34,7 @@ static bool done;
 
 void decidePolicyForUserMediaPermissionRequestCallBack(WKPageRef, WKFrameRef, WKSecurityOriginRef, WKUserMediaPermissionRequestRef permissionRequest, const void* /* clientInfo */)
 {
-    WKUserMediaPermissionRequestAllow(permissionRequest);
+    WKUserMediaPermissionRequestAllowBest(permissionRequest);
     done = true;
 }
 
@@ -59,3 +61,6 @@ TEST(WebKit2, UserMediaBasic)
 } // namespace TestWebKitAPI
 
 #endif // ENABLE(MEDIA_STREAM)
+
+#endif // WK_HAVE_C_SPI
+

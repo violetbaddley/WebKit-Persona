@@ -31,6 +31,7 @@
 #define Interpreter_h
 
 #include "ArgList.h"
+#include "JSArrowFunction.h"
 #include "JSCJSValue.h"
 #include "JSCell.h"
 #include "JSObject.h"
@@ -50,6 +51,7 @@ namespace JSC {
     class ExecutableBase;
     class FunctionExecutable;
     class VM;
+    class JSArrowFunction;
     class JSFunction;
     class JSGlobalObject;
     class LLIntOffsetsExtractor;
@@ -179,7 +181,7 @@ namespace JSC {
         Interpreter(VM &);
         ~Interpreter();
         
-        void initialize(bool canUseJIT);
+        void initialize();
 
         JSStack& stack() { return m_stack; }
         
@@ -208,7 +210,7 @@ namespace JSC {
 
         JSValue execute(ProgramExecutable*, CallFrame*, JSObject* thisObj);
         JSValue executeCall(CallFrame*, JSObject* function, CallType, const CallData&, JSValue thisValue, const ArgList&);
-        JSObject* executeConstruct(CallFrame*, JSObject* function, ConstructType, const ConstructData&, const ArgList&);
+        JSObject* executeConstruct(CallFrame*, JSObject* function, ConstructType, const ConstructData&, const ArgList&, JSValue newTarget);
         JSValue execute(EvalExecutable*, CallFrame*, JSValue thisValue, JSScope*);
 
         void getArgumentsData(CallFrame*, JSFunction*&, ptrdiff_t& firstParameterIndex, Register*& argv, int& argc);

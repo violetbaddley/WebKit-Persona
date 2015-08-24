@@ -27,11 +27,12 @@
 #include "ChildListMutationScope.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
-#include "ClassNodeList.h"
+#include "ClassCollection.h"
 #include "ContainerNodeAlgorithms.h"
 #include "Editor.h"
 #include "FloatRect.h"
 #include "FrameView.h"
+#include "GenericCachedHTMLCollection.h"
 #include "HTMLFormControlsCollection.h"
 #include "HTMLOptionsCollection.h"
 #include "HTMLTableRowsCollection.h"
@@ -42,6 +43,7 @@
 #include "LabelsNodeList.h"
 #include "MutationEvent.h"
 #include "NameNodeList.h"
+#include "NodeOrString.h"
 #include "NodeRareData.h"
 #include "NodeRenderStyle.h"
 #include "RadioNodeList.h"
@@ -347,7 +349,7 @@ void ContainerNode::notifyChildInserted(Node& child, ChildChangeSource source)
     childrenChanged(change);
 
     for (auto& target : postInsertionNotificationTargets)
-        target->didNotifySubtreeInsertions();
+        target->finishedInsertingSubtree();
 }
 
 void ContainerNode::notifyChildRemoved(Node& child, Node* previousSibling, Node* nextSibling, ChildChangeSource source)
@@ -445,30 +447,28 @@ bool ContainerNode::replaceChild(PassRefPtr<Node> newChild, Node* oldChild, Exce
     InspectorInstrumentation::willInsertDOMNode(document(), *this);
 
     // Add the new child(ren)
-    for (auto it = targets.begin(), end = targets.end(); it != end; ++it) {
-        Node& child = it->get();
-
+    for (auto& child : targets) {
         // Due to arbitrary code running in response to a DOM mutation event it's
         // possible that "next" is no longer a child of "this".
         // It's also possible that "child" has been inserted elsewhere.
         // In either of those cases, we'll just stop.
         if (next && next->parentNode() != this)
             break;
-        if (child.parentNode())
+        if (child->parentNode())
             break;
 
-        treeScope().adoptIfNeeded(&child);
+        treeScope().adoptIfNeeded(child.ptr());
 
         // Add child before "next".
         {
             NoEventDispatchAssertion assertNoEventDispatch;
             if (next)
-                insertBeforeCommon(*next, child);
+                insertBeforeCommon(*next, child.get());
             else
-                appendChildToContainer(&child, *this);
+                appendChildToContainer(child.ptr(), *this);
         }
 
-        updateTreeAfterInsertion(child);
+        updateTreeAfterInsertion(child.get());
     }
 
     dispatchSubtreeModifiedEvent();
@@ -497,13 +497,12 @@ static void willRemoveChildren(ContainerNode& container)
     getChildNodes(container, children);
 
     ChildListMutationScope mutation(container);
-    for (auto it = children.begin(); it != children.end(); ++it) {
-        Node& child = it->get();
-        mutation.willRemoveChild(child);
-        child.notifyMutationObserversNodeWillDetach();
+    for (auto& child : children) {
+        mutation.willRemoveChild(child.get());
+        child->notifyMutationObserversNodeWillDetach();
 
         // fire removed from document mutation events.
-        dispatchChildRemovalEvents(child);
+        dispatchChildRemovalEvents(child.get());
     }
 
     container.document().nodeChildrenWillBeRemoved(container);
@@ -704,24 +703,22 @@ bool ContainerNode::appendChild(PassRefPtr<Node> newChild, ExceptionCode& ec)
 
     // Now actually add the child(ren)
     ChildListMutationScope mutation(*this);
-    for (auto it = targets.begin(), end = targets.end(); it != end; ++it) {
-        Node& child = it->get();
-
+    for (auto& child : targets) {
         // If the child has a parent again, just stop what we're doing, because
         // that means someone is doing something with DOM mutation -- can't re-parent
         // a child that already has a parent.
-        if (child.parentNode())
+        if (child->parentNode())
             break;
 
-        treeScope().adoptIfNeeded(&child);
+        treeScope().adoptIfNeeded(child.ptr());
 
         // Append child to the end of the list
         {
             NoEventDispatchAssertion assertNoEventDispatch;
-            appendChildToContainer(&child, *this);
+            appendChildToContainer(child.ptr(), *this);
         }
 
-        updateTreeAfterInsertion(child);
+        updateTreeAfterInsertion(child.get());
     }
 
     dispatchSubtreeModifiedEvent();
@@ -867,38 +864,57 @@ RefPtr<NodeList> ContainerNode::querySelectorAll(const String& selectors, Except
     return nullptr;
 }
 
-RefPtr<NodeList> ContainerNode::getElementsByTagName(const AtomicString& localName)
+Ref<HTMLCollection> ContainerNode::getElementsByTagName(const AtomicString& localName)
 {
-    if (localName.isNull())
-        return 0;
+    ASSERT(!localName.isNull());
 
     if (document().isHTMLDocument())
-        return ensureRareData().ensureNodeLists().addCacheWithAtomicName<HTMLTagNodeList>(*this, localName);
-    return ensureRareData().ensureNodeLists().addCacheWithAtomicName<TagNodeList>(*this, localName);
+        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTagCollection>(*this, ByHTMLTag, localName);
+    return ensureRareData().ensureNodeLists().addCachedCollection<TagCollection>(*this, ByTag, localName);
 }
 
-RefPtr<NodeList> ContainerNode::getElementsByTagNameNS(const AtomicString& namespaceURI, const AtomicString& localName)
+RefPtr<NodeList> ContainerNode::getElementsByTagNameForObjC(const AtomicString& localName)
 {
     if (localName.isNull())
-        return 0;
+        return nullptr;
+
+    return getElementsByTagName(localName);
+}
+
+Ref<HTMLCollection> ContainerNode::getElementsByTagNameNS(const AtomicString& namespaceURI, const AtomicString& localName)
+{
+    ASSERT(!localName.isNull());
 
     if (namespaceURI == starAtom)
         return getElementsByTagName(localName);
 
-    return ensureRareData().ensureNodeLists().addCacheWithQualifiedName(*this, namespaceURI.isEmpty() ? nullAtom : namespaceURI, localName);
+    return ensureRareData().ensureNodeLists().addCachedCollectionWithQualifiedName(*this, namespaceURI.isEmpty() ? nullAtom : namespaceURI, localName);
 }
 
-RefPtr<NodeList> ContainerNode::getElementsByName(const String& elementName)
+RefPtr<NodeList> ContainerNode::getElementsByTagNameNSForObjC(const AtomicString& namespaceURI, const AtomicString& localName)
+{
+    if (localName.isNull())
+        return nullptr;
+
+    return getElementsByTagNameNS(namespaceURI, localName);
+}
+
+Ref<NodeList> ContainerNode::getElementsByName(const String& elementName)
 {
     return ensureRareData().ensureNodeLists().addCacheWithAtomicName<NameNodeList>(*this, elementName);
 }
 
-RefPtr<NodeList> ContainerNode::getElementsByClassName(const AtomicString& classNames)
+Ref<HTMLCollection> ContainerNode::getElementsByClassName(const AtomicString& classNames)
 {
-    return ensureRareData().ensureNodeLists().addCacheWithAtomicName<ClassNodeList>(*this, classNames);
+    return ensureRareData().ensureNodeLists().addCachedCollection<ClassCollection>(*this, ByClass, classNames);
 }
 
-RefPtr<RadioNodeList> ContainerNode::radioNodeList(const AtomicString& name)
+Ref<NodeList> ContainerNode::getElementsByClassNameForObjC(const AtomicString& classNames)
+{
+    return getElementsByClassName(classNames);
+}
+
+Ref<RadioNodeList> ContainerNode::radioNodeList(const AtomicString& name)
 {
     ASSERT(hasTagName(HTMLNames::formTag) || hasTagName(HTMLNames::fieldsetTag));
     return ensureRareData().ensureNodeLists().addCacheWithAtomicName<RadioNodeList>(*this, name);
@@ -906,7 +922,7 @@ RefPtr<RadioNodeList> ContainerNode::radioNodeList(const AtomicString& name)
 
 Ref<HTMLCollection> ContainerNode::children()
 {
-    return ensureCachedHTMLCollection(NodeChildren);
+    return ensureRareData().ensureNodeLists().addCachedCollection<GenericCachedHTMLCollection<CollectionTypeTraits<NodeChildren>::traversalType>>(*this, NodeChildren);
 }
 
 Element* ContainerNode::firstElementChild() const
@@ -925,20 +941,22 @@ unsigned ContainerNode::childElementCount() const
     return std::distance(children.begin(), children.end());
 }
 
-Ref<HTMLCollection> ContainerNode::ensureCachedHTMLCollection(CollectionType type)
+void ContainerNode::append(Vector<NodeOrString>&& nodeOrStringVector, ExceptionCode& ec)
 {
-    if (HTMLCollection* collection = cachedHTMLCollection(type))
-        return *collection;
+    RefPtr<Node> node = convertNodesOrStringsIntoNode(*this, WTF::move(nodeOrStringVector), ec);
+    if (ec || !node)
+        return;
 
-    if (type == TableRows)
-        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLTableRowsCollection>(downcast<HTMLTableElement>(*this), type);
-    else if (type == SelectOptions)
-        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLOptionsCollection>(downcast<HTMLSelectElement>(*this), type);
-    else if (type == FormControls) {
-        ASSERT(hasTagName(HTMLNames::formTag) || hasTagName(HTMLNames::fieldsetTag));
-        return ensureRareData().ensureNodeLists().addCachedCollection<HTMLFormControlsCollection>(*this, type);
-    }
-    return ensureRareData().ensureNodeLists().addCachedCollection<HTMLCollection>(*this, type);
+    appendChild(node.release(), ec);
+}
+
+void ContainerNode::prepend(Vector<NodeOrString>&& nodeOrStringVector, ExceptionCode& ec)
+{
+    RefPtr<Node> node = convertNodesOrStringsIntoNode(*this, WTF::move(nodeOrStringVector), ec);
+    if (ec || !node)
+        return;
+
+    insertBefore(node.release(), firstChild(), ec);
 }
 
 HTMLCollection* ContainerNode::cachedHTMLCollection(CollectionType type)

@@ -57,6 +57,7 @@ enum JSTokenType {
     FOR,
     NEW,
     VAR,
+    LET,
     CONSTTOKEN,
     CONTINUE,
     FUNCTION,
@@ -75,6 +76,8 @@ enum JSTokenType {
     FINALLY,
     DEBUGGER,
     ELSE,
+    IMPORT,
+    EXPORT,
 #if ENABLE(ES6_CLASS_SYNTAX)
     CLASSTOKEN,
     EXTENDS,
@@ -114,6 +117,9 @@ enum JSTokenType {
     XOREQUAL,
     OREQUAL,
     DOTDOTDOT,
+#if ENABLE(ES6_ARROWFUNCTION_SYNTAX)
+    ARROWFUNCTION,
+#endif
     LastUntaggedToken,
 
     // Begin tagged tokens

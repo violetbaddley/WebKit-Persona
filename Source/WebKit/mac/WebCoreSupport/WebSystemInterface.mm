@@ -82,7 +82,6 @@ void InitWebCoreSystemInterface(void)
     INIT(CreateMediaUIControl);
     INIT(WindowSetAlpha);
     INIT(WindowSetScaledFrame);
-    INIT(PopupMenu);
     INIT(SetCGFontRenderingMode);
 #endif
     INIT(SetBaseCTM);
@@ -128,7 +127,6 @@ void InitWebCoreSystemInterface(void)
 #endif
 
 #if !PLATFORM(IOS)
-    INIT(RecommendedScrollerStyle);
     INIT(ExecutableWasLinkedOnOrBeforeSnowLeopard);
     INIT(CopyDefaultSearchProviderDisplayName);
     INIT(Cursor);
@@ -174,16 +172,6 @@ void InitWebCoreSystemInterface(void)
 #if !PLATFORM(IOS)
     INIT(SetMetadataURL);
 #endif
-
-    INIT(DestroyRenderingResources);
-
-#if !PLATFORM(IOS)
-    INIT(CreateVMPressureDispatchOnMainQueue);
-    INIT(CreateMemoryStatusPressureCriticalDispatchOnMainQueue);
-    INIT(ExecutableWasLinkedOnOrBeforeLion);
-#endif
-
-    INIT(CGPathAddRoundedRect);
 
     INIT(CFURLRequestAllowAllPostCaching);
 

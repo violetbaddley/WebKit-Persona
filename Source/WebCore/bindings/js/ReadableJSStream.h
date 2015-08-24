@@ -50,36 +50,70 @@ namespace WebCore {
 class JSDOMGlobalObject;
 class ReadableStreamController;
 
-class ReadableJSStream: public ReadableStream {
+typedef int ExceptionCode;
+
+struct ReadableJSStreamValue {
+    JSC::Strong<JSC::Unknown> value;
+    double size;
+};
+
+template<> class ReadableEnqueuingStream<ReadableJSStreamValue> : public ReadableStream {
 public:
-    static RefPtr<ReadableJSStream> create(JSC::ExecState&, ScriptExecutionContext&);
+    double desiredSize() const { return m_highWaterMark - m_totalQueueSize; }
+
+protected:
+    ReadableEnqueuingStream(ScriptExecutionContext& context, double highWaterMark)
+        : ReadableStream(context)
+        , m_highWaterMark(highWaterMark) { }
+
+    void enqueueChunk(ReadableJSStreamValue&&);
+
+private:
+    virtual void clearValues() override { m_queue.clear(); }
+    virtual bool hasEnoughValues() const override { return desiredSize() <= 0; }
+    virtual bool hasValue() const override { return m_queue.size(); }
+    virtual JSC::JSValue read() override;
+
+    Deque<ReadableJSStreamValue> m_queue;
+    double m_totalQueueSize { 0 };
+    double m_highWaterMark;
+};
+
+class ReadableJSStream final : public ReadableEnqueuingStream<ReadableJSStreamValue> {
+public:
+    static RefPtr<ReadableJSStream> create(JSC::ExecState&, JSC::JSValue, const Dictionary&);
 
     JSC::JSValue jsController(JSC::ExecState&, JSDOMGlobalObject*);
+    void close(ExceptionCode&);
 
     void storeError(JSC::ExecState&, JSC::JSValue);
     JSC::JSValue error() override { return m_error.get(); }
 
-    void enqueue(JSC::ExecState&);
+    void enqueue(JSC::ExecState&, JSC::JSValue);
+    void error(JSC::ExecState&, JSC::JSValue, ExceptionCode&);
 
 private:
-    ReadableJSStream(ScriptExecutionContext&, JSC::ExecState&, JSC::JSObject*);
+    ReadableJSStream(JSC::ExecState&, JSC::JSObject*, double, JSC::JSFunction*);
 
     void doStart(JSC::ExecState&);
 
-    JSC::JSPromise* invoke(JSC::ExecState&, const char*);
+    JSC::JSPromise* invoke(JSC::ExecState&, const char*, JSC::JSValue parameter);
     void storeException(JSC::ExecState&);
 
-    virtual bool hasValue() const override;
-    virtual JSC::JSValue read() override;
-    virtual void doPull() override;
+    virtual bool doPull() override;
+    virtual bool doCancel(JSC::JSValue) override;
 
     JSDOMGlobalObject* globalObject();
 
+    double retrieveChunkSize(JSC::ExecState&, JSC::JSValue);
+
     std::unique_ptr<ReadableStreamController> m_controller;
+    // FIXME: we should consider not using JSC::Strong, see https://bugs.webkit.org/show_bug.cgi?id=146278
     JSC::Strong<JSC::Unknown> m_error;
     JSC::Strong<JSC::JSFunction> m_errorFunction;
+
     JSC::Strong<JSC::JSObject> m_source;
-    Deque<JSC::Strong<JSC::Unknown>> m_chunkQueue;
+    JSC::Strong<JSC::JSFunction> m_sizeFunction;
 };
 
 } // namespace WebCore

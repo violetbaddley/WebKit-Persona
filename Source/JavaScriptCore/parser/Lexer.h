@@ -33,32 +33,6 @@
 
 namespace JSC {
 
-class Keywords {
-public:
-    bool isKeyword(const Identifier& ident) const
-    {
-        return m_keywordTable.entry(ident);
-    }
-    
-    const HashTableValue* getKeyword(const Identifier& ident) const
-    {
-        return m_keywordTable.entry(ident);
-    }
-
-    explicit Keywords(VM&);
-
-    ~Keywords()
-    {
-        m_keywordTable.deleteTable();
-    }
-    
-private:
-    friend class VM;
-    
-    VM& m_vm;
-    const HashTable m_keywordTable;
-};
-
 enum LexerFlags {
     LexerFlagsIgnoreReservedWords = 1, 
     LexerFlagsDontBuildStrings = 2,
@@ -66,6 +40,8 @@ enum LexerFlags {
 };
 
 struct ParsedUnicodeEscapeValue;
+
+bool isLexerKeyword(const Identifier&);
 
 template <typename T>
 class Lexer {
@@ -84,9 +60,10 @@ public:
 
     // Functions to set up parsing.
     void setCode(const SourceCode&, ParserArena*);
-    void setIsReparsing() { m_isReparsing = true; }
-    bool isReparsing() const { return m_isReparsing; }
+    void setIsReparsingFunction() { m_isReparsingFunction = true; }
+    bool isReparsingFunction() const { return m_isReparsingFunction; }
 
+    void setTokenPosition(JSToken* tokenRecord);
     JSTokenType lex(JSToken*, unsigned, bool strictMode);
     bool nextTokenIsColon();
     int lineNumber() const { return m_lineNumber; }
@@ -97,6 +74,7 @@ public:
         return JSTextPosition(m_lineNumber, currentOffset(), currentLineStartOffset());
     }
     JSTextPosition positionBeforeLastNewline() const { return m_positionBeforeLastNewline; }
+    JSTokenLocation lastTokenLocation() const { return m_lastTockenLocation; }
     void setLastLineNumber(int lastLineNumber) { m_lastLineNumber = lastLineNumber; }
     int lastLineNumber() const { return m_lastLineNumber; }
     bool prevTerminator() const { return m_terminator; }
@@ -130,6 +108,10 @@ public:
     void setLineNumber(int line)
     {
         m_lineNumber = line;
+    }
+    void setTerminator(bool terminator)
+    {
+        m_terminator = terminator;
     }
 
     SourceProvider* sourceProvider() const { return m_source->provider(); }
@@ -215,7 +197,8 @@ private:
     const T* m_codeStartPlusOffset;
     const T* m_lineStart;
     JSTextPosition m_positionBeforeLastNewline;
-    bool m_isReparsing;
+    JSTokenLocation m_lastTockenLocation;
+    bool m_isReparsingFunction;
     bool m_atLineStart;
     bool m_error;
     String m_lexErrorMessage;

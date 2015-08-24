@@ -32,17 +32,18 @@
 #include "CommonSlowPathsExceptions.h"
 #include "Error.h"
 #include "ErrorHandlingScope.h"
+#include "Exception.h"
 #include "ExceptionFuzz.h"
 #include "GetterSetter.h"
 #include "HostCallReturnValue.h"
 #include "Interpreter.h"
 #include "JIT.h"
 #include "JITExceptions.h"
+#include "JSArrowFunction.h"
 #include "JSLexicalEnvironment.h"
 #include "JSCInlines.h"
 #include "JSCJSValue.h"
 #include "JSGlobalObjectFunctions.h"
-#include "JSNameScope.h"
 #include "JSStackInlines.h"
 #include "JSString.h"
 #include "JSWithScope.h"
@@ -53,6 +54,7 @@
 #include "ObjectConstructor.h"
 #include "ProtoCallFrame.h"
 #include "StructureRareDataInlines.h"
+#include "Watchdog.h"
 #include <wtf/StringPrintStream.h>
 
 namespace JSC { namespace LLInt {
@@ -170,7 +172,7 @@ namespace JSC { namespace LLInt {
         ExecState* __rcf_exec = (execCallee);                           \
         LLINT_RETURN_TWO(pc, __rcf_exec);                               \
     } while (false)
-
+    
 extern "C" SlowPathReturnType llint_trace_operand(ExecState* exec, Instruction* pc, int fromWhere, int operand)
 {
     LLINT_BEGIN();
@@ -468,14 +470,6 @@ LLINT_SLOW_PATH_DECL(stack_check)
 #endif
 
 #endif
-    // This stack check is done in the prologue for a function call, and the
-    // CallFrame is not completely set up yet. For example, if the frame needs
-    // a lexical environment object, the lexical environment object will only be
-    // set up after we start executing the function. If we need to throw a
-    // StackOverflowError here, then we need to tell the prologue to start the
-    // stack unwinding from the caller frame (which is fully set up) instead.
-    // To do that, we return the caller's CallFrame in the second return value.
-    //
     // If the stack check succeeds and we don't need to throw the error, then
     // we'll return 0 instead. The prologue will check for a non-zero value
     // when determining whether to set the callFrame or not.
@@ -489,24 +483,11 @@ LLINT_SLOW_PATH_DECL(stack_check)
         LLINT_RETURN_TWO(pc, 0);
 #endif
 
-    exec = exec->callerFrame(vm.topVMEntryFrame);
     vm.topCallFrame = exec;
     ErrorHandlingScope errorScope(vm);
     CommonSlowPaths::interpreterThrowInCaller(exec, createStackOverflowError(exec));
     pc = returnToThrowForThrownException(exec);
     LLINT_RETURN_TWO(pc, exec);
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_create_lexical_environment)
-{
-    LLINT_BEGIN();
-#if LLINT_SLOW_PATH_TRACING
-    dataLogF("Creating an lexicalEnvironment, exec = %p!\n", exec);
-#endif
-    int scopeReg = pc[2].u.operand;
-    JSScope* scope = exec->uncheckedR(scopeReg).Register::scope();
-    JSLexicalEnvironment* lexicalEnvironment = JSLexicalEnvironment::create(vm, exec, scope, exec->codeBlock());
-    LLINT_RETURN(JSValue(lexicalEnvironment));
 }
 
 LLINT_SLOW_PATH_DECL(slow_path_new_object)
@@ -867,11 +848,13 @@ LLINT_SLOW_PATH_DECL(slow_path_put_getter_by_id)
     LLINT_BEGIN();
     ASSERT(LLINT_OP(1).jsValue().isObject());
     JSObject* baseObj = asObject(LLINT_OP(1).jsValue());
-    
-    JSValue getter = LLINT_OP(3).jsValue();
+
+    unsigned options = pc[3].u.operand;
+
+    JSValue getter = LLINT_OP(4).jsValue();
     ASSERT(getter.isObject());
-    
-    baseObj->putGetter(exec, exec->codeBlock()->identifier(pc[2].u.operand), asObject(getter));
+
+    baseObj->putGetter(exec, exec->codeBlock()->identifier(pc[2].u.operand), asObject(getter), options);
     LLINT_END();
 }
 
@@ -880,11 +863,13 @@ LLINT_SLOW_PATH_DECL(slow_path_put_setter_by_id)
     LLINT_BEGIN();
     ASSERT(LLINT_OP(1).jsValue().isObject());
     JSObject* baseObj = asObject(LLINT_OP(1).jsValue());
-    
-    JSValue setter = LLINT_OP(3).jsValue();
+
+    unsigned options = pc[3].u.operand;
+
+    JSValue setter = LLINT_OP(4).jsValue();
     ASSERT(setter.isObject());
-    
-    baseObj->putSetter(exec, exec->codeBlock()->identifier(pc[2].u.operand), asObject(setter));
+
+    baseObj->putSetter(exec, exec->codeBlock()->identifier(pc[2].u.operand), asObject(setter), options);
     LLINT_END();
 }
 
@@ -896,9 +881,9 @@ LLINT_SLOW_PATH_DECL(slow_path_put_getter_setter)
     
     GetterSetter* accessor = GetterSetter::create(vm, exec->lexicalGlobalObject());
     LLINT_CHECK_EXCEPTION();
-    
-    JSValue getter = LLINT_OP(3).jsValue();
-    JSValue setter = LLINT_OP(4).jsValue();
+
+    JSValue getter = LLINT_OP(4).jsValue();
+    JSValue setter = LLINT_OP(5).jsValue();
     ASSERT(getter.isObject() || getter.isUndefined());
     ASSERT(setter.isObject() || setter.isUndefined());
     ASSERT(getter.isObject() || setter.isObject());
@@ -910,7 +895,7 @@ LLINT_SLOW_PATH_DECL(slow_path_put_getter_setter)
     baseObj->putDirectAccessor(
         exec,
         exec->codeBlock()->identifier(pc[2].u.operand),
-        accessor, Accessor);
+        accessor, pc[3].u.operand);
     LLINT_END();
 }
 
@@ -1033,12 +1018,24 @@ LLINT_SLOW_PATH_DECL(slow_path_new_func)
 LLINT_SLOW_PATH_DECL(slow_path_new_func_exp)
 {
     LLINT_BEGIN();
+    
     CodeBlock* codeBlock = exec->codeBlock();
     JSScope* scope = exec->uncheckedR(pc[2].u.operand).Register::scope();
-    FunctionExecutable* function = codeBlock->functionExpr(pc[3].u.operand);
-    JSFunction* func = JSFunction::create(vm, function, scope);
+    FunctionExecutable* executable = codeBlock->functionExpr(pc[3].u.operand);
     
-    LLINT_RETURN(func);
+    LLINT_RETURN(JSFunction::create(vm, executable, scope));
+}
+
+LLINT_SLOW_PATH_DECL(slow_path_new_arrow_func_exp)
+{
+    LLINT_BEGIN();
+
+    JSValue thisValue = LLINT_OP_C(4).jsValue();
+    CodeBlock* codeBlock = exec->codeBlock();
+    JSScope* scope = exec->uncheckedR(pc[2].u.operand).Register::scope();
+    FunctionExecutable* executable = codeBlock->functionExpr(pc[3].u.operand);
+    
+    LLINT_RETURN(JSArrowFunction::create(vm, executable, scope, thisValue));
 }
 
 static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc, JSValue callee, CodeSpecializationKind kind)
@@ -1116,7 +1113,7 @@ inline SlowPathReturnType setUpCall(ExecState* execCallee, Instruction* pc, Code
     JSScope* scope = callee->scopeUnchecked();
     VM& vm = *scope->vm();
     ExecutableBase* executable = callee->executable();
-    
+
     MacroAssemblerCodePtr codePtr;
     CodeBlock* codeBlock = 0;
     if (executable->isHostFunction())
@@ -1124,7 +1121,7 @@ inline SlowPathReturnType setUpCall(ExecState* execCallee, Instruction* pc, Code
     else {
         FunctionExecutable* functionExecutable = static_cast<FunctionExecutable*>(executable);
 
-        if (!isCall(kind) && functionExecutable->isBuiltinFunction())
+        if (!isCall(kind) && functionExecutable->constructAbility() == ConstructAbility::CannotConstruct)
             LLINT_CALL_THROW(exec, createNotAConstructorError(exec, callee));
 
         JSObject* error = functionExecutable->prepareForExecution(execCallee, callee, scope, kind);
@@ -1282,42 +1279,6 @@ LLINT_SLOW_PATH_DECL(slow_path_to_primitive)
 {
     LLINT_BEGIN();
     LLINT_RETURN(LLINT_OP_C(2).jsValue().toPrimitive(exec));
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_push_with_scope)
-{
-    LLINT_BEGIN();
-    JSValue v = LLINT_OP_C(2).jsValue();
-    JSObject* o = v.toObject(exec);
-    LLINT_CHECK_EXCEPTION();
-
-    int scopeReg = pc[1].u.operand;
-    JSScope* currentScope = exec->uncheckedR(scopeReg).Register::scope();
-    exec->uncheckedR(scopeReg) = JSWithScope::create(exec, o, currentScope);
-    
-    LLINT_END();
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_pop_scope)
-{
-    LLINT_BEGIN();
-    int scopeReg = pc[1].u.operand;
-    JSScope* scope = exec->uncheckedR(scopeReg).Register::scope();
-    exec->uncheckedR(scopeReg) = scope->next();
-    LLINT_END();
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_push_name_scope)
-{
-    LLINT_BEGIN();
-    int scopeReg = pc[1].u.operand;
-    JSScope* currentScope = exec->uncheckedR(scopeReg).Register::scope();
-    JSValue value = LLINT_OP_C(2).jsValue();
-    SymbolTable* symbolTable = jsCast<SymbolTable*>(LLINT_OP_C(3).jsValue());
-    JSNameScope::Type type = static_cast<JSNameScope::Type>(pc[4].u.operand);
-    JSNameScope* scope = JSNameScope::create(vm, exec->lexicalGlobalObject(), currentScope, symbolTable, value, type);
-    exec->uncheckedR(scopeReg) = scope;
-    LLINT_END();
 }
 
 LLINT_SLOW_PATH_DECL(slow_path_throw)

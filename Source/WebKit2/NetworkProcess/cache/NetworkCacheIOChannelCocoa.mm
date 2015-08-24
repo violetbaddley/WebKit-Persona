@@ -69,7 +69,7 @@ IOChannel::IOChannel(const String& filePath, Type type)
     int fd = ::open(path.data(), oflag, mode);
     m_fileDescriptor = fd;
 
-    m_dispatchIO = adoptDispatch(dispatch_io_create(DISPATCH_IO_RANDOM, fd, dispatch_get_main_queue(), [fd](int) {
+    m_dispatchIO = adoptDispatch(dispatch_io_create(DISPATCH_IO_RANDOM, fd, dispatch_get_global_queue(useLowIOPriority ? DISPATCH_QUEUE_PRIORITY_BACKGROUND : DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), [fd](int) {
         close(fd);
     }));
     ASSERT(m_dispatchIO.get());
@@ -102,17 +102,6 @@ void IOChannel::read(size_t offset, size_t size, WorkQueue* queue, std::function
         completionHandler(data, error);
         didCallCompletionHandler = true;
     });
-}
-
-// FIXME: It would be better to do without this.
-void IOChannel::readSync(size_t offset, size_t size, WorkQueue* queue, std::function<void (Data&, int error)> completionHandler)
-{
-    auto semaphore = adoptDispatch(dispatch_semaphore_create(0));
-    read(offset, size, queue, [semaphore, &completionHandler](Data& data, int error) {
-        completionHandler(data, error);
-        dispatch_semaphore_signal(semaphore.get());
-    });
-    dispatch_semaphore_wait(semaphore.get(), DISPATCH_TIME_FOREVER);
 }
 
 void IOChannel::write(size_t offset, const Data& data, WorkQueue* queue, std::function<void (int error)> completionHandler)

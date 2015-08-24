@@ -88,6 +88,10 @@ if (!window.InspectorFrontendHost) {
         {
         },
 
+        startWindowDrag: function()
+        {
+        },
+
         moveWindowBy: function(x, y)
         {
         },
@@ -168,7 +172,7 @@ if (!window.InspectorFrontendHost) {
         }
     };
 
-    InspectorFrontendHost = new WebInspector.InspectorFrontendHostStub();
+    InspectorFrontendHost = new WebInspector.InspectorFrontendHostStub;
 
     WebInspector.dontLocalizeUserInterface = true;
 }

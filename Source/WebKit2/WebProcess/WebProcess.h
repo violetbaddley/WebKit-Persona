@@ -178,6 +178,10 @@ public:
 
     void nonVisibleProcessCleanupTimerFired();
 
+#if PLATFORM(COCOA)
+    void destroyRenderingResources();
+#endif
+
     void updateActivePages();
 
 #if USE(SOUP)
@@ -209,6 +213,8 @@ public:
     bool hasSelectionServices() const { return m_hasSelectionServices; }
     bool hasRichContentServices() const { return m_hasRichContentServices; }
 #endif
+
+    void prefetchDNS(const String&);
 
 private:
     WebProcess();

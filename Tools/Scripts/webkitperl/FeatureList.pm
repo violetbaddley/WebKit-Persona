@@ -44,6 +44,7 @@ BEGIN {
 my (
     $threeDTransformsSupport,
     $accelerated2DCanvasSupport,
+    $allInOneBuild,
     $arrowfunctionSyntax,
     $attachmentElementSupport,
     $batteryStatusSupport,
@@ -53,7 +54,6 @@ my (
     $classSyntax,
     $templateLiteralSyntax,
     $cspNextSupport,
-    $css3ConditionalRulesSupport,
     $css3TextSupport,
     $css3TextLineBreakSupport,
     $css4ImagesSupport,
@@ -91,6 +91,7 @@ my (
     $inputTypeMonthSupport,
     $inputTypeTimeSupport,
     $inputTypeWeekSupport,
+    $intlSupport,
     $jitSupport,
     $legacyNotificationsSupport,
     $legacyVendorPrefixSupport,
@@ -104,6 +105,7 @@ my (
     $mediaStreamSupport,
     $meterElementSupport,
     $mhtmlSupport,
+    $modulesSupport,
     $mouseCursorScaleSupport,
     $netscapePluginAPISupport,
     $nosniffSupport,
@@ -140,6 +142,7 @@ my (
     $videoSupport,
     $videoTrackSupport,
     $webglSupport,
+    $webAssemblySupport,
     $webAudioSupport,
     $webReplaySupport,
     $webSocketsSupport,
@@ -155,6 +158,9 @@ my @features = (
 
     { option => "accelerated-2d-canvas", desc => "Toggle Accelerated 2D Canvas support",
       define => "ENABLE_ACCELERATED_2D_CANVAS", default => isGtk(), value => \$accelerated2DCanvasSupport },
+
+    { option => "allinone-build", desc => "Toggle all-in-one build",
+      define => "ENABLE_ALLINONE_BUILD", default => isWindows(), value => \$allInOneBuild },
 
     { option => "arrowfunction-syntax", desc => "Toggle ES6 arrow function syntax support",
       define => "ENABLE_ES6_ARROWFUNCTION_SYNTAX", default => 1, value => \$arrowfunctionSyntax },
@@ -177,6 +183,9 @@ my @features = (
     { option => "class-syntax", desc => "Toggle ES6 class syntax support",
       define => "ENABLE_ES6_CLASS_SYNTAX", default => 1, value => \$classSyntax },
 
+    { option => "modules", desc => "Toggle ES6 modules support",
+      define => "ENABLE_ES6_MODULES", default => 0, value => \$modulesSupport },
+
     { option => "template-literal-syntax", desc => "Toggle ES6 template literal syntax support",
       define => "ENABLE_ES6_TEMPLATE_LITERAL_SYNTAX", default => 1, value => \$templateLiteralSyntax },
 
@@ -191,9 +200,6 @@ my @features = (
 
     { option => "css-grid-layout", desc => "Toggle CSS Grid Layout support",
       define => "ENABLE_CSS_GRID_LAYOUT", default => 1, value => \$cssGridLayoutSupport },
-
-    { option => "css3-conditional-rules", desc => "Toggle CSS3 Conditional Rules support (i.e. \@supports)",
-      define => "ENABLE_CSS3_CONDITIONAL_RULES", default => 1, value => \$css3ConditionalRulesSupport },
 
     { option => "css3-text", desc => "Toggle CSS3 Text support",
       define => "ENABLE_CSS3_TEXT", default => (isEfl() || isGtk()), value => \$css3TextSupport },
@@ -262,7 +268,7 @@ my @features = (
       define => "ENABLE_ICONDATABASE", default => !isIOSWebKit(), value => \$icondatabaseSupport },
 
     { option => "indexed-database", desc => "Toggle Indexed Database support",
-      define => "ENABLE_INDEXED_DATABASE", default => isGtk(), value => \$indexedDatabaseSupport },
+      define => "ENABLE_INDEXED_DATABASE", default => (isEfl() || isGtk()), value => \$indexedDatabaseSupport },
 
     { option => "input-speech", desc => "Toggle Input Speech support",
       define => "ENABLE_INPUT_SPEECH", default => 0, value => \$inputSpeechSupport },
@@ -287,6 +293,9 @@ my @features = (
 
     { option => "input-type-week", desc => "Toggle Input Type Week support",
       define => "ENABLE_INPUT_TYPE_WEEK", default => 0, value => \$inputTypeWeekSupport },
+
+    { option => "intl", desc => "Toggle Intl support",
+      define => "ENABLE_INTL", default => 1, value => \$intlSupport },
 
     { option => "legacy-notifications", desc => "Toggle Legacy Notifications support",
       define => "ENABLE_LEGACY_NOTIFICATIONS", default => 0, value => \$legacyNotificationsSupport },
@@ -422,6 +431,9 @@ my @features = (
 
     { option => "webgl", desc => "Toggle WebGL support",
       define => "ENABLE_WEBGL", default => (isAppleMacWebKit() || isIOSWebKit() || isGtk() || isEfl()), value => \$webglSupport },
+
+    { option => "webassembly", desc => "Toggle WebAssembly support",
+      define => "ENABLE_WEBASSEMBLY", default => 0, value => \$webAssemblySupport },
 
     { option => "web-audio", desc => "Toggle Web Audio support",
       define => "ENABLE_WEB_AUDIO", default => (isEfl() || isGtk()), value => \$webAudioSupport },

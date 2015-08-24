@@ -31,7 +31,6 @@
 #include "DFGDriver.h"
 #include "JIT.h"
 #include "JSCInlines.h"
-#include "JSFunctionNameScope.h"
 #include "LLIntEntrypoint.h"
 #include "Parser.h"
 #include "ProfilerDatabase.h"
@@ -52,8 +51,8 @@ void ExecutableBase::destroy(JSCell* cell)
 void ExecutableBase::clearCode()
 {
 #if ENABLE(JIT)
-    m_jitCodeForCall.clear();
-    m_jitCodeForConstruct.clear();
+    m_jitCodeForCall = nullptr;
+    m_jitCodeForConstruct = nullptr;
     m_jitCodeForCallWithArityCheck = MacroAssemblerCodePtr();
     m_jitCodeForConstructWithArityCheck = MacroAssemblerCodePtr();
     m_jitCodeForCallWithArityCheckAndPreserveRegs = MacroAssemblerCodePtr();
@@ -237,8 +236,7 @@ RefPtr<CodeBlock> ScriptExecutable::newCodeBlockFor(
     DebuggerMode debuggerMode = globalObject->hasDebugger() ? DebuggerOn : DebuggerOff;
     ProfilerMode profilerMode = globalObject->hasProfiler() ? ProfilerOn : ProfilerOff;
     UnlinkedFunctionCodeBlock* unlinkedCodeBlock =
-        executable->m_unlinkedExecutable->codeBlockFor(
-            *vm, executable->m_source, kind, debuggerMode, profilerMode, error);
+    executable->m_unlinkedExecutable->codeBlockFor(*vm, executable->m_source, kind, debuggerMode, profilerMode, error, executable->isArrowFunction());
     recordParse(executable->m_unlinkedExecutable->features(), executable->m_unlinkedExecutable->hasCapturedVariables(), firstLine(), lastLine(), startColumn(), endColumn()); 
     if (!unlinkedCodeBlock) {
         exception = vm->throwException(
@@ -247,19 +245,6 @@ RefPtr<CodeBlock> ScriptExecutable::newCodeBlockFor(
         return nullptr;
     }
 
-    // Parsing reveals whether our function uses features that require a separate function name object in the scope chain.
-    // Be sure to add this scope before linking the bytecode because this scope will change the resolution depth of non-local variables.
-    if (functionNameIsInScope(executable->name(), executable->functionMode())
-        && functionNameScopeIsDynamic(executable->usesEval(), executable->isStrictMode())) {
-        // We shouldn't have to do this. But we do, because bytecode linking requires a real scope
-        // chain.
-        // FIXME: https://bugs.webkit.org/show_bug.cgi?id=141885
-        SymbolTable* symbolTable =
-            SymbolTable::createNameScopeTable(*vm, executable->name(), ReadOnly | DontDelete);
-        scope = JSFunctionNameScope::create(
-            *vm, scope->globalObject(), scope, symbolTable, function);
-    }
-    
     SourceProvider* provider = executable->source().provider();
     unsigned sourceOffset = executable->source().startOffset();
     unsigned startColumn = executable->source().startColumn();
@@ -347,7 +332,7 @@ JSObject* ScriptExecutable::prepareForExecutionImpl(
 
 const ClassInfo EvalExecutable::s_info = { "EvalExecutable", &ScriptExecutable::s_info, 0, CREATE_METHOD_TABLE(EvalExecutable) };
 
-EvalExecutable* EvalExecutable::create(ExecState* exec, const SourceCode& source, bool isInStrictContext, ThisTDZMode thisTDZMode)
+EvalExecutable* EvalExecutable::create(ExecState* exec, const SourceCode& source, bool isInStrictContext, ThisTDZMode thisTDZMode, const VariableEnvironment* variablesUnderTDZ)
 {
     JSGlobalObject* globalObject = exec->lexicalGlobalObject();
     if (!globalObject->evalEnabled()) {
@@ -358,7 +343,7 @@ EvalExecutable* EvalExecutable::create(ExecState* exec, const SourceCode& source
     EvalExecutable* executable = new (NotNull, allocateCell<EvalExecutable>(*exec->heap())) EvalExecutable(exec, source, isInStrictContext);
     executable->finishCreation(exec->vm());
 
-    UnlinkedEvalCodeBlock* unlinkedEvalCode = globalObject->createEvalCodeBlock(exec, executable, thisTDZMode);
+    UnlinkedEvalCodeBlock* unlinkedEvalCode = globalObject->createEvalCodeBlock(exec, executable, thisTDZMode, variablesUnderTDZ);
     if (!unlinkedEvalCode)
         return 0;
 
@@ -464,7 +449,7 @@ void EvalExecutable::unlinkCalls()
 
 void EvalExecutable::clearCode()
 {
-    m_evalCodeBlock.clear();
+    m_evalCodeBlock = nullptr;
     m_unlinkedEvalCodeBlock.clear();
     Base::clearCode();
 }
@@ -475,8 +460,8 @@ JSObject* ProgramExecutable::checkSyntax(ExecState* exec)
     VM* vm = &exec->vm();
     JSGlobalObject* lexicalGlobalObject = exec->lexicalGlobalObject();
     std::unique_ptr<ProgramNode> programNode = parse<ProgramNode>(
-        vm, m_source, 0, Identifier(), JSParserBuiltinMode::NotBuiltin, 
-        JSParserStrictMode::NotStrict, JSParserCodeType::Program, error);
+        vm, m_source, Identifier(), JSParserBuiltinMode::NotBuiltin, 
+        JSParserStrictMode::NotStrict, SourceParseMode::ProgramMode, error);
     if (programNode)
         return 0;
     ASSERT(error.isValid());
@@ -509,8 +494,6 @@ JSObject* ProgramExecutable::initializeGlobalProperties(VM& vm, CallFrame* callF
 
     BatchedTransitionOptimizer optimizer(vm, globalObject);
 
-    const UnlinkedProgramCodeBlock::VariableDeclations& variableDeclarations = unlinkedCodeBlock->variableDeclarations();
-
     for (size_t i = 0, numberOfFunctions = unlinkedCodeBlock->numberOfFunctionDecls(); i < numberOfFunctions; ++i) {
         UnlinkedFunctionExecutable* unlinkedFunctionExecutable = unlinkedCodeBlock->functionDecl(i);
         ASSERT(!unlinkedFunctionExecutable->name().isEmpty());
@@ -522,11 +505,10 @@ JSObject* ProgramExecutable::initializeGlobalProperties(VM& vm, CallFrame* callF
         }
     }
 
-    for (size_t i = 0; i < variableDeclarations.size(); ++i) {
-        if (variableDeclarations[i].second & DeclarationStacks::IsConstant)
-            globalObject->addConst(callFrame, variableDeclarations[i].first);
-        else
-            globalObject->addVar(callFrame, variableDeclarations[i].first);
+    const VariableEnvironment& variableDeclarations = unlinkedCodeBlock->variableDeclarations();
+    for (auto& entry : variableDeclarations) {
+        ASSERT(entry.value.isVar());
+        globalObject->addVar(callFrame, Identifier::fromUid(&vm, entry.key.get()));
     }
     return 0;
 }
@@ -543,7 +525,7 @@ void ProgramExecutable::visitChildren(JSCell* cell, SlotVisitor& visitor)
 
 void ProgramExecutable::clearCode()
 {
-    m_programCodeBlock.clear();
+    m_programCodeBlock = nullptr;
     m_unlinkedProgramCodeBlock.clear();
     Base::clearCode();
 }
@@ -575,11 +557,6 @@ void FunctionExecutable::visitChildren(JSCell* cell, SlotVisitor& visitor)
     visitor.append(&thisObject->m_singletonFunction);
 }
 
-SymbolTable* FunctionExecutable::symbolTable(CodeSpecializationKind kind)
-{
-    return codeBlockFor(kind)->symbolTable();
-}
-
 void FunctionExecutable::clearUnlinkedCodeForRecompilation()
 {
     m_unlinkedExecutable->clearCodeForRecompilation();
@@ -587,8 +564,8 @@ void FunctionExecutable::clearUnlinkedCodeForRecompilation()
 
 void FunctionExecutable::clearCode()
 {
-    m_codeBlockForCall.clear();
-    m_codeBlockForConstruct.clear();
+    m_codeBlockForCall = nullptr;
+    m_codeBlockForConstruct = nullptr;
     Base::clearCode();
 }
 

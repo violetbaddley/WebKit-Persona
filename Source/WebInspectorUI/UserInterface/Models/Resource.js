@@ -25,7 +25,7 @@
 
 WebInspector.Resource = class Resource extends WebInspector.SourceCode
 {
-    constructor(url, mimeType, type, loaderIdentifier, requestIdentifier, requestMethod, requestHeaders, requestData, requestSentTimestamp, initiatorSourceCodeLocation)
+    constructor(url, mimeType, type, loaderIdentifier, requestIdentifier, requestMethod, requestHeaders, requestData, requestSentTimestamp, initiatorSourceCodeLocation, originalRequestWillBeSentTimestamp)
     {
         super();
 
@@ -45,6 +45,7 @@ WebInspector.Resource = class Resource extends WebInspector.SourceCode
         this._responseHeaders = {};
         this._parentFrame = null;
         this._initiatorSourceCodeLocation = initiatorSourceCodeLocation || null;
+        this._originalRequestWillBeSentTimestamp = originalRequestWillBeSentTimestamp || null;
         this._requestSentTimestamp = requestSentTimestamp || NaN;
         this._responseReceivedTimestamp = NaN;
         this._lastRedirectReceivedTimestamp = NaN;
@@ -134,9 +135,21 @@ WebInspector.Resource = class Resource extends WebInspector.SourceCode
         return WebInspector.displayNameForURL(this._url, this.urlComponents);
     }
 
+    get displayURL()
+    {
+        const isMultiLine = true;
+        const dataURIMaxSize = 64;
+        return WebInspector.truncateURL(this._url, isMultiLine, dataURIMaxSize);
+    }
+
     get initiatorSourceCodeLocation()
     {
         return this._initiatorSourceCodeLocation;
+    }
+
+    get originalRequestWillBeSentTimestamp()
+    {
+        return this._originalRequestWillBeSentTimestamp;
     }
 
     get type()
@@ -478,11 +491,11 @@ WebInspector.Resource = class Resource extends WebInspector.SourceCode
         // If we have the requestIdentifier we can get the actual response for this specific resource.
         // Otherwise the content will be cached resource data, which might not exist anymore.
         if (this._requestIdentifier)
-            return NetworkAgent.getResponseBody.promise(this._requestIdentifier);
+            return NetworkAgent.getResponseBody(this._requestIdentifier);
 
         // There is no request identifier or frame to request content from.
         if (this._parentFrame)
-            return PageAgent.getResourceContent.promise(this._parentFrame.id, this._url);
+            return PageAgent.getResourceContent(this._parentFrame.id, this._url);
 
         return Promise.reject(new Error("Content request failed."));
     }

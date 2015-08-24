@@ -177,6 +177,8 @@ void TestInvocation::invoke()
 
     WKPagePostMessageToInjectedBundle(TestController::singleton().mainWebView()->page(), messageName.get(), beginTestMessageBody.get());
 
+    bool shouldOpenExternalURLs = false;
+
     TestController::singleton().runUntil(m_gotInitialResponse, TestController::shortTimeout);
     if (!m_gotInitialResponse) {
         m_errorMessage = "Timed out waiting for initial response from web process\n";
@@ -186,7 +188,7 @@ void TestInvocation::invoke()
     if (m_error)
         goto end;
 
-    WKPageLoadURL(TestController::singleton().mainWebView()->page(), m_url.get());
+    WKPageLoadURLWithShouldOpenExternalURLsPolicy(TestController::singleton().mainWebView()->page(), m_url.get(), shouldOpenExternalURLs);
 
     TestController::singleton().runUntil(m_gotFinalMessage, TestController::noTimeout);
     if (m_error)
@@ -266,15 +268,13 @@ void TestInvocation::dumpResults()
         dumpAudio(m_audioResult.get());
 
     if (m_dumpPixels && m_pixelResult) {
-        if (PlatformWebView::windowSnapshotEnabled()) {
-            m_gotRepaint = false;
-            WKPageForceRepaint(TestController::singleton().mainWebView()->page(), this, TestInvocation::forceRepaintDoneCallback);
-            TestController::singleton().runUntil(m_gotRepaint, TestController::shortTimeout);
-            if (!m_gotRepaint) {
-                m_errorMessage = "Timed out waiting for pre-pixel dump repaint\n";
-                m_webProcessIsUnresponsive = true;
-                return;
-            }
+        m_gotRepaint = false;
+        WKPageForceRepaint(TestController::singleton().mainWebView()->page(), this, TestInvocation::forceRepaintDoneCallback);
+        TestController::singleton().runUntil(m_gotRepaint, TestController::shortTimeout);
+        if (!m_gotRepaint) {
+            m_errorMessage = "Timed out waiting for pre-pixel dump repaint\n";
+            m_webProcessIsUnresponsive = true;
+            return;
         }
         dumpPixelsAndCompareWithExpected(m_pixelResult.get(), m_repaintRects.get());
     }
@@ -638,6 +638,12 @@ WKRetainPtr<WKTypeRef> TestInvocation::didReceiveSynchronousMessageFromInjectedB
         WKBooleanRef isKeyValue = static_cast<WKBooleanRef>(messageBody);
         TestController::singleton().mainWebView()->setWindowIsKey(WKBooleanGetValue(isKeyValue));
         return 0;
+    }
+
+    if (WKStringIsEqualToUTF8CString(messageName, "IsGeolocationClientActive")) {
+        bool isActive = TestController::singleton().isGeolocationProviderActive();
+        WKRetainPtr<WKTypeRef> result(AdoptWK, WKBooleanCreate(isActive));
+        return result;
     }
 
     if (WKStringIsEqualToUTF8CString(messageName, "IsWorkQueueEmpty")) {

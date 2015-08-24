@@ -26,13 +26,10 @@
 #ifndef JSDOMPromise_h
 #define JSDOMPromise_h
 
-#if ENABLE(PROMISES)
-
-#include "JSCryptoKey.h"
-#include "JSCryptoKeyPair.h"
 #include "JSDOMBinding.h"
 #include <heap/StrongInlines.h>
 #include <runtime/JSPromiseDeferred.h>
+#include <wtf/Optional.h>
 
 namespace WebCore {
 
@@ -46,7 +43,7 @@ public:
     template<class RejectResultType>
     void reject(const RejectResultType&);
 
-    JSC::JSObject* promise() const;
+    JSDOMGlobalObject& globalObject() const;
 
 private:
     void callFunction(JSC::ExecState&, JSC::JSValue function, JSC::JSValue resolution);
@@ -56,6 +53,19 @@ private:
     JSC::Strong<JSDOMGlobalObject> m_globalObject;
     JSC::Strong<JSC::JSPromiseDeferred> m_deferred;
 };
+
+void rejectPromiseWithExceptionIfAny(JSC::ExecState&, JSDOMGlobalObject&, JSC::JSPromiseDeferred&);
+
+inline JSC::JSValue callPromiseFunction(JSC::ExecState& state, JSC::EncodedJSValue promiseFunction(JSC::ExecState*, JSC::JSPromiseDeferred*))
+{
+    JSDOMGlobalObject& globalObject = *JSC::jsCast<JSDOMGlobalObject*>(state.lexicalGlobalObject());
+    JSC::JSPromiseDeferred& promiseDeferred = *JSC::JSPromiseDeferred::create(&state, &globalObject);
+    promiseFunction(&state, &promiseDeferred);
+
+    rejectPromiseWithExceptionIfAny(state, globalObject, promiseDeferred);
+    ASSERT(!state.hadException());
+    return promiseDeferred.promise();
+}
 
 template <typename Value, typename Error>
 class DOMPromise {
@@ -71,6 +81,52 @@ public:
 
 private:
     DeferredWrapper m_wrapper;
+};
+
+template<typename Value, typename Error>
+class DOMPromiseWithCallback {
+public:
+    DOMPromiseWithCallback(DeferredWrapper&& wrapper) : m_wrapper(WTF::move(wrapper)) { }
+    DOMPromiseWithCallback(std::function<void(const Value&)> resolve, std::function<void(const Error&)> reject)
+        : m_resolveCallback(WTF::move(resolve))
+        , m_rejectCallback(WTF::move(reject))
+    {
+        ASSERT(m_resolveCallback);
+        ASSERT(m_rejectCallback);
+    }
+
+    void resolve(const Value&);
+    void reject(const Error&);
+
+private:
+    Optional<DOMPromise<Value, Error>> m_wrapper;
+    std::function<void(const Value&)> m_resolveCallback;
+    std::function<void(const Error&)> m_rejectCallback;
+};
+
+template<typename Value, typename Error>
+class DOMPromiseIteratorWithCallback {
+public:
+    DOMPromiseIteratorWithCallback(DeferredWrapper&& wrapper) : m_wrapper(WTF::move(wrapper)) { }
+    DOMPromiseIteratorWithCallback(std::function<void(const Value&)> resolve, std::function<void()> resolveEnd, std::function<void(const Error&)> reject)
+        : m_resolveCallback(WTF::move(resolve))
+        , m_resolveEndCallback(WTF::move(resolveEnd))
+        , m_rejectCallback(WTF::move(reject))
+    {
+        ASSERT(m_resolveCallback);
+        ASSERT(m_resolveEndCallback);
+        ASSERT(m_rejectCallback);
+    }
+
+    void resolve(const Value&);
+    void resolveEnd();
+    void reject(const Error&);
+
+private:
+    Optional<DeferredWrapper> m_wrapper;
+    std::function<void(const Value&)> m_resolveCallback;
+    std::function<void()> m_resolveEndCallback;
+    std::function<void(const Error&)> m_rejectCallback;
 };
 
 template<class ResolveResultType>
@@ -183,8 +239,57 @@ inline void DeferredWrapper::reject<String>(const String& result)
     reject(*exec, jsString(exec, result));
 }
 
+template<typename Value, typename Error>
+inline void DOMPromiseWithCallback<Value, Error>::resolve(const Value& value)
+{
+    if (m_resolveCallback) {
+        m_resolveCallback(value);
+        return;
+    }
+    m_wrapper.value().resolve(value);
 }
 
-#endif // ENABLE(PROMISES)
+template<typename Value, typename Error>
+inline void DOMPromiseWithCallback<Value, Error>::reject(const Error& error)
+{
+    if (m_rejectCallback) {
+        m_rejectCallback(error);
+        return;
+    }
+    m_wrapper.value().reject(error);
+}
+
+template<typename Value, typename Error>
+inline void DOMPromiseIteratorWithCallback<Value, Error>::resolve(const Value& value)
+{
+    if (m_resolveCallback) {
+        m_resolveCallback(value);
+        return;
+    }
+    JSDOMGlobalObject& globalObject = m_wrapper.value().globalObject();
+    m_wrapper.value().resolve(toJSIterator(*globalObject.globalExec(), globalObject, value));
+}
+
+template<typename Value, typename Error>
+inline void DOMPromiseIteratorWithCallback<Value, Error>::resolveEnd()
+{
+    if (m_resolveEndCallback) {
+        m_resolveEndCallback();
+        return;
+    }
+    m_wrapper.value().resolve(toJSIteratorEnd(*m_wrapper.value().globalObject().globalExec()));
+}
+
+template<typename Value, typename Error>
+inline void DOMPromiseIteratorWithCallback<Value, Error>::reject(const Error& error)
+{
+    if (m_rejectCallback) {
+        m_rejectCallback(error);
+        return;
+    }
+    m_wrapper.value().reject(error);
+}
+
+}
 
 #endif // JSDOMPromise_h

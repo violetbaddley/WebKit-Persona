@@ -45,6 +45,12 @@
 #include <wtf/Forward.h>
 #include <wtf/Vector.h>
 
+#if ENABLE(MEDIA_SESSION)
+namespace WebCore {
+struct MediaSessionMetadata;
+}
+#endif
+
 #if PLATFORM(IOS)
 #include "PlatformLayer.h"
 #define NSResponder WAKResponder
@@ -84,6 +90,10 @@ class PopupMenuClient;
 class SecurityOrigin;
 class ViewportConstraints;
 class Widget;
+
+#if ENABLE(VIDEO) && USE(GSTREAMER)
+class MediaPlayerRequestInstallMissingPluginsCallback;
+#endif
 
 struct DateTimeChooserParameters;
 struct FrameLoadRequest;
@@ -146,10 +156,7 @@ public:
     virtual bool runJavaScriptConfirm(Frame*, const String&) = 0;
     virtual bool runJavaScriptPrompt(Frame*, const String& message, const String& defaultValue, String& result) = 0;
     virtual void setStatusbarText(const String&) = 0;
-    virtual bool shouldInterruptJavaScript() = 0;
     virtual KeyboardUIMode keyboardUIMode() = 0;
-
-    virtual IntRect windowResizerRect() const = 0;
 
     // Methods used by HostWindow.
     virtual bool supportsImmediateInvalidation() { return false; }
@@ -274,6 +281,7 @@ public:
         
     virtual void elementDidFocus(const Node*) { };
     virtual void elementDidBlur(const Node*) { };
+    virtual void elementDidRefocus(const Node*) { };
     
     virtual bool shouldPaintEntireContents() const { return false; }
     virtual bool hasStablePageScaleFactor() const { return true; }
@@ -372,8 +380,8 @@ public:
     virtual bool selectItemAlignmentFollowsMenuWritingDirection() = 0;
     // Checks if there is an opened popup, called by RenderMenuList::showPopup().
     virtual bool hasOpenedPopup() const = 0;
-    virtual PassRefPtr<PopupMenu> createPopupMenu(PopupMenuClient*) const = 0;
-    virtual PassRefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient*) const = 0;
+    virtual RefPtr<PopupMenu> createPopupMenu(PopupMenuClient*) const = 0;
+    virtual RefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient*) const = 0;
 
     virtual void postAccessibilityNotification(AccessibilityObject*, AXObjectCache::AXNotification) { }
 
@@ -413,7 +421,13 @@ public:
 
     virtual bool shouldUseTiledBackingForFrameView(const FrameView*) const { return false; }
 
-    virtual void isPlayingMediaDidChange(MediaProducer::MediaStateFlags) { }
+    virtual void isPlayingMediaDidChange(MediaProducer::MediaStateFlags, uint64_t) { }
+
+#if ENABLE(MEDIA_SESSION)
+    virtual void hasMediaSessionWithActiveMediaElementsDidChange(bool) { }
+    virtual void mediaSessionMetadataDidChange(const WebCore::MediaSessionMetadata&) { }
+    virtual void focusedContentMediaElementDidChange(uint64_t) { }
+#endif
 
     virtual void setPageActivityState(PageActivityState::Flags) { }
 
@@ -439,6 +453,13 @@ public:
     virtual void removePlaybackTargetPickerClient(uint64_t /*contextId*/) { }
     virtual void showPlaybackTargetPicker(uint64_t /*contextId*/, const WebCore::IntPoint&, bool /* isVideo */) { }
     virtual void playbackTargetPickerClientStateDidChange(uint64_t /*contextId*/, MediaProducer::MediaStateFlags) { }
+#endif
+
+#if ENABLE(VIDEO)
+    virtual void imageOrMediaDocumentSizeChanged(const WebCore::IntSize&) { }
+#if USE(GSTREAMER)
+    virtual void requestInstallMissingMediaPlugins(const String& /*details*/, const String& /*description*/, MediaPlayerRequestInstallMissingPluginsCallback&) { };
+#endif
 #endif
 
 protected:

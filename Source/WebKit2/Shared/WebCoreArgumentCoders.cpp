@@ -84,7 +84,11 @@
 #endif // PLATFORM(IOS)
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
-#import <WebCore/MediaPlaybackTargetContext.h>
+#include <WebCore/MediaPlaybackTargetContext.h>
+#endif
+
+#if ENABLE(MEDIA_SESSION)
+#include <WebCore/MediaSessionMetadata.h>
 #endif
 
 using namespace WebCore;
@@ -369,33 +373,25 @@ bool ArgumentCoder<IntSize>::decode(ArgumentDecoder& decoder, IntSize& intSize)
     return SimpleArgumentCoder<IntSize>::decode(decoder, intSize);
 }
 
-static void pathPointCountApplierFunction(void* info, const PathElement*)
+static void pathEncodeApplierFunction(ArgumentEncoder& encoder, const PathElement& element)
 {
-    uint64_t* pointCount = static_cast<uint64_t*>(info);
-    ++*pointCount;
-}
+    encoder.encodeEnum(element.type);
 
-static void pathEncodeApplierFunction(void* info, const PathElement* element)
-{
-    ArgumentEncoder& encoder = *static_cast<ArgumentEncoder*>(info);
-
-    encoder.encodeEnum(element->type);
-
-    switch (element->type) {
+    switch (element.type) {
     case PathElementMoveToPoint: // The points member will contain 1 value.
-        encoder << element->points[0];
+        encoder << element.points[0];
         break;
     case PathElementAddLineToPoint: // The points member will contain 1 value.
-        encoder << element->points[0];
+        encoder << element.points[0];
         break;
     case PathElementAddQuadCurveToPoint: // The points member will contain 2 values.
-        encoder << element->points[0];
-        encoder << element->points[1];
+        encoder << element.points[0];
+        encoder << element.points[1];
         break;
     case PathElementAddCurveToPoint: // The points member will contain 3 values.
-        encoder << element->points[0];
-        encoder << element->points[1];
-        encoder << element->points[2];
+        encoder << element.points[0];
+        encoder << element.points[1];
+        encoder << element.points[2];
         break;
     case PathElementCloseSubpath: // The points member will contain no values.
         break;
@@ -405,11 +401,15 @@ static void pathEncodeApplierFunction(void* info, const PathElement* element)
 void ArgumentCoder<Path>::encode(ArgumentEncoder& encoder, const Path& path)
 {
     uint64_t numPoints = 0;
-    path.apply(&numPoints, pathPointCountApplierFunction);
+    path.apply([&numPoints](const PathElement&) {
+        ++numPoints;
+    });
 
     encoder << numPoints;
 
-    path.apply(&encoder, pathEncodeApplierFunction);
+    path.apply([&encoder](const PathElement& pathElement) {
+        pathEncodeApplierFunction(encoder, pathElement);
+    });
 }
 
 bool ArgumentCoder<Path>::decode(ArgumentDecoder& decoder, Path& path)
@@ -750,6 +750,29 @@ static bool decodeImage(ArgumentDecoder& decoder, RefPtr<Image>& image)
     return true;
 }
 
+static void encodeOptionalImage(ArgumentEncoder& encoder, Image* image)
+{
+    bool hasImage = !!image;
+    encoder << hasImage;
+
+    if (hasImage)
+        encodeImage(encoder, image);
+}
+
+static bool decodeOptionalImage(ArgumentDecoder& decoder, RefPtr<Image>& image)
+{
+    image = nullptr;
+
+    bool hasImage;
+    if (!decoder.decode(hasImage))
+        return false;
+
+    if (!hasImage)
+        return true;
+
+    return decodeImage(decoder, image);
+}
+
 #if !PLATFORM(IOS)
 void ArgumentCoder<Cursor>::encode(ArgumentEncoder& encoder, const Cursor& cursor)
 {
@@ -956,10 +979,6 @@ void ArgumentCoder<WindowFeatures>::encode(ArgumentEncoder& encoder, const Windo
     encoder << windowFeatures.y;
     encoder << windowFeatures.width;
     encoder << windowFeatures.height;
-    encoder << windowFeatures.xSet;
-    encoder << windowFeatures.ySet;
-    encoder << windowFeatures.widthSet;
-    encoder << windowFeatures.heightSet;
     encoder << windowFeatures.menuBarVisible;
     encoder << windowFeatures.statusBarVisible;
     encoder << windowFeatures.toolBarVisible;
@@ -979,14 +998,6 @@ bool ArgumentCoder<WindowFeatures>::decode(ArgumentDecoder& decoder, WindowFeatu
     if (!decoder.decode(windowFeatures.width))
         return false;
     if (!decoder.decode(windowFeatures.height))
-        return false;
-    if (!decoder.decode(windowFeatures.xSet))
-        return false;
-    if (!decoder.decode(windowFeatures.ySet))
-        return false;
-    if (!decoder.decode(windowFeatures.widthSet))
-        return false;
-    if (!decoder.decode(windowFeatures.heightSet))
         return false;
     if (!decoder.decode(windowFeatures.menuBarVisible))
         return false;
@@ -1445,6 +1456,32 @@ bool ArgumentCoder<UserStyleSheet>::decode(ArgumentDecoder& decoder, UserStyleSh
     userStyleSheet = UserStyleSheet(source, url, WTF::move(whitelist), WTF::move(blacklist), injectedFrames, level);
     return true;
 }
+
+#if ENABLE(MEDIA_SESSION)
+void ArgumentCoder<MediaSessionMetadata>::encode(ArgumentEncoder& encoder, const MediaSessionMetadata& result)
+{
+    encoder << result.artist();
+    encoder << result.album();
+    encoder << result.title();
+    encoder << result.artworkURL();
+}
+
+bool ArgumentCoder<MediaSessionMetadata>::decode(ArgumentDecoder& decoder, MediaSessionMetadata& result)
+{
+    String artist, album, title;
+    URL artworkURL;
+    if (!decoder.decode(artist))
+        return false;
+    if (!decoder.decode(album))
+        return false;
+    if (!decoder.decode(title))
+        return false;
+    if (!decoder.decode(artworkURL))
+        return false;
+    result = MediaSessionMetadata(title, artist, album, artworkURL);
+    return true;
+}
+#endif
 
 void ArgumentCoder<UserScript>::encode(ArgumentEncoder& encoder, const UserScript& userScript)
 {
@@ -2103,16 +2140,10 @@ void ArgumentCoder<TextIndicatorData>::encode(ArgumentEncoder& encoder, const Te
     encoder << textIndicatorData.textRectsInBoundingRectCoordinates;
     encoder << textIndicatorData.contentImageScaleFactor;
     encoder.encodeEnum(textIndicatorData.presentationTransition);
+    encoder << static_cast<uint64_t>(textIndicatorData.options);
 
-    bool hasImage = textIndicatorData.contentImage;
-    encoder << hasImage;
-    if (hasImage)
-        encodeImage(encoder, textIndicatorData.contentImage.get());
-
-    bool hasImageWithHighlight = textIndicatorData.contentImageWithHighlight;
-    encoder << hasImageWithHighlight;
-    if (hasImageWithHighlight)
-        encodeImage(encoder, textIndicatorData.contentImageWithHighlight.get());
+    encodeOptionalImage(encoder, textIndicatorData.contentImage.get());
+    encodeOptionalImage(encoder, textIndicatorData.contentImageWithHighlight.get());
 }
 
 bool ArgumentCoder<TextIndicatorData>::decode(ArgumentDecoder& decoder, TextIndicatorData& textIndicatorData)
@@ -2132,16 +2163,15 @@ bool ArgumentCoder<TextIndicatorData>::decode(ArgumentDecoder& decoder, TextIndi
     if (!decoder.decodeEnum(textIndicatorData.presentationTransition))
         return false;
 
-    bool hasImage;
-    if (!decoder.decode(hasImage))
+    uint64_t options;
+    if (!decoder.decode(options))
         return false;
-    if (hasImage && !decodeImage(decoder, textIndicatorData.contentImage))
+    textIndicatorData.options = static_cast<TextIndicatorOptions>(options);
+
+    if (!decodeOptionalImage(decoder, textIndicatorData.contentImage))
         return false;
 
-    bool hasImageWithHighlight;
-    if (!decoder.decode(hasImageWithHighlight))
-        return false;
-    if (hasImageWithHighlight && !decodeImage(decoder, textIndicatorData.contentImageWithHighlight))
+    if (!decodeOptionalImage(decoder, textIndicatorData.contentImageWithHighlight))
         return false;
 
     return true;

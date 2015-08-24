@@ -29,6 +29,7 @@
 #include "CallFrameInlines.h"
 #include "ClonedArguments.h"
 #include "Executable.h"
+#include "InlineCallFrame.h"
 #include "Interpreter.h"
 #include "JSCInlines.h"
 #include <wtf/DataLog.h>
@@ -331,7 +332,7 @@ void logF(unsigned indent, const char* format, const Types&... values)
 {
     printIndents(indent);
 
-#if COMPILER(CLANG) || COMPILER(GCC)
+#if COMPILER(GCC_OR_CLANG)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #pragma GCC diagnostic ignored "-Wmissing-format-attribute"
@@ -339,7 +340,7 @@ void logF(unsigned indent, const char* format, const Types&... values)
 
     dataLogF(format, values...);
 
-#if COMPILER(CLANG) || COMPILER(GCC)
+#if COMPILER(GCC_OR_CLANG)
 #pragma GCC diagnostic pop
 #endif
 }

@@ -64,7 +64,10 @@ public:
     virtual void loadURL(uint64_t requestID, const String& method, const String& urlString, const String& target, 
                          const WebCore::HTTPHeaderMap& headerFields, const Vector<uint8_t>& httpBody, bool allowPopups) = 0;
 
-    /// Cancels the load of a stream that was requested by loadURL.
+    // Continues the load of a stream that was requested by loadURL.
+    virtual void continueStreamLoad(uint64_t streamID) = 0;
+
+    // Cancels the load of a stream that was requested by loadURL.
     virtual void cancelStreamLoad(uint64_t streamID) = 0;
 
     // Cancels the load of the manual stream.
@@ -95,10 +98,7 @@ public:
 
     // Tells the controller that the plug-in process has crashed.
     virtual void pluginProcessCrashed() = 0;
-    
-    // Tells the controller that we're about to dispatch an event to the plug-in.
-    virtual void willSendEventToPlugin() = 0;
-    
+
 #if PLATFORM(COCOA)
     // Tells the controller that the plug-in focus or window focus did change.
     virtual void pluginFocusOrWindowFocusChanged(bool) = 0;

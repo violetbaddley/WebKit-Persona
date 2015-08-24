@@ -45,7 +45,7 @@ NodeIterator::NodePointer::NodePointer(PassRefPtr<Node> n, bool b)
 
 void NodeIterator::NodePointer::clear()
 {
-    node.clear();
+    node = nullptr;
 }
 
 bool NodeIterator::NodePointer::moveToNext(Node* root)
@@ -76,7 +76,7 @@ bool NodeIterator::NodePointer::moveToPrevious(Node* root)
     return node;
 }
 
-NodeIterator::NodeIterator(PassRefPtr<Node> rootNode, unsigned whatToShow, PassRefPtr<NodeFilter> filter, bool expandEntityReferences)
+NodeIterator::NodeIterator(PassRefPtr<Node> rootNode, unsigned long whatToShow, PassRefPtr<NodeFilter> filter, bool expandEntityReferences)
     : NodeIteratorBase(rootNode, whatToShow, filter, expandEntityReferences)
     , m_referenceNode(root(), true)
     , m_detached(false)
@@ -151,7 +151,7 @@ void NodeIterator::detach()
 {
     root()->document().detachNodeIterator(this);
     m_detached = true;
-    m_referenceNode.node.clear();
+    m_referenceNode.node = nullptr;
 }
 
 void NodeIterator::nodeWillBeRemoved(Node& removedNode)

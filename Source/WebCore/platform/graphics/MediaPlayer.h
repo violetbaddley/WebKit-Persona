@@ -53,10 +53,6 @@
 #include "PlatformTextTrack.h"
 #endif
 
-#if USE(PLATFORM_TEXT_TRACK_MENU)
-#include "PlatformTextTrackMenu.h"
-#endif
-
 OBJC_CLASS AVAsset;
 OBJC_CLASS AVPlayer;
 OBJC_CLASS NSArray;
@@ -148,6 +144,10 @@ struct MediaPlayerFactory;
 struct GraphicsDeviceAdapter;
 #endif
 
+#if USE(GSTREAMER)
+class MediaPlayerRequestInstallMissingPluginsCallback;
+#endif
+
 class MediaPlayerClient {
 public:
     virtual ~MediaPlayerClient() { }
@@ -225,6 +225,11 @@ public:
     virtual String mediaPlayerMediaKeysStorageDirectory() const { return emptyString(); }
 #endif
     
+#if ENABLE(MEDIA_STREAM)
+    virtual String mediaPlayerMediaDeviceIdentifierStorageDirectory() const { return emptyString(); }
+#endif
+
+    
 #if ENABLE(WIRELESS_PLAYBACK_TARGET)
     virtual void mediaPlayerCurrentPlaybackTargetIsWirelessChanged(MediaPlayer*) { };
 #endif
@@ -278,6 +283,10 @@ public:
     virtual double mediaPlayerRequestedPlaybackRate() const { return 0; }
     virtual MediaPlayerEnums::VideoFullscreenMode mediaPlayerFullscreenMode() const { return MediaPlayerEnums::VideoFullscreenModeNone; }
     virtual Vector<String> mediaPlayerPreferredAudioCharacteristics() const { return Vector<String>(); }
+
+#if USE(GSTREAMER)
+    virtual void requestInstallMissingPlugins(const String&, const String&, MediaPlayerRequestInstallMissingPluginsCallback&) { };
+#endif
 };
 
 class MediaPlayerSupportsTypeClient {
@@ -379,6 +388,8 @@ public:
 
     MediaTime startTime() const;
     MediaTime initialTime() const;
+
+    MediaTime getStartDate() const;
 
     double rate() const;
     void setRate(double);
@@ -570,11 +581,6 @@ public:
 #endif
 
     static void resetMediaEngines();
-
-#if USE(PLATFORM_TEXT_TRACK_MENU)
-    bool implementsTextTrackControls() const;
-    PassRefPtr<PlatformTextTrackMenuInterface> textTrackMenu();
-#endif
 
 #if USE(GSTREAMER)
     void simulateAudioInterruption();

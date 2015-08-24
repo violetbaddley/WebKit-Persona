@@ -48,6 +48,7 @@
 #import "WKNavigationResponseInternal.h"
 #import "WKPreferencesInternal.h"
 #import "WKProcessPoolInternal.h"
+#import "WKSecurityOriginInternal.h"
 #import "WKUserContentControllerInternal.h"
 #import "WKUserScriptInternal.h"
 #import "WKWebProcessPlugInBrowserContextControllerInternal.h"
@@ -59,6 +60,7 @@
 #import "WKWebProcessPlugInScriptWorldInternal.h"
 #import "WKWebsiteDataRecordInternal.h"
 #import "WKWebsiteDataStoreInternal.h"
+#import "WKWindowFeaturesInternal.h"
 #import "_WKDownloadInternal.h"
 #import "_WKFrameHandleInternal.h"
 #import "_WKProcessPoolConfigurationInternal.h"
@@ -172,6 +174,10 @@ void* Object::newObject(size_t size, Type type)
         wrapper = [WKBrowsingContextGroup alloc];
         break;
 
+    case Type::SecurityOrigin:
+        wrapper = [WKSecurityOrigin alloc];
+        break;
+
     case Type::String:
         wrapper = NSAllocateObject([WKNSString class], size, nullptr);
         break;
@@ -210,6 +216,10 @@ void* Object::newObject(size_t size, Type type)
 
     case Type::WebsiteDataStore:
         wrapper = [WKWebsiteDataStore alloc];
+        break;
+
+    case Type::WindowFeatures:
+        wrapper = [WKWindowFeatures alloc];
         break;
 
     case Type::BundleFrame:

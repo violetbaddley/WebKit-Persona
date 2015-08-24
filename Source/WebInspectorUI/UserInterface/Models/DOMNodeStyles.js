@@ -235,6 +235,9 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
             this.dispatchEventToListeners(WebInspector.DOMNodeStyles.Event.Refreshed, {significantChange});
         }
 
+        // FIXME: Convert to pushing StyleSheet information to the frontend. <rdar://problem/13213680>
+        WebInspector.cssStyleManager.fetchStyleSheetsIfNeeded();
+
         CSSAgent.getMatchedStylesForNode.invoke({nodeId: this._node.id, includePseudo: true, includeInherited: true}, fetchedMatchedStyles.bind(this));
         CSSAgent.getInlineStylesForNode.invoke({nodeId: this._node.id}, fetchedInlineStyles.bind(this));
         CSSAgent.getComputedStyleForNode.invoke({nodeId: this._node.id}, fetchedComputedStyle.bind(this));
@@ -253,6 +256,24 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
         }
 
         var selector = this._node.appropriateSelectorFor(true);
+
+        CSSAgent.addRule.invoke({contextNodeId: this._node.id, selector}, addedRule.bind(this));
+    }
+
+    addRuleWithSelector(selector)
+    {
+        if (!selector)
+            return;
+
+        function addedRule(error, rulePayload)
+        {
+            if (error)
+                return;
+
+            DOMAgent.markUndoableState();
+
+            this.refresh();
+        }
 
         CSSAgent.addRule.invoke({contextNodeId: this._node.id, selector}, addedRule.bind(this));
     }
@@ -322,23 +343,78 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
         this._markAsNeedsRefresh();
     }
 
-    changeRuleSelector(rule, selector)
+    changeRule(rule, selector, text)
     {
+        if (!rule)
+            return;
+
         selector = selector || "";
+
+        function changeCompleted()
+        {
+            DOMAgent.markUndoableState();
+            this.refresh();
+        }
+
+        function styleChanged(error, stylePayload)
+        {
+            if (error)
+                return;
+
+            changeCompleted.call(this);
+        }
+
+        function changeText(styleId)
+        {
+            // COMPATIBILITY (iOS 6): CSSAgent.setStyleText was not available in iOS 6.
+            if (!text || !text.length || !CSSAgent.setStyleText) {
+                changeCompleted.call(this);
+                return;
+            }
+
+            CSSAgent.setStyleText(styleId, text, styleChanged.bind(this));
+        }
 
         function ruleSelectorChanged(error, rulePayload)
         {
-            DOMAgent.markUndoableState();
+            if (error)
+                return;
 
-            // Do a full refresh incase the rule no longer matches the node or the
-            // matched selector indices changed.
-            this.refresh();
+            changeText.call(this, rulePayload.style.styleId);
         }
 
         this._needsRefresh = true;
         this._ignoreNextContentDidChangeForStyleSheet = rule.ownerStyleSheet;
 
         CSSAgent.setRuleSelector(rule.id, selector, ruleSelectorChanged.bind(this));
+    }
+
+    changeRuleSelector(rule, selector)
+    {
+        selector = selector || "";
+        var result = new WebInspector.WrappedPromise;
+
+        function ruleSelectorChanged(error, rulePayload)
+        {
+            if (error) {
+                result.reject(error);
+                return;
+            }
+
+            DOMAgent.markUndoableState();
+
+            // Do a full refresh incase the rule no longer matches the node or the
+            // matched selector indices changed.
+            this.refresh();
+
+            result.resolve(rulePayload);
+        }
+
+        this._needsRefresh = true;
+        this._ignoreNextContentDidChangeForStyleSheet = rule.ownerStyleSheet;
+
+        CSSAgent.setRuleSelector(rule.id, selector, ruleSelectorChanged.bind(this));
+        return result.promise;
     }
 
     changeStyleText(style, text)
@@ -654,7 +730,7 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
         var styleSheet = id ? WebInspector.cssStyleManager.styleSheetForIdentifier(id.styleSheetId) : null;
         if (styleSheet) {
             if (type === WebInspector.CSSStyleDeclaration.Type.Inline)
-                styleSheet.markAsInlineStyle();
+                styleSheet.markAsInlineStyleAttributeStyleSheet();
             styleSheet.addEventListener(WebInspector.CSSStyleSheet.Event.ContentDidChange, this._styleSheetContentDidChange, this);
         }
 
@@ -737,6 +813,8 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
         if (!style)
             return null;
 
+        var styleSheet = id ? WebInspector.cssStyleManager.styleSheetForIdentifier(id.styleSheetId) : null;
+
         // COMPATIBILITY (iOS 6): The payload had 'selectorText' as a property,
         // now it has 'selectorList' with a 'text' property. Support both here.
         var selectorText = payload.selectorList ? payload.selectorList.text : payload.selectorText;
@@ -749,6 +827,8 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
             var sourceCodeLocation = this._createSourceCodeLocation(payload.sourceURL, sourceRange.startLine, sourceRange.startColumn);
         } else
             var sourceCodeLocation = this._createSourceCodeLocation(payload.sourceURL, payload.sourceLine);
+        if (styleSheet)
+            sourceCodeLocation = styleSheet.offsetSourceCodeLocation(sourceCodeLocation);
 
         var type;
         switch (payload.origin) {
@@ -788,6 +868,8 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
 
             var mediaText = mediaItem.text;
             var mediaSourceCodeLocation = this._createSourceCodeLocation(mediaItem.sourceURL, mediaItem.sourceLine);
+            if (styleSheet)
+                mediaSourceCodeLocation = styleSheet.offsetSourceCodeLocation(mediaSourceCodeLocation);
 
             mediaList.push(new WebInspector.CSSMedia(mediaType, mediaText, mediaSourceCodeLocation));
         }
@@ -797,7 +879,6 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
             return rule;
         }
 
-        var styleSheet = id ? WebInspector.cssStyleManager.styleSheetForIdentifier(id.styleSheetId) : null;
         if (styleSheet)
             styleSheet.addEventListener(WebInspector.CSSStyleSheet.Event.ContentDidChange, this._styleSheetContentDidChange, this);
 
@@ -928,7 +1009,8 @@ WebInspector.DOMNodeStyles = class DOMNodeStyles extends WebInspector.Object
                         continue;
                     }
 
-                    effectiveProperty.overridden = true;
+                    if (!property.anonymous)
+                        effectiveProperty.overridden = true;
                 }
 
                 property.overridden = false;

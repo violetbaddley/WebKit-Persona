@@ -151,29 +151,16 @@ private:
                 break;
             }
             
-            // FIXME: Optimize for the case where one of the operands is the
-            // empty string. Also consider optimizing for the case where we don't
-            // believe either side is the emtpy string. Both of these things should
-            // be easy.
-            
-            if (node->child1()->shouldSpeculateString()
-                && attemptToMakeFastStringAdd<StringUse>(node, node->child1(), node->child2()))
+            if (attemptToMakeFastStringAdd(node))
                 break;
-            if (node->child2()->shouldSpeculateString()
-                && attemptToMakeFastStringAdd<StringUse>(node, node->child2(), node->child1()))
-                break;
-            if (node->child1()->shouldSpeculateStringObject()
-                && attemptToMakeFastStringAdd<StringObjectUse>(node, node->child1(), node->child2()))
-                break;
-            if (node->child2()->shouldSpeculateStringObject()
-                && attemptToMakeFastStringAdd<StringObjectUse>(node, node->child2(), node->child1()))
-                break;
-            if (node->child1()->shouldSpeculateStringOrStringObject()
-                && attemptToMakeFastStringAdd<StringOrStringObjectUse>(node, node->child1(), node->child2()))
-                break;
-            if (node->child2()->shouldSpeculateStringOrStringObject()
-                && attemptToMakeFastStringAdd<StringOrStringObjectUse>(node, node->child2(), node->child1()))
-                break;
+
+            // We could attempt to turn this into a StrCat here. But for now, that wouldn't
+            // significantly reduce the number of branches required.
+            break;
+        }
+
+        case StrCat: {
+            attemptToMakeFastStringAdd(node);
             break;
         }
             
@@ -356,9 +343,19 @@ private:
         }
             
         case LogicalNot: {
-            if (node->child1()->shouldSpeculateBoolean())
-                fixEdge<BooleanUse>(node->child1());
-            else if (node->child1()->shouldSpeculateObjectOrOther())
+            if (node->child1()->shouldSpeculateBoolean()) {
+                if (node->child1()->result() == NodeResultBoolean) {
+                    // This is necessary in case we have a bytecode instruction implemented by:
+                    //
+                    // a: CompareEq(...)
+                    // b: LogicalNot(@a)
+                    //
+                    // In that case, CompareEq might have a side-effect. Then, we need to make
+                    // sure that we know that Branch does not exit.
+                    fixEdge<KnownBooleanUse>(node->child1());
+                } else
+                    fixEdge<BooleanUse>(node->child1());
+            } else if (node->child1()->shouldSpeculateObjectOrOther())
                 fixEdge<ObjectOrOtherUse>(node->child1());
             else if (node->child1()->shouldSpeculateInt32OrBoolean())
                 fixIntOrBooleanEdge(node->child1());
@@ -366,10 +363,6 @@ private:
                 fixEdge<DoubleRepUse>(node->child1());
             else if (node->child1()->shouldSpeculateString())
                 fixEdge<StringUse>(node->child1());
-            break;
-        }
-            
-        case CompareEqConstant: {
             break;
         }
 
@@ -424,6 +417,32 @@ private:
                 node->clearFlags(NodeMustGenerate);
                 break;
             }
+
+            // If either child can be proved to be Null or Undefined, comparing them is greatly simplified.
+            bool oneArgumentIsUsedAsSpecOther = false;
+            if (node->child1()->isUndefinedOrNullConstant()) {
+                fixEdge<OtherUse>(node->child1());
+                oneArgumentIsUsedAsSpecOther = true;
+            } else if (node->child1()->shouldSpeculateOther()) {
+                m_insertionSet.insertNode(m_indexInBlock, SpecNone, Check, node->origin,
+                    Edge(node->child1().node(), OtherUse));
+                fixEdge<OtherUse>(node->child1());
+                oneArgumentIsUsedAsSpecOther = true;
+            }
+            if (node->child2()->isUndefinedOrNullConstant()) {
+                fixEdge<OtherUse>(node->child2());
+                oneArgumentIsUsedAsSpecOther = true;
+            } else if (node->child2()->shouldSpeculateOther()) {
+                m_insertionSet.insertNode(m_indexInBlock, SpecNone, Check, node->origin,
+                    Edge(node->child2().node(), OtherUse));
+                fixEdge<OtherUse>(node->child2());
+                oneArgumentIsUsedAsSpecOther = true;
+            }
+            if (oneArgumentIsUsedAsSpecOther) {
+                node->clearFlags(NodeMustGenerate);
+                break;
+            }
+
             if (node->child1()->shouldSpeculateObject() && node->child2()->shouldSpeculateObjectOrOther()) {
                 fixEdge<ObjectUse>(node->child1());
                 fixEdge<ObjectOrOtherUse>(node->child2());
@@ -436,6 +455,7 @@ private:
                 node->clearFlags(NodeMustGenerate);
                 break;
             }
+
             break;
         }
             
@@ -471,7 +491,21 @@ private:
                 fixEdge<StringUse>(node->child2());
                 break;
             }
-            if (node->child1()->shouldSpeculateObject() && node->child2()->shouldSpeculateObject()) {
+            WatchpointSet* masqueradesAsUndefinedWatchpoint = m_graph.globalObjectFor(node->origin.semantic)->masqueradesAsUndefinedWatchpoint();
+            if (masqueradesAsUndefinedWatchpoint->isStillValid()) {
+                
+                if (node->child1()->shouldSpeculateObject()) {
+                    m_graph.watchpoints().addLazily(masqueradesAsUndefinedWatchpoint);
+                    fixEdge<ObjectUse>(node->child1());
+                    break;
+                }
+                if (node->child2()->shouldSpeculateObject()) {
+                    m_graph.watchpoints().addLazily(masqueradesAsUndefinedWatchpoint);
+                    fixEdge<ObjectUse>(node->child2());
+                    break;
+                }
+                
+            } else if (node->child1()->shouldSpeculateObject() && node->child2()->shouldSpeculateObject()) {
                 fixEdge<ObjectUse>(node->child1());
                 fixEdge<ObjectUse>(node->child2());
                 break;
@@ -611,7 +645,6 @@ private:
             switch (arrayMode.type()) {
             case Array::SelectUsingPredictions:
             case Array::Unprofiled:
-            case Array::Undecided:
                 RELEASE_ASSERT_NOT_REACHED();
                 break;
             case Array::Generic:
@@ -672,6 +705,7 @@ private:
             
             switch (node->arrayMode().modeForPut().type()) {
             case Array::SelectUsingPredictions:
+            case Array::SelectUsingArguments:
             case Array::Unprofiled:
             case Array::Undecided:
                 RELEASE_ASSERT_NOT_REACHED();
@@ -782,9 +816,19 @@ private:
         }
             
         case Branch: {
-            if (node->child1()->shouldSpeculateBoolean())
-                fixEdge<BooleanUse>(node->child1());
-            else if (node->child1()->shouldSpeculateObjectOrOther())
+            if (node->child1()->shouldSpeculateBoolean()) {
+                if (node->child1()->result() == NodeResultBoolean) {
+                    // This is necessary in case we have a bytecode instruction implemented by:
+                    //
+                    // a: CompareEq(...)
+                    // b: Branch(@a)
+                    //
+                    // In that case, CompareEq might have a side-effect. Then, we need to make
+                    // sure that we know that Branch does not exit.
+                    fixEdge<KnownBooleanUse>(node->child1());
+                } else
+                    fixEdge<BooleanUse>(node->child1());
+            } else if (node->child1()->shouldSpeculateObjectOrOther())
                 fixEdge<ObjectOrOtherUse>(node->child1());
             else if (node->child1()->shouldSpeculateInt32OrBoolean())
                 fixIntOrBooleanEdge(node->child1());
@@ -934,7 +978,12 @@ private:
             speculateForBarrier(node->child2());
             break;
         }
-            
+
+        case LoadArrowFunctionThis: {
+            fixEdge<KnownCellUse>(node->child1());
+            break;
+        }
+
         case SkipScope:
         case GetScope:
         case GetGetter:
@@ -996,6 +1045,15 @@ private:
         case CreateThis:
         case GetButterfly: {
             fixEdge<CellUse>(node->child1());
+            break;
+        }
+
+        case CheckIdent: {
+            UniquedStringImpl* uid = node->uidOperand();
+            if (uid->isSymbol())
+                fixEdge<SymbolUse>(node->child1());
+            else
+                fixEdge<StringIdentUse>(node->child1());
             break;
         }
             
@@ -1248,7 +1306,13 @@ private:
             fixEdge<CellUse>(node->child1());
             break;
         }
-            
+
+        case NewArrowFunction: {
+            fixEdge<CellUse>(node->child1());
+            fixEdge<CellUse>(node->child2());
+            break;
+        }
+
 #if !ASSERT_DISABLED
         // Have these no-op cases here to ensure that nobody forgets to add handlers for new opcodes.
         case SetArgument:
@@ -1271,8 +1335,6 @@ private:
         case ConstructForwardVarargs:
         case LoadVarargs:
         case ProfileControlFlow:
-        case NativeCall:
-        case NativeConstruct:
         case NewObject:
         case NewArrayBuffer:
         case NewRegexp:
@@ -1356,8 +1418,6 @@ private:
             edge.setUseKind(KnownStringUse);
             return;
         }
-        
-        // FIXME: We ought to be able to have a ToPrimitiveToString node.
         
         observeUseKindOnNode<useKind>(edge.node());
         createToString<useKind>(node, edge);
@@ -1449,43 +1509,44 @@ private:
             return;
         }
     }
-    
-    template<UseKind leftUseKind>
-    bool attemptToMakeFastStringAdd(Node* node, Edge& left, Edge& right)
+
+    bool attemptToMakeFastStringAdd(Node* node)
     {
-        ASSERT(leftUseKind == StringUse || leftUseKind == StringObjectUse || leftUseKind == StringOrStringObjectUse);
-        
-        if (isStringObjectUse<leftUseKind>() && !canOptimizeStringObjectAccess(node->origin.semantic))
+        bool goodToGo = true;
+        m_graph.doToChildren(
+            node,
+            [&] (Edge& edge) {
+                if (edge->shouldSpeculateString())
+                    return;
+                if (canOptimizeStringObjectAccess(node->origin.semantic)) {
+                    if (edge->shouldSpeculateStringObject())
+                        return;
+                    if (edge->shouldSpeculateStringOrStringObject())
+                        return;
+                }
+                goodToGo = false;
+            });
+        if (!goodToGo)
             return false;
-        
-        convertStringAddUse<leftUseKind>(node, left);
-        
-        if (right->shouldSpeculateString())
-            convertStringAddUse<StringUse>(node, right);
-        else if (right->shouldSpeculateStringObject() && canOptimizeStringObjectAccess(node->origin.semantic))
-            convertStringAddUse<StringObjectUse>(node, right);
-        else if (right->shouldSpeculateStringOrStringObject() && canOptimizeStringObjectAccess(node->origin.semantic))
-            convertStringAddUse<StringOrStringObjectUse>(node, right);
-        else {
-            // At this point we know that the other operand is something weird. The semantically correct
-            // way of dealing with this is:
-            //
-            // MakeRope(@left, ToString(ToPrimitive(@right)))
-            //
-            // So that's what we emit. NB, we need to do all relevant type checks on @left before we do
-            // anything to @right, since ToPrimitive may be effectful.
-            
-            Node* toPrimitive = m_insertionSet.insertNode(
-                m_indexInBlock, resultOfToPrimitive(right->prediction()), ToPrimitive,
-                node->origin, Edge(right.node()));
-            Node* toString = m_insertionSet.insertNode(
-                m_indexInBlock, SpecString, ToString, node->origin, Edge(toPrimitive));
-            
-            fixupToPrimitive(toPrimitive);
-            fixupToStringOrCallStringConstructor(toString);
-            
-            right.setNode(toString);
-        }
+
+        m_graph.doToChildren(
+            node,
+            [&] (Edge& edge) {
+                if (edge->shouldSpeculateString()) {
+                    convertStringAddUse<StringUse>(node, edge);
+                    return;
+                }
+                ASSERT(canOptimizeStringObjectAccess(node->origin.semantic));
+                if (edge->shouldSpeculateStringObject()) {
+                    convertStringAddUse<StringObjectUse>(node, edge);
+                    return;
+                }
+                if (edge->shouldSpeculateStringOrStringObject()) {
+                    convertStringAddUse<StringOrStringObjectUse>(node, edge);
+                    return;
+                }
+                RELEASE_ASSERT_NOT_REACHED();
+            });
         
         convertToMakeRope(node);
         return true;
@@ -1521,11 +1582,15 @@ private:
             return false;
         
         Structure* stringObjectStructure = m_graph.globalObjectFor(codeOrigin)->stringObjectStructure();
+        m_graph.registerStructure(stringObjectStructure);
         ASSERT(stringObjectStructure->storedPrototype().isObject());
         ASSERT(stringObjectStructure->storedPrototype().asCell()->classInfo() == StringPrototype::info());
-        
-        JSObject* stringPrototypeObject = asObject(stringObjectStructure->storedPrototype());
-        Structure* stringPrototypeStructure = stringPrototypeObject->structure();
+
+        FrozenValue* stringPrototypeObjectValue =
+            m_graph.freeze(stringObjectStructure->storedPrototype());
+        StringPrototype* stringPrototypeObject =
+            stringPrototypeObjectValue->dynamicCast<StringPrototype*>();
+        Structure* stringPrototypeStructure = stringPrototypeObjectValue->structure();
         if (m_graph.registerStructure(stringPrototypeStructure) != StructureRegisteredAndWatched)
             return false;
         
@@ -1718,6 +1783,7 @@ private:
         VariableAccessData* variable = node->variableAccessData();
         switch (useKind) {
         case Int32Use:
+        case KnownInt32Use:
             if (alwaysUnboxSimplePrimitives()
                 || isInt32Speculation(variable->prediction()))
                 m_profitabilityChanged |= variable->mergeIsProfitableToUnbox(true);
@@ -1730,6 +1796,7 @@ private:
                 m_profitabilityChanged |= variable->mergeIsProfitableToUnbox(true);
             break;
         case BooleanUse:
+        case KnownBooleanUse:
             if (alwaysUnboxSimplePrimitives()
                 || isBooleanSpeculation(variable->prediction()))
                 m_profitabilityChanged |= variable->mergeIsProfitableToUnbox(true);
@@ -1744,6 +1811,7 @@ private:
         case FunctionUse:
         case StringUse:
         case KnownStringUse:
+        case SymbolUse:
         case StringObjectUse:
         case StringOrStringObjectUse:
             if (alwaysUnboxSimplePrimitives()

@@ -33,6 +33,7 @@
 #include "InspectorRuntimeAgent.h"
 
 #include "Completion.h"
+#include "DFGWorklist.h"
 #include "HeapIterationScope.h"
 #include "InjectedScript.h"
 #include "InjectedScriptManager.h"
@@ -134,7 +135,7 @@ void InspectorRuntimeAgent::evaluate(ErrorString& errorString, const String& exp
     }
 }
 
-void InspectorRuntimeAgent::callFunctionOn(ErrorString& errorString, const String& objectId, const String& expression, const RefPtr<InspectorArray>&& optionalArguments, const bool* const doNotPauseOnExceptionsAndMuteConsole, const bool* const returnByValue, const bool* generatePreview, RefPtr<Inspector::Protocol::Runtime::RemoteObject>& result, Inspector::Protocol::OptOutput<bool>* wasThrown)
+void InspectorRuntimeAgent::callFunctionOn(ErrorString& errorString, const String& objectId, const String& expression, const InspectorArray* optionalArguments, const bool* const doNotPauseOnExceptionsAndMuteConsole, const bool* const returnByValue, const bool* generatePreview, RefPtr<Inspector::Protocol::Runtime::RemoteObject>& result, Inspector::Protocol::OptOutput<bool>* wasThrown)
 {
     InjectedScript injectedScript = m_injectedScriptManager->injectedScriptForObjectId(objectId);
     if (injectedScript.hasNoValue()) {
@@ -210,12 +211,12 @@ void InspectorRuntimeAgent::getCollectionEntries(ErrorString& errorString, const
     injectedScript.getCollectionEntries(errorString, objectId, objectGroup ? *objectGroup : String(), start, fetch, &entries);
 }
 
-void InspectorRuntimeAgent::saveResult(ErrorString& errorString, const RefPtr<Inspector::InspectorObject>&& callArgument, const int* executionContextId, Inspector::Protocol::OptOutput<int>* savedResultIndex)
+void InspectorRuntimeAgent::saveResult(ErrorString& errorString, const Inspector::InspectorObject& callArgument, const int* executionContextId, Inspector::Protocol::OptOutput<int>* savedResultIndex)
 {
     InjectedScript injectedScript;
 
     String objectId;
-    if (callArgument->getString(ASCIILiteral("objectId"), objectId)) {
+    if (callArgument.getString(ASCIILiteral("objectId"), objectId)) {
         injectedScript = m_injectedScriptManager->injectedScriptForObjectId(objectId);
         if (injectedScript.hasNoValue()) {
             errorString = ASCIILiteral("Inspected frame has gone");
@@ -227,7 +228,7 @@ void InspectorRuntimeAgent::saveResult(ErrorString& errorString, const RefPtr<In
             return;
     }
 
-    injectedScript.saveResult(errorString, callArgument->toJSONString(), savedResultIndex);
+    injectedScript.saveResult(errorString, callArgument.toJSONString(), savedResultIndex);
 }
 
 void InspectorRuntimeAgent::releaseObject(ErrorString&, const String& objectId)
@@ -247,7 +248,7 @@ void InspectorRuntimeAgent::run(ErrorString&)
     // FIXME: <https://webkit.org/b/127634> Web Inspector: support debugging web workers
 }
 
-void InspectorRuntimeAgent::getRuntimeTypesForVariablesAtOffsets(ErrorString& errorString, const RefPtr<Inspector::InspectorArray>&& locations, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Runtime::TypeDescription>>& typeDescriptions)
+void InspectorRuntimeAgent::getRuntimeTypesForVariablesAtOffsets(ErrorString& errorString, const Inspector::InspectorArray& locations, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Runtime::TypeDescription>>& typeDescriptions)
 {
     static const bool verbose = false;
     VM& vm = globalVM();
@@ -260,8 +261,8 @@ void InspectorRuntimeAgent::getRuntimeTypesForVariablesAtOffsets(ErrorString& er
     double start = currentTimeMS();
     vm.typeProfilerLog()->processLogEntries(ASCIILiteral("User Query"));
 
-    for (size_t i = 0; i < locations->length(); i++) {
-        RefPtr<Inspector::InspectorValue> value = locations->get(i);
+    for (size_t i = 0; i < locations.length(); i++) {
+        RefPtr<Inspector::InspectorValue> value = locations.get(i);
         RefPtr<InspectorObject> location;
         if (!value->asObject(location)) {
             errorString = ASCIILiteral("Array of TypeLocation objects has an object that does not have type of TypeLocation.");
@@ -307,38 +308,6 @@ void InspectorRuntimeAgent::getRuntimeTypesForVariablesAtOffsets(ErrorString& er
         dataLogF("Inspector::getRuntimeTypesForVariablesAtOffsets took %lfms\n", end - start);
 }
 
-class TypeRecompiler : public MarkedBlock::VoidFunctor {
-public:
-    inline void visit(JSCell* cell)
-    {
-        if (!cell->inherits(FunctionExecutable::info()))
-            return;
-
-        FunctionExecutable* executable = jsCast<FunctionExecutable*>(cell);
-        executable->clearCode();
-        executable->clearUnlinkedCodeForRecompilation();
-    }
-    inline IterationStatus operator()(JSCell* cell)
-    {
-        visit(cell);
-        return IterationStatus::Continue;
-    }
-};
-
-static void recompileAllJSFunctionsForTypeProfiling(VM& vm, bool shouldEnableTypeProfiling)
-{
-    bool shouldRecompileFromTypeProfiler = (shouldEnableTypeProfiling ? vm.enableTypeProfiler() : vm.disableTypeProfiler());
-    bool shouldRecompileFromControlFlowProfiler = (shouldEnableTypeProfiling ? vm.enableControlFlowProfiler() : vm.disableControlFlowProfiler());
-    bool needsToRecompile = shouldRecompileFromTypeProfiler || shouldRecompileFromControlFlowProfiler;
-
-    if (needsToRecompile) {
-        vm.prepareToDiscardCode();
-        TypeRecompiler recompiler;
-        HeapIterationScope iterationScope(vm.heap);
-        vm.heap.objectSpace().forEachLiveCell(iterationScope, recompiler);
-    }
-}
-
 void InspectorRuntimeAgent::willDestroyFrontendAndBackend(DisconnectReason reason)
 {
     if (reason != DisconnectReason::InspectedTargetDestroyed && m_isTypeProfilingEnabled)
@@ -355,25 +324,21 @@ void InspectorRuntimeAgent::disableTypeProfiler(ErrorString&)
     setTypeProfilerEnabledState(false);
 }
 
-void InspectorRuntimeAgent::setTypeProfilerEnabledState(bool shouldEnableTypeProfiling)
+void InspectorRuntimeAgent::setTypeProfilerEnabledState(bool isTypeProfilingEnabled)
 {
-    if (m_isTypeProfilingEnabled == shouldEnableTypeProfiling)
+    if (m_isTypeProfilingEnabled == isTypeProfilingEnabled)
         return;
-
-    m_isTypeProfilingEnabled = shouldEnableTypeProfiling;
+    m_isTypeProfilingEnabled = isTypeProfilingEnabled;
 
     VM& vm = globalVM();
+    vm.whenIdle([&vm, isTypeProfilingEnabled] () {
+        bool shouldRecompileFromTypeProfiler = (isTypeProfilingEnabled ? vm.enableTypeProfiler() : vm.disableTypeProfiler());
+        bool shouldRecompileFromControlFlowProfiler = (isTypeProfilingEnabled ? vm.enableControlFlowProfiler() : vm.disableControlFlowProfiler());
+        bool needsToRecompile = shouldRecompileFromTypeProfiler || shouldRecompileFromControlFlowProfiler;
 
-    // If JavaScript is running, it's not safe to recompile, since we'll end
-    // up throwing away code that is live on the stack.
-    if (vm.entryScope) {
-        vm.entryScope->setEntryScopeDidPopListener(this,
-            [=] (VM& vm, JSGlobalObject*) {
-                recompileAllJSFunctionsForTypeProfiling(vm, shouldEnableTypeProfiling);
-            }
-        );
-    } else
-        recompileAllJSFunctionsForTypeProfiling(vm, shouldEnableTypeProfiling);
+        if (needsToRecompile)
+            vm.deleteAllCode();
+    });
 }
 
 void InspectorRuntimeAgent::getBasicBlocks(ErrorString& errorString, const String& sourceIDAsString, RefPtr<Inspector::Protocol::Array<Inspector::Protocol::Runtime::BasicBlock>>& basicBlocks)

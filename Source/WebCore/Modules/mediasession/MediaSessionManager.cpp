@@ -29,14 +29,34 @@
 #if ENABLE(MEDIA_SESSION)
 
 #include "MediaSession.h"
-#include <wtf/NeverDestroyed.h>
+#include "MediaSessionInterruptionProviderMac.h"
 
 namespace WebCore {
+
+static const char* contentSessionKind = "content";
 
 MediaSessionManager& MediaSessionManager::singleton()
 {
     static NeverDestroyed<MediaSessionManager> manager;
     return manager;
+}
+
+MediaSessionManager::MediaSessionManager()
+{
+#if PLATFORM(MAC)
+    m_interruptionProvider = adoptRef(new MediaSessionInterruptionProviderMac(*this));
+    m_interruptionProvider->beginListeningForInterruptions();
+#endif
+}
+
+bool MediaSessionManager::hasActiveMediaElements() const
+{
+    for (auto* session : m_sessions) {
+        if (session->hasActiveMediaElements())
+            return true;
+    }
+
+    return false;
 }
 
 void MediaSessionManager::addMediaSession(MediaSession& session)
@@ -53,11 +73,99 @@ void MediaSessionManager::togglePlayback()
 {
     for (auto* session : m_sessions) {
         String sessionKind = session->kind();
-        if (session->currentState() == MediaSession::State::Active && (sessionKind == "content" || sessionKind == ""))
+        if (session->currentState() == MediaSession::State::Active && (sessionKind == contentSessionKind || sessionKind == ""))
             session->togglePlayback();
     }
 }
 
+void MediaSessionManager::skipToNextTrack()
+{
+    // 5.2.2 When the user presses the MediaTrackNext media key, then for each Content-based media session that is
+    // currently ACTIVE and has a media remote controller with its nextTrackEnabled attribute set to true, queue a task
+    // to fire a simple event named nexttrack at its media remote controller.
+    for (auto* session : m_sessions) {
+        if (session->currentState() == MediaSession::State::Active && session->kind() == contentSessionKind)
+            session->skipToNextTrack();
+    }
 }
+
+void MediaSessionManager::skipToPreviousTrack()
+{
+    // 5.2.2 When the user presses the MediaTrackPrevious media key, then for each Content-based media session that is
+    // currently ACTIVE and has a media remote controller with its previousTrackEnabled attribute set to true, queue a task
+    // to fire a simple event named previoustrack at its media remote controller.
+    for (auto* session : m_sessions) {
+        if (session->currentState() == MediaSession::State::Active && session->kind() == contentSessionKind)
+            session->skipToPreviousTrack();
+    }
+}
+
+void MediaSessionManager::didReceiveStartOfInterruptionNotification(MediaSessionInterruptingCategory interruptingCategory)
+{
+    // 4.5.2 Interrupting a media session
+    // When a start-of-interruption notification event is received from the platform, then the user agent must run the
+    // media session interruption algorithm against all known media sessions, passing in each media session as media session.
+    for (auto* session : m_sessions) {
+        // 1. If media session's current state is not active, then terminate these steps.
+        if (session->currentState() != MediaSession::State::Active)
+            continue;
+
+        // 2. Let interrupting media session category be the media session category that triggered this interruption.
+        //    If this interruption has no known media session category, let interrupting media session category be Default.
+
+        // 3. Run these substeps:
+        if (interruptingCategory == MediaSessionInterruptingCategory::Content) {
+            // -  If interrupting media session category is Content:
+            //    If media session's current media session type is Default or Content then indefinitely pause all of media
+            //    session's active audio-producing participants and set media session's current state to idle.
+            if (session->kindEnum() == MediaSession::Kind::Default || session->kindEnum() == MediaSession::Kind::Content)
+                session->handleIndefinitePauseInterruption();
+        } else if (interruptingCategory == MediaSessionInterruptingCategory::Transient) {
+            // - If interrupting media session category is Transient:
+            //   If media session's current media session type is Default or Content then duck all of media session's active
+            //   audio-producing participants and set media session's current state to interrupted.
+            if (session->kindEnum() == MediaSession::Kind::Default || session->kindEnum() == MediaSession::Kind::Content)
+                session->handleDuckInterruption();
+        } else if (interruptingCategory == MediaSessionInterruptingCategory::TransientSolo) {
+            // - If interrupting media session category is Transient Solo:
+            //   If media session's current media session type is Default, Content, Transient or Transient Solo then pause
+            //   all of media session's active audio-producing participants and set current media session's current state to interrupted.
+            if (session->kindEnum() != MediaSession::Kind::Ambient)
+                session->handlePauseInterruption();
+        }
+    }
+}
+
+void MediaSessionManager::didReceiveEndOfInterruptionNotification(MediaSessionInterruptingCategory interruptingCategory)
+{
+    // 4.5.2 Interrupting a media session
+    // When an end-of-interruption notification event is received from the platform, then the user agent must run the
+    // media session continuation algorithm against all known media sessions, passing in each media session as media session.
+    for (auto* session : m_sessions) {
+        // 1. If media session's current state is not interrupted, then terminate these steps.
+        if (session->currentState() != MediaSession::State::Interrupted)
+            continue;
+
+        // 2. Let interrupting media session category be the media session category that initially triggered this interruption.
+        //    If this interruption has no known media session category, let interrupting media session category be Default.
+
+        // 3. Run these substeps:
+        if (interruptingCategory == MediaSessionInterruptingCategory::Transient) {
+            // - If interrupting media session category is Transient:
+            //   If media session's current media session type is Default or Content, then unduck all of media session's
+            //   active audio-producing participants and set media session's current state to active.
+            if (session->kindEnum() == MediaSession::Kind::Default || session->kindEnum() == MediaSession::Kind::Content)
+                session->handleUnduckInterruption();
+        } else if (interruptingCategory == MediaSessionInterruptingCategory::TransientSolo) {
+            // - If interrupting media session category is Transient Solo:
+            //   If media session's current media session type is Default, Content, Transient, or Transient Solo, then
+            //   unpause the media session's active audio-producing participants and set media session's current state to active.
+            if (session->kindEnum() != MediaSession::Kind::Ambient)
+                session->handleUnpauseInterruption();
+        }
+    }
+}
+
+} // namespace WebCore
 
 #endif /* ENABLE(MEDIA_SESSION) */

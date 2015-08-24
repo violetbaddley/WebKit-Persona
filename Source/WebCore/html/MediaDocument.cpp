@@ -28,6 +28,8 @@
 #if ENABLE(VIDEO)
 #include "MediaDocument.h"
 
+#include "Chrome.h"
+#include "ChromeClient.h"
 #include "DocumentLoader.h"
 #include "EventNames.h"
 #include "ExceptionCodePlaceholder.h"
@@ -44,6 +46,7 @@
 #include "RawDataDocumentParser.h"
 #include "ScriptController.h"
 #include "ShadowRoot.h"
+#include "TypedElementDescendantIterator.h"
 
 namespace WebCore {
 
@@ -158,17 +161,12 @@ Ref<DocumentParser> MediaDocument::createParser()
     return MediaDocumentParser::create(*this);
 }
 
-static inline HTMLVideoElement* descendentVideoElement(ContainerNode& node)
+static inline HTMLVideoElement* descendantVideoElement(ContainerNode& node)
 {
     if (is<HTMLVideoElement>(node))
         return downcast<HTMLVideoElement>(&node);
 
-    RefPtr<NodeList> nodeList = node.getElementsByTagNameNS(videoTag.namespaceURI(), videoTag.localName());
-   
-    if (nodeList->length() > 0)
-        return downcast<HTMLVideoElement>(nodeList->item(0));
-
-    return nullptr;
+    return descendantsOfType<HTMLVideoElement>(node).first();
 }
 
 static inline HTMLVideoElement* ancestorVideoElement(Node* node)
@@ -205,7 +203,7 @@ void MediaDocument::defaultEventHandler(Event* event)
         return;
     ContainerNode& targetContainer = downcast<ContainerNode>(*targetNode);
     if (event->type() == eventNames().keydownEvent && is<KeyboardEvent>(*event)) {
-        HTMLVideoElement* video = descendentVideoElement(targetContainer);
+        HTMLVideoElement* video = descendantVideoElement(targetContainer);
         if (!video)
             return;
 
@@ -241,7 +239,7 @@ void MediaDocument::replaceMediaElementTimerFired()
     htmlBody->setAttribute(marginwidthAttr, "0");
     htmlBody->setAttribute(marginheightAttr, "0");
 
-    if (HTMLVideoElement* videoElement = descendentVideoElement(*htmlBody)) {
+    if (HTMLVideoElement* videoElement = descendantVideoElement(*htmlBody)) {
         RefPtr<Element> element = Document::createElement(embedTag, false);
         HTMLEmbedElement& embedElement = downcast<HTMLEmbedElement>(*element);
 
@@ -257,6 +255,18 @@ void MediaDocument::replaceMediaElementTimerFired()
 
         videoElement->parentNode()->replaceChild(&embedElement, videoElement, IGNORE_EXCEPTION);
     }
+}
+
+void MediaDocument::mediaElementNaturalSizeChanged(const IntSize& newSize)
+{
+    if (ownerElement())
+        return;
+
+    if (newSize.isZero())
+        return;
+
+    if (page())
+        page()->chrome().client().imageOrMediaDocumentSizeChanged(newSize);
 }
 
 }

@@ -185,7 +185,6 @@ public:
 #endif
 
 #if USE(APPKIT)
-    const Font* compositeFontReferenceFont(NSFont *key) const;
     NSFont* getNSFont() const { return m_platformData.nsFont(); }
 #endif
 
@@ -259,14 +258,18 @@ private:
     RefPtr<OpenTypeVerticalData> m_verticalData;
 #endif
 
-    Glyph m_spaceGlyph;
-    float m_spaceWidth;
-    Glyph m_zeroGlyph;
-    float m_adjustedSpaceWidth;
+    Glyph m_spaceGlyph { 0 };
+    float m_spaceWidth { 0 };
+    Glyph m_zeroGlyph { 0 };
+    float m_adjustedSpaceWidth { 0 };
 
-    Glyph m_zeroWidthSpaceGlyph;
+    Glyph m_zeroWidthSpaceGlyph { 0 };
 
     struct DerivedFontData {
+#if !COMPILER(MSVC)
+        WTF_MAKE_FAST_ALLOCATED;
+#endif
+    public:
         explicit DerivedFontData(bool custom)
             : forCustomFont(custom)
         {
@@ -280,9 +283,6 @@ private:
         RefPtr<Font> verticalRightOrientation;
         RefPtr<Font> uprightOrientation;
         RefPtr<Font> nonSyntheticItalic;
-#if USE(APPKIT)
-        HashMap<NSFont*, RefPtr<Font>> compositeFontReferences;
-#endif
     };
 
     mutable std::unique_ptr<DerivedFontData> m_derivedFontData;
@@ -321,6 +321,10 @@ private:
     unsigned m_shouldNotBeUsedForArabic : 1;
 #endif
 };
+
+#if PLATFORM(IOS)
+bool fontFamilyShouldNotBeUsedForArabic(CFStringRef);
+#endif
 
 ALWAYS_INLINE FloatRect Font::boundsForGlyph(Glyph glyph) const
 {

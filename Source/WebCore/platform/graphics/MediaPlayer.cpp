@@ -90,7 +90,7 @@ public:
     void load(const String&, MediaSourcePrivateClient*) override { }
 #endif
 #if ENABLE(MEDIA_STREAM)
-    void load(MediaStreamPrivate*) override { }
+    void load(MediaStreamPrivate&) override { }
 #endif
     void cancelLoad() override { }
 
@@ -314,10 +314,10 @@ bool MediaPlayer::load(const URL& url, const ContentType& contentType, const Str
     m_contentMIMETypeWasInferredFromExtension = false;
 
 #if ENABLE(MEDIA_SOURCE)
-    m_mediaSource = 0;
+    m_mediaSource = nullptr;
 #endif
 #if ENABLE(MEDIA_STREAM)
-    m_mediaStream = 0;
+    m_mediaStream = nullptr;
 #endif
 
     // If the MIME type is missing or is not meaningful, try to figure it out from the URL.
@@ -363,6 +363,7 @@ bool MediaPlayer::load(MediaStreamPrivate* mediaStream)
     ASSERT(mediaStream);
     m_mediaStream = mediaStream;
     m_keySystem = "";
+    m_contentMIMEType = "";
     m_contentMIMETypeWasInferredFromExtension = false;
     loadWithNextMediaEngine(0);
     return m_currentMediaEngine;
@@ -423,7 +424,7 @@ void MediaPlayer::loadWithNextMediaEngine(const MediaPlayerFactory* current)
 #endif
 #if ENABLE(MEDIA_STREAM)
         if (m_mediaStream)
-            m_private->load(m_mediaStream.get());
+            m_private->load(*m_mediaStream);
         else
 #endif
         m_private->load(m_url.string());
@@ -532,6 +533,11 @@ MediaTime MediaPlayer::initialTime() const
 MediaTime MediaPlayer::currentTime() const
 {
     return m_private->currentMediaTime();
+}
+
+MediaTime MediaPlayer::getStartDate() const
+{
+    return m_private->getStartDate();
 }
 
 void MediaPlayer::seekWithTolerance(const MediaTime& time, const MediaTime& negativeTolerance, const MediaTime& positiveTolerance)
@@ -1255,18 +1261,6 @@ Vector<RefPtr<PlatformTextTrack>> MediaPlayer::outOfBandTrackSources()
 #endif
 
 #endif // ENABLE(VIDEO_TRACK)
-
-#if USE(PLATFORM_TEXT_TRACK_MENU)
-bool MediaPlayer::implementsTextTrackControls() const
-{
-    return m_private->implementsTextTrackControls();
-}
-
-PassRefPtr<PlatformTextTrackMenuInterface> MediaPlayer::textTrackMenu()
-{
-    return m_private->textTrackMenu();
-}
-#endif // USE(PLATFORM_TEXT_TRACK_MENU)
 
 void MediaPlayer::resetMediaEngines()
 {

@@ -36,6 +36,10 @@ list(APPEND NetworkProcess_SOURCES
      ${NetworkProcess_COMMON_SOURCES}
 )
 
+list(APPEND DatabaseProcess_SOURCES
+    DatabaseProcess/EntryPoint/mac/XPCService/DatabaseServiceEntryPoint.mm
+)
+
 add_definitions("-include WebKit2Prefix.h")
 
 set(WebKit2_FORWARDING_HEADERS_FILES
@@ -54,6 +58,7 @@ set(WebKit2_FORWARDING_HEADERS_DIRECTORIES
     UIProcess/Cocoa
 
     UIProcess/API/C
+    UIProcess/API/Cocoa
 
     WebProcess/WebPage
 

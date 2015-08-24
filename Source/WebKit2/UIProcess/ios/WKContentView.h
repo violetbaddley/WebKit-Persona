@@ -34,6 +34,10 @@
 @class WKView;
 @class WKWebView;
 
+namespace API {
+class PageConfiguration;
+}
+
 namespace WebCore {
 struct Highlight;
 }
@@ -45,14 +49,12 @@ class RemoteLayerTreeTransaction;
 class WebFrameProxy;
 class WebPageProxy;
 class WebProcessPool;
-struct WebPageConfiguration;
 }
 
 @interface WKContentView : UIView {
 @package
     RefPtr<WebKit::WebPageProxy> _page;
     WKWebView *_webView;
-    BOOL _isBackground;
 }
 
 @property (nonatomic, readonly) WKBrowsingContextController *browsingContextController;
@@ -62,8 +64,8 @@ struct WebPageConfiguration;
 @property (nonatomic, getter=isShowingInspectorIndication) BOOL showingInspectorIndication;
 @property (nonatomic, readonly) BOOL isBackground;
 
-- (instancetype)initWithFrame:(CGRect)frame processPool:(WebKit::WebProcessPool&)processPool configuration:(WebKit::WebPageConfiguration)webPageConfiguration webView:(WKWebView *)webView;
-- (instancetype)initWithFrame:(CGRect)frame processPool:(WebKit::WebProcessPool&)processPool configuration:(WebKit::WebPageConfiguration)webPageConfiguration wkView:(WKView *)webView;
+- (instancetype)initWithFrame:(CGRect)frame processPool:(WebKit::WebProcessPool&)processPool configuration:(Ref<API::PageConfiguration>&&)configuration webView:(WKWebView *)webView;
+- (instancetype)initWithFrame:(CGRect)frame processPool:(WebKit::WebProcessPool&)processPool configuration:(Ref<API::PageConfiguration>&&)configuration wkView:(WKView *)webView;
 
 - (void)didUpdateVisibleRect:(CGRect)visibleRect unobscuredRect:(CGRect)unobscuredRect
     unobscuredRectInScrollViewCoordinates:(CGRect)unobscuredRectInScrollViewCoordinates

@@ -53,8 +53,8 @@
 #endif
 
 #if PLATFORM(COCOA)
-#include "PlatformCAAnimationMac.h"
-#include "PlatformCALayerMac.h"
+#include "PlatformCAAnimationCocoa.h"
+#include "PlatformCALayerCocoa.h"
 #include "WebCoreSystemInterface.h"
 #endif
 
@@ -73,7 +73,7 @@ static const int cMaxPixelDimension = 1280;
 static const int cMaxPixelDimensionLowMemory = 1024;
 static const int cMemoryLevelToUseSmallerPixelDimension = 35;
 #else
-static const int cMaxPixelDimension = 2000;
+static const int cMaxPixelDimension = 2048;
 #endif
 
 // Derived empirically: <rdar://problem/13401861>
@@ -238,7 +238,7 @@ static ASCIILiteral propertyIdToString(AnimatedPropertyID property)
         return ASCIILiteral("opacity");
     case AnimatedPropertyBackgroundColor:
         return ASCIILiteral("backgroundColor");
-    case AnimatedPropertyWebkitFilter:
+    case AnimatedPropertyFilter:
         return ASCIILiteral("filters");
 #if ENABLE(FILTERS_LEVEL_2)
     case AnimatedPropertyWebkitBackdropFilter:
@@ -289,7 +289,7 @@ bool GraphicsLayer::supportsLayerType(Type type)
         return true;
     case Type::Shape:
 #if PLATFORM(COCOA)
-        // FIXME: we can use shaper layers on Windows when PlatformCALayerMac::setShapePath() etc are implemented.
+        // FIXME: we can use shaper layers on Windows when PlatformCALayerCocoa::setShapePath() etc are implemented.
         return true;
 #else
         return false;
@@ -320,7 +320,7 @@ std::unique_ptr<GraphicsLayer> GraphicsLayer::create(GraphicsLayerFactory* facto
 bool GraphicsLayerCA::filtersCanBeComposited(const FilterOperations& filters)
 {
 #if PLATFORM(COCOA)
-    return PlatformCALayerMac::filtersCanBeComposited(filters);
+    return PlatformCALayerCocoa::filtersCanBeComposited(filters);
 #elif PLATFORM(WIN)
     return PlatformCALayerWin::filtersCanBeComposited(filters);
 #endif
@@ -329,7 +329,7 @@ bool GraphicsLayerCA::filtersCanBeComposited(const FilterOperations& filters)
 PassRefPtr<PlatformCALayer> GraphicsLayerCA::createPlatformCALayer(PlatformCALayer::LayerType layerType, PlatformCALayerClient* owner)
 {
 #if PLATFORM(COCOA)
-    return PlatformCALayerMac::create(layerType, owner);
+    return PlatformCALayerCocoa::create(layerType, owner);
 #elif PLATFORM(WIN)
     return PlatformCALayerWin::create(layerType, owner);
 #endif
@@ -338,7 +338,7 @@ PassRefPtr<PlatformCALayer> GraphicsLayerCA::createPlatformCALayer(PlatformCALay
 PassRefPtr<PlatformCALayer> GraphicsLayerCA::createPlatformCALayer(PlatformLayer* platformLayer, PlatformCALayerClient* owner)
 {
 #if PLATFORM(COCOA)
-    return PlatformCALayerMac::create(platformLayer, owner);
+    return PlatformCALayerCocoa::create(platformLayer, owner);
 #elif PLATFORM(WIN)
     return PlatformCALayerWin::create(platformLayer, owner);
 #endif
@@ -347,7 +347,7 @@ PassRefPtr<PlatformCALayer> GraphicsLayerCA::createPlatformCALayer(PlatformLayer
 PassRefPtr<PlatformCAAnimation> GraphicsLayerCA::createPlatformCAAnimation(PlatformCAAnimation::AnimationType type, const String& keyPath)
 {
 #if PLATFORM(COCOA)
-    return PlatformCAAnimationMac::create(type, keyPath);
+    return PlatformCAAnimationCocoa::create(type, keyPath);
 #elif PLATFORM(WIN)
     return PlatformCAAnimationWin::create(type, keyPath);
 #endif
@@ -357,7 +357,7 @@ GraphicsLayerCA::GraphicsLayerCA(Type layerType, GraphicsLayerClient& client)
     : GraphicsLayer(layerType, client)
     , m_needsFullRepaint(false)
     , m_usingBackdropLayerType(false)
-    , m_allowsBackingStoreDetachment(true)
+    , m_isViewportConstrained(false)
     , m_intersectsCoverageRect(false)
 {
 }
@@ -611,7 +611,7 @@ void GraphicsLayerCA::moveOrCopyAnimations(MoveOrCopy operation, PlatformCALayer
             if (currAnimation.m_property == AnimatedPropertyTransform
                 || currAnimation.m_property == AnimatedPropertyOpacity
                 || currAnimation.m_property == AnimatedPropertyBackgroundColor
-                || currAnimation.m_property == AnimatedPropertyWebkitFilter)
+                || currAnimation.m_property == AnimatedPropertyFilter)
                 moveOrCopyLayerAnimation(operation, animationIdentifier(currAnimation.m_name, currAnimation.m_property, currAnimation.m_index, currAnimation.m_subIndex), fromLayer, toLayer);
         }
     }
@@ -894,7 +894,7 @@ bool GraphicsLayerCA::addAnimation(const KeyframeValueList& valueList, const Flo
     bool createdAnimations = false;
     if (valueList.property() == AnimatedPropertyTransform)
         createdAnimations = createTransformAnimationsFromKeyframes(valueList, anim, animationName, timeOffset, boxSize);
-    else if (valueList.property() == AnimatedPropertyWebkitFilter) {
+    else if (valueList.property() == AnimatedPropertyFilter) {
         if (supportsAcceleratedFilterAnimations())
             createdAnimations = createFilterAnimationsFromKeyframes(valueList, anim, animationName, timeOffset);
     }
@@ -1092,20 +1092,20 @@ FloatPoint GraphicsLayerCA::computePositionRelativeToBase(float& pageScale) cons
     return FloatPoint();
 }
 
-void GraphicsLayerCA::flushCompositingState(const FloatRect& clipRect)
+void GraphicsLayerCA::flushCompositingState(const FloatRect& clipRect, bool viewportIsStable)
 {
     TransformState state(TransformState::UnapplyInverseTransformDirection, FloatQuad(clipRect));
     FloatQuad coverageQuad(clipRect);
     state.setSecondaryQuad(&coverageQuad);
-    recursiveCommitChanges(CommitState(), state);
+    recursiveCommitChanges(CommitState(viewportIsStable), state);
 }
 
-void GraphicsLayerCA::flushCompositingStateForThisLayerOnly()
+void GraphicsLayerCA::flushCompositingStateForThisLayerOnly(bool viewportIsStable)
 {
     float pageScaleFactor;
     bool hadChanges = m_uncommittedChanges;
     
-    CommitState commitState;
+    CommitState commitState(viewportIsStable);
 
     FloatPoint offset = computePositionRelativeToBase(pageScaleFactor);
     commitLayerChangesBeforeSublayers(commitState, pageScaleFactor, offset);
@@ -1219,7 +1219,7 @@ GraphicsLayerCA::VisibleAndCoverageRects GraphicsLayerCA::computeVisibleAndCover
     FloatPoint boundsOrigin = m_boundsOrigin;
 #if PLATFORM(IOS)
     // In WK1, UIKit may be changing layer bounds behind our back in overflow-scroll layers, so use the layer's origin.
-    if (m_layer->isPlatformCALayerMac())
+    if (m_layer->isPlatformCALayerCocoa())
         boundsOrigin = m_layer->bounds().location();
 #endif
     clipRectForChildren.move(boundsOrigin.x(), boundsOrigin.y());
@@ -1272,15 +1272,18 @@ bool GraphicsLayerCA::adjustCoverageRect(VisibleAndCoverageRects& rects, const F
     return true;
 }
 
-void GraphicsLayerCA::setVisibleAndCoverageRects(const VisibleAndCoverageRects& rects, bool allowBackingStoreDetachment)
+void GraphicsLayerCA::setVisibleAndCoverageRects(const VisibleAndCoverageRects& rects, bool isViewportConstrained, bool viewportIsStable)
 {
     bool visibleRectChanged = rects.visibleRect != m_visibleRect;
     bool coverageRectChanged = rects.coverageRect != m_coverageRect;
     if (!visibleRectChanged && !coverageRectChanged)
         return;
 
+    if (isViewportConstrained && !viewportIsStable)
+        return;
+
     // FIXME: we need to take reflections into account when determining whether this layer intersects the coverage rect.
-    bool intersectsCoverageRect = !allowBackingStoreDetachment || rects.coverageRect.intersects(FloatRect(m_boundsOrigin, size()));
+    bool intersectsCoverageRect = isViewportConstrained || rects.coverageRect.intersects(FloatRect(m_boundsOrigin, size()));
     if (intersectsCoverageRect != m_intersectsCoverageRect) {
         m_uncommittedChanges |= CoverageRectChanged;
         m_intersectsCoverageRect = intersectsCoverageRect;
@@ -1329,7 +1332,7 @@ void GraphicsLayerCA::recursiveCommitChanges(const CommitState& commitState, con
             localState.setLastPlanarSecondaryQuad(&secondaryQuad);
         }
     }
-    setVisibleAndCoverageRects(rects, m_allowsBackingStoreDetachment && commitState.ancestorsAllowBackingStoreDetachment);
+    setVisibleAndCoverageRects(rects, m_isViewportConstrained || commitState.ancestorIsViewportConstrained, commitState.viewportIsStable);
 
 #ifdef VISIBLE_TILE_WASH
     // Use having a transform as a key to making the tile wash layer. If every layer gets a wash,
@@ -1373,7 +1376,7 @@ void GraphicsLayerCA::recursiveCommitChanges(const CommitState& commitState, con
         affectedByTransformAnimation = true;
     }
     
-    childCommitState.ancestorsAllowBackingStoreDetachment &= m_allowsBackingStoreDetachment;
+    childCommitState.ancestorIsViewportConstrained |= m_isViewportConstrained;
 
     if (GraphicsLayerCA* maskLayer = downcast<GraphicsLayerCA>(m_maskLayer))
         maskLayer->commitLayerChangesBeforeSublayers(childCommitState, pageScaleFactor, baseRelativePosition);
@@ -1399,6 +1402,11 @@ void GraphicsLayerCA::recursiveCommitChanges(const CommitState& commitState, con
 
     if (hadChanges)
         client().didCommitChangesForLayer(this);
+}
+
+void GraphicsLayerCA::platformCALayerCustomSublayersChanged(PlatformCALayer*)
+{
+    noteLayerPropertyChanged(ChildrenChanged, m_isCommittingChanges ? DontScheduleFlush : ScheduleFlush);
 }
 
 bool GraphicsLayerCA::platformCALayerShowRepaintCounter(PlatformCALayer* platformLayer) const
@@ -2205,7 +2213,7 @@ void GraphicsLayerCA::updateContentsImage()
     } else {
         // No image.
         // m_contentsLayer will be removed via updateSublayerList.
-        m_contentsLayer = 0;
+        m_contentsLayer = nullptr;
     }
 }
 
@@ -2631,7 +2639,7 @@ void GraphicsLayerCA::updateContentsNeedsDisplay()
 
 bool GraphicsLayerCA::createAnimationFromKeyframes(const KeyframeValueList& valueList, const Animation* animation, const String& animationName, double timeOffset)
 {
-    ASSERT(valueList.property() != AnimatedPropertyTransform && (!supportsAcceleratedFilterAnimations() || valueList.property() != AnimatedPropertyWebkitFilter));
+    ASSERT(valueList.property() != AnimatedPropertyTransform && (!supportsAcceleratedFilterAnimations() || valueList.property() != AnimatedPropertyFilter));
 
     bool isKeyframe = valueList.size() > 2;
     bool valuesOK;
@@ -2766,9 +2774,9 @@ bool GraphicsLayerCA::appendToUncommittedAnimations(const KeyframeValueList& val
 bool GraphicsLayerCA::createFilterAnimationsFromKeyframes(const KeyframeValueList& valueList, const Animation* animation, const String& animationName, double timeOffset)
 {
 #if ENABLE(FILTERS_LEVEL_2)
-    ASSERT(valueList.property() == AnimatedPropertyWebkitFilter || valueList.property() == AnimatedPropertyWebkitBackdropFilter);
+    ASSERT(valueList.property() == AnimatedPropertyFilter || valueList.property() == AnimatedPropertyWebkitBackdropFilter);
 #else
-    ASSERT(valueList.property() == AnimatedPropertyWebkitFilter);
+    ASSERT(valueList.property() == AnimatedPropertyFilter);
 #endif
 
     int listIndex = validateFilterOperations(valueList);
@@ -3197,9 +3205,6 @@ void GraphicsLayerCA::updateContentsScale(float pageScaleFactor)
         m_contentsLayer->setContentsScale(contentsScale);
 
     if (tiledBacking()) {
-        // Scale change may swap in a different set of tiles changing the custom child layers.
-        if (isPageTiledBackingLayer())
-            m_uncommittedChanges |= ChildrenChanged;
         // Tiled backing repaints automatically on scale change.
         return;
     }
@@ -3673,12 +3678,12 @@ void GraphicsLayerCA::updateOpacityOnLayer()
     }
 }
 
-void GraphicsLayerCA::setAllowsBackingStoreDetachment(bool allowDetachment)
+void GraphicsLayerCA::setIsViewportConstrained(bool isViewportConstrained)
 {
-    if (allowDetachment == m_allowsBackingStoreDetachment)
+    if (isViewportConstrained == m_isViewportConstrained)
         return;
 
-    m_allowsBackingStoreDetachment = allowDetachment;
+    m_isViewportConstrained = isViewportConstrained;
     noteLayerPropertyChanged(CoverageRectChanged);
 }
 

@@ -495,8 +495,8 @@ WebInspector.TextEditor = class TextEditor extends WebInspector.Object
 
             this._codeMirror.addLineClass(lineHandle, "wrap", WebInspector.TextEditor.HighlightedStyleClassName);
 
-            // Use a timeout instead of a webkitAnimationEnd event listener because the line element might
-            // be removed if the user scrolls during the animation. In that case webkitAnimationEnd isn't
+            // Use a timeout instead of a animationEnd event listener because the line element might
+            // be removed if the user scrolls during the animation. In that case animationEnd isn't
             // fired, and the line would highlight again the next time it scrolls into view.
             setTimeout(removeStyleClass.bind(this), WebInspector.TextEditor.HighlightAnimationDuration);
         }
@@ -506,7 +506,11 @@ WebInspector.TextEditor = class TextEditor extends WebInspector.Object
 
     updateLayout(force)
     {
-        this._codeMirror.refresh();
+        // FIXME: <https://webkit.org/b/146256> Web Inspector: Nested ContentBrowsers / ContentViewContainers cause too many ContentView updates
+        // Ideally we would not get an updateLayout call if we are not visible. We should restructure ContentView
+        // show/hide restoration to reduce duplicated work and solve this in the process.
+        if (this._visible)
+            this._codeMirror.refresh();
     }
 
     shown()
@@ -589,7 +593,7 @@ WebInspector.TextEditor = class TextEditor extends WebInspector.Object
             return null;
 
         var widgetElement = document.createElement("div");
-        var lineWidget = this._codeMirror.addLineWidget(lineHandle, widgetElement, {coverGutter: false, noHScroll: true, handleMouseEvents: true});
+        var lineWidget = this._codeMirror.addLineWidget(lineHandle, widgetElement, {coverGutter: false, noHScroll: true});
         return new WebInspector.LineWidget(lineWidget, widgetElement);
     }
 
@@ -629,12 +633,17 @@ WebInspector.TextEditor = class TextEditor extends WebInspector.Object
 
     createColorMarkers(range)
     {
-        return this._codeMirror.createColorMarkers(range);
+        return createCodeMirrorColorTextMarkers(this._codeMirror, range);
     }
 
     createGradientMarkers(range)
     {
-        return this._codeMirror.createGradientMarkers(range);
+        return createCodeMirrorGradientTextMarkers(this._codeMirror, range);
+    }
+
+    createCubicBezierMarkers(range)
+    {
+        return createCodeMirrorCubicBezierTextMarkers(this._codeMirror, range);
     }
 
     editingControllerForMarker(editableMarker)
@@ -644,6 +653,8 @@ WebInspector.TextEditor = class TextEditor extends WebInspector.Object
             return new WebInspector.CodeMirrorColorEditingController(this._codeMirror, editableMarker);
         case WebInspector.TextMarker.Type.Gradient:
             return new WebInspector.CodeMirrorGradientEditingController(this._codeMirror, editableMarker);
+        case WebInspector.TextMarker.Type.CubicBezier:
+            return new WebInspector.CodeMirrorBezierEditingController(this._codeMirror, editableMarker);
         default:
             return new WebInspector.CodeMirrorEditingController(this._codeMirror, editableMarker);
         }
@@ -734,8 +745,8 @@ WebInspector.TextEditor = class TextEditor extends WebInspector.Object
                 var originalLineEndings = [];
                 var formattedLineEndings = [];
                 var mapping = {original: [0], formatted: [0]};
-                var builder = new FormatterContentBuilder(mapping, originalLineEndings, formattedLineEndings, 0, 0, indentString);
-                var formatter = new Formatter(this._codeMirror, builder);
+                var builder = new WebInspector.FormatterContentBuilder(mapping, originalLineEndings, formattedLineEndings, 0, 0, indentString);
+                var formatter = new WebInspector.Formatter(this._codeMirror, builder);
                 formatter.format(start, end);
 
                 this._formatterSourceMap = WebInspector.FormatterSourceMap.fromBuilder(builder);
@@ -949,7 +960,7 @@ WebInspector.TextEditor = class TextEditor extends WebInspector.Object
         }
 
         // Listen for the end of the animation so we can remove the element.
-        this._bouncyHighlightElement.addEventListener("webkitAnimationEnd", animationEnded.bind(this));
+        this._bouncyHighlightElement.addEventListener("animationEnd", animationEnded.bind(this));
     }
 
     _binarySearchInsertionIndexInSearchResults(object, comparator)

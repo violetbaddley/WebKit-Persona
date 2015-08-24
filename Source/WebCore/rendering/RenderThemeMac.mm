@@ -52,6 +52,7 @@
 #import "NSSharingServicePickerSPI.h"
 #import "Page.h"
 #import "PaintInfo.h"
+#import "PathUtilities.h"
 #import "RenderAttachment.h"
 #import "RenderLayer.h"
 #import "RenderMedia.h"
@@ -103,7 +104,7 @@
 @end
 #endif
 
-@interface NSServicesRolloverButtonCell (Details)
+@interface NSServicesRolloverButtonCell ()
 + (NSServicesRolloverButtonCell *)serviceRolloverButtonCellForStyle:(NSSharingServicePickerStyle)style;
 - (NSRect)rectForBounds:(NSRect)bounds preferredEdge:(NSRectEdge)preferredEdge;
 @end
@@ -176,7 +177,7 @@ const double progressAnimationNumFrames = 256;
 @end
 
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
-@interface NSSearchFieldCell(Details)
+@interface NSSearchFieldCell()
 @property (getter=isCenteredLook) BOOL centeredLook;
 @end
 #endif
@@ -229,7 +230,7 @@ RenderThemeMac::~RenderThemeMac()
 NSView* RenderThemeMac::documentViewFor(const RenderObject& o) const
 {
     ControlStates states(extractControlStatesForRenderer(o));
-    return ThemeMac::ensuredView(&o.view().frameView(), &states);
+    return ThemeMac::ensuredView(&o.view().frameView(), states);
 }
 
 #if ENABLE(VIDEO)
@@ -303,13 +304,6 @@ Color RenderThemeMac::platformFocusRingColor() const
         return oldAquaFocusRingColor();
 
     return systemColor(CSSValueWebkitFocusRingColor);
-}
-
-int RenderThemeMac::platformFocusRingMaxWidth() const
-{
-    // FIXME: Shouldn't this function be named platformFocusRingMinWidth? But also, I'm not sure if this function is needed - looks like
-    // all platforms just used 0 for this before <http://trac.webkit.org/changeset/168397>.
-    return 0;
 }
 
 Color RenderThemeMac::platformInactiveListBoxSelectionBackgroundColor() const
@@ -576,6 +570,9 @@ Color RenderThemeMac::systemColor(CSSValueID cssValueID) const
         color = convertNSColorToColor([NSColor windowFrameTextColor]);
         break;
 #if __MAC_OS_X_VERSION_MIN_REQUIRED >= 101000
+    case CSSValueAppleWirelessPlaybackTargetActive:
+        color = convertNSColorToColor([NSColor systemBlueColor]);
+        break;
     case CSSValueAppleSystemBlue:
         color = convertNSColorToColor([NSColor systemBlueColor]);
         break;
@@ -942,13 +939,7 @@ bool RenderThemeMac::paintMenuList(const RenderObject& renderer, const PaintInfo
         paintInfo.context->translate(-inflatedRect.x(), -inflatedRect.y());
     }
 
-    NSView *view = documentViewFor(renderer);
-    [popupButton drawWithFrame:inflatedRect inView:view];
-    if (isFocused(renderer) && renderer.style().outlineStyleIsAuto()) {
-        if (wkDrawCellFocusRingWithFrameAtTime(popupButton, inflatedRect, view, std::numeric_limits<double>::max()))
-            renderer.document().page()->focusController().setFocusedElementNeedsRepaint();
-    }
-
+    paintCellAndSetFocusedElementNeedsRepaintIfNecessary(popupButton, renderer, paintInfo, inflatedRect);
     [popupButton setControlView:nil];
 
     return false;
@@ -1281,7 +1272,7 @@ void RenderThemeMac::paintMenuListButtonGradients(const RenderObject& o, const P
     }
 }
 
-bool RenderThemeMac::paintMenuListButtonDecorations(const RenderObject& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
+bool RenderThemeMac::paintMenuListButtonDecorations(const RenderBox& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
 {
     IntRect bounds = IntRect(rect.x() + renderer.style().borderLeftWidth(),
         rect.y() + renderer.style().borderTopWidth(),
@@ -1457,6 +1448,16 @@ void RenderThemeMac::setPopupButtonCellState(const RenderObject& o, const IntSiz
     updatePressedState(popupButton, o);
 }
 
+void RenderThemeMac::paintCellAndSetFocusedElementNeedsRepaintIfNecessary(NSCell* cell, const RenderObject& renderer, const PaintInfo& paintInfo, const FloatRect& rect)
+{
+    Page* page = renderer.document().page();
+    bool shouldDrawFocusRing = isFocused(renderer) && renderer.style().outlineStyleIsAuto();
+    bool shouldUseImageBuffer = renderer.style().effectiveZoom() != 1 || page->pageScaleFactor() != 1;
+    bool shouldDrawCell = true;
+    if (ThemeMac::drawCellOrFocusRingWithViewIntoContext(cell, paintInfo.context, rect, documentViewFor(renderer), shouldDrawCell, shouldDrawFocusRing, shouldUseImageBuffer, page->deviceScaleFactor()))
+        page->focusController().setFocusedElementNeedsRepaint();
+}
+
 const IntSize* RenderThemeMac::menuListSizes() const
 {
     static const IntSize sizes[3] = { IntSize(9, 0), IntSize(5, 0), IntSize(0, 0) };
@@ -1579,7 +1580,7 @@ bool RenderThemeMac::paintSliderThumb(const RenderObject& o, const PaintInfo& pa
         paintInfo.context->translate(-unzoomedRect.x(), -unzoomedRect.y());
     }
 
-    [sliderThumbCell drawInteriorWithFrame:unzoomedRect inView:view];
+    [sliderThumbCell drawKnob:unzoomedRect];
     [sliderThumbCell setControlView:nil];
 
     return false;
@@ -1609,17 +1610,10 @@ bool RenderThemeMac::paintSearchField(const RenderObject& o, const PaintInfo& pa
     // Set the search button to nil before drawing.  Then reset it so we can draw it later.
     [search setSearchButtonCell:nil];
 
-    NSView *documentView = documentViewFor(o);
-    [search drawWithFrame:NSRect(unzoomedRect) inView:documentView];
-
+    paintCellAndSetFocusedElementNeedsRepaintIfNecessary(search, o, paintInfo, unzoomedRect);
     [search setControlView:nil];
     [search resetSearchButtonCell];
 
-    if (isFocused(o) && o.style().outlineStyleIsAuto()) {
-        if (wkDrawCellFocusRingWithFrameAtTime(search, NSRect(unzoomedRect), documentView, std::numeric_limits<double>::max()))
-            o.document().page()->focusController().setFocusedElementNeedsRepaint();
-    }
-    
     return false;
 }
 
@@ -1627,6 +1621,7 @@ void RenderThemeMac::setSearchCellState(const RenderObject& o, const IntRect&)
 {
     NSSearchFieldCell* search = this->search();
 
+    [search setPlaceholderString:@""];
     [search setControlSize:controlSizeForFont(o.style())];
 
     // Update the various states we respond to.
@@ -1704,7 +1699,7 @@ bool RenderThemeMac::paintSearchFieldCancelButton(const RenderObject& o, const P
 
     float zoomLevel = o.style().effectiveZoom();
 
-    FloatRect localBounds = [search cancelButtonRectForBounds:NSRect(input->renderBox()->pixelSnappedBorderBoxRect())];
+    FloatRect localBounds = [search cancelButtonRectForBounds:NSRect(snappedIntRect(input->renderBox()->contentBoxRect()))];
     localBounds = convertToPaintingRect(*input->renderer(), o, localBounds, r);
 
     FloatRect unzoomedRect(localBounds);
@@ -1779,7 +1774,7 @@ bool RenderThemeMac::paintSearchFieldResultsDecorationPart(const RenderObject& o
     if ([search searchMenuTemplate] != nil)
         [search setSearchMenuTemplate:nil];
 
-    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(input->renderBox()->pixelSnappedBorderBoxRect())];
+    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(snappedIntRect(input->renderBox()->borderBoxRect()))];
     localBounds = convertToPaintingRect(*input->renderer(), o, localBounds, r);
 
     [[search searchButtonCell] drawWithFrame:localBounds inView:documentViewFor(o)];
@@ -1815,7 +1810,7 @@ bool RenderThemeMac::paintSearchFieldResultsButton(const RenderObject& o, const 
     GraphicsContextStateSaver stateSaver(*paintInfo.context);
     float zoomLevel = o.style().effectiveZoom();
 
-    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(input->renderBox()->pixelSnappedBorderBoxRect())];
+    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(snappedIntRect(input->renderBox()->contentBoxRect()))];
     localBounds = convertToPaintingRect(*input->renderer(), o, localBounds, r);
 
     IntRect unzoomedRect(localBounds);
@@ -1930,11 +1925,6 @@ void RenderThemeMac::adjustSliderThumbSize(RenderStyle& style, Element*) const
         style.setWidth(Length(static_cast<int>(sliderThumbWidth * zoomLevel), Fixed));
         style.setHeight(Length(static_cast<int>(sliderThumbHeight * zoomLevel), Fixed));
     }
-}
-
-bool RenderThemeMac::shouldShowPlaceholderWhenFocused() const
-{
-    return true;
 }
 
 bool RenderThemeMac::shouldHaveCapsLockIndicator(HTMLInputElement& element) const
@@ -2376,135 +2366,15 @@ static void paintAttachmentIcon(const RenderAttachment& attachment, GraphicsCont
     icon->paint(context, layout.iconRect);
 }
 
-static void addAttachmentTitleBackgroundRightCorner(Path& path, const FloatRect* fromRect, const FloatRect* toRect)
-{
-    FloatSize horizontalRadius(attachmentTitleBackgroundRadius, 0);
-    FloatSize verticalRadius(0, attachmentTitleBackgroundRadius);
-
-    if (!fromRect) {
-        // For the first (top) rect:
-
-        path.moveTo(toRect->minXMinYCorner() + horizontalRadius);
-
-        // Across the top, towards the right.
-        path.addLineTo(toRect->maxXMinYCorner() - horizontalRadius);
-
-        // Arc the top corner.
-        path.addArcTo(toRect->maxXMinYCorner(), toRect->maxXMinYCorner() + verticalRadius, attachmentTitleBackgroundRadius);
-
-        // Down the right.
-        path.addLineTo(toRect->maxXMaxYCorner() - verticalRadius);
-    } else if (!toRect) {
-        // For the last rect:
-
-        // Arc the bottom corner.
-        path.addArcTo(fromRect->maxXMaxYCorner(), fromRect->maxXMaxYCorner() - horizontalRadius, attachmentTitleBackgroundRadius);
-    } else {
-        // For middle rects:
-
-        float widthDifference = toRect->width() - fromRect->width();
-
-        // Skip over very similar-width rects, because we can't make
-        // sensible curves between them.
-        if (fabs(widthDifference) < std::numeric_limits<float>::epsilon())
-            return;
-
-        if (widthDifference < 0) {
-            // Arc the outer corner.
-            path.addArcTo(FloatPoint(fromRect->maxX(), toRect->y()), FloatPoint(fromRect->maxX(), toRect->y()) - horizontalRadius, attachmentTitleBackgroundRadius);
-
-            // Across the bottom, towards the left.
-            path.addLineTo(toRect->maxXMinYCorner() + horizontalRadius);
-
-            // Arc the inner corner.
-            path.addArcTo(toRect->maxXMinYCorner(), toRect->maxXMinYCorner() + verticalRadius, attachmentTitleBackgroundRadius);
-        } else {
-            // Arc the inner corner.
-            path.addArcTo(FloatPoint(fromRect->maxX(), toRect->y()), FloatPoint(fromRect->maxX(), toRect->y()) + horizontalRadius, attachmentTitleBackgroundRadius);
-
-            // Across the bottom, towards the right.
-            path.addLineTo(toRect->maxXMinYCorner() - horizontalRadius);
-
-            // Arc the outer corner.
-            path.addArcTo(toRect->maxXMinYCorner(), toRect->maxXMinYCorner() + verticalRadius, attachmentTitleBackgroundRadius);
-        }
-
-        // Down the right.
-        path.addLineTo(toRect->maxXMaxYCorner() - verticalRadius);
-    }
-}
-
-static void addAttachmentTitleBackgroundLeftCorner(Path& path, const FloatRect* fromRect, const FloatRect* toRect)
-{
-    FloatSize horizontalRadius(attachmentTitleBackgroundRadius, 0);
-    FloatSize verticalRadius(0, attachmentTitleBackgroundRadius);
-
-    if (!fromRect) {
-        // For the first (bottom) rect:
-
-        // Across the bottom, towards the left.
-        path.addLineTo(toRect->minXMaxYCorner() + horizontalRadius);
-
-        // Arc the bottom corner.
-        path.addArcTo(toRect->minXMaxYCorner(), toRect->minXMaxYCorner() - verticalRadius, attachmentTitleBackgroundRadius);
-
-        // Up the left.
-        path.addLineTo(toRect->minXMinYCorner() + verticalRadius);
-    } else if (!toRect) {
-        // For the last (top) rect:
-
-        // Arc the top corner.
-        path.addArcTo(fromRect->minXMinYCorner(), fromRect->minXMinYCorner() + horizontalRadius, attachmentTitleBackgroundRadius);
-    } else {
-        // For middle rects:
-        float widthDifference = toRect->width() - fromRect->width();
-
-        // Skip over very similar-width rects, because we can't make
-        // sensible curves between them.
-        if (fabs(widthDifference) < std::numeric_limits<float>::epsilon())
-            return;
-
-        if (widthDifference < 0) {
-            // Arc the inner corner.
-            path.addArcTo(FloatPoint(fromRect->x(), toRect->maxY()), FloatPoint(fromRect->x(), toRect->maxY()) + horizontalRadius, attachmentTitleBackgroundRadius);
-
-            // Across the bottom, towards the right.
-            path.addLineTo(toRect->minXMaxYCorner() - horizontalRadius);
-
-            // Arc the outer corner.
-            path.addArcTo(toRect->minXMaxYCorner(), toRect->minXMaxYCorner() - verticalRadius, attachmentTitleBackgroundRadius);
-        } else {
-            // Arc the outer corner.
-            path.addArcTo(FloatPoint(fromRect->x(), toRect->maxY()), FloatPoint(fromRect->x(), toRect->maxY()) - horizontalRadius, attachmentTitleBackgroundRadius);
-
-            // Across the bottom, towards the left.
-            path.addLineTo(toRect->minXMaxYCorner() + horizontalRadius);
-
-            // Arc the inner corner.
-            path.addArcTo(toRect->minXMaxYCorner(), toRect->minXMaxYCorner() - verticalRadius, attachmentTitleBackgroundRadius);
-        }
-        
-        // Up the right.
-        path.addLineTo(toRect->minXMinYCorner() + verticalRadius);
-    }
-}
-
 static void paintAttachmentTitleBackground(const RenderAttachment& attachment, GraphicsContext& context, AttachmentLayout& layout)
 {
     if (layout.lines.isEmpty())
         return;
 
-    Path backgroundPath;
+    Vector<FloatRect> backgroundRects;
 
-    for (size_t i = 0; i <= layout.lines.size(); ++i)
-        addAttachmentTitleBackgroundRightCorner(backgroundPath, i ? &layout.lines[i - 1].backgroundRect : nullptr, i < layout.lines.size() ? &layout.lines[i].backgroundRect : nullptr);
-
-    for (size_t i = 0; i <= layout.lines.size(); ++i) {
-        size_t reverseIndex = layout.lines.size() - i;
-        addAttachmentTitleBackgroundLeftCorner(backgroundPath, reverseIndex < layout.lines.size() ? &layout.lines[reverseIndex].backgroundRect : nullptr, reverseIndex ? &layout.lines[reverseIndex - 1].backgroundRect : nullptr);
-    }
-
-    backgroundPath.closeSubpath();
+    for (size_t i = 0; i < layout.lines.size(); ++i)
+        backgroundRects.append(layout.lines[i].backgroundRect);
 
     Color backgroundColor;
     if (attachment.frame().selection().isFocusedAndActive())
@@ -2513,6 +2383,8 @@ static void paintAttachmentTitleBackground(const RenderAttachment& attachment, G
         backgroundColor = attachmentTitleInactiveBackgroundColor();
 
     context.setFillColor(backgroundColor, ColorSpaceDeviceRGB);
+
+    Path backgroundPath = PathUtilities::pathWithShrinkWrappedRects(backgroundRects, attachmentTitleBackgroundRadius);
     context.fillPath(backgroundPath);
 }
 

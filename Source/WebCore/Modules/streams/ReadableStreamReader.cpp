@@ -30,28 +30,49 @@
 #include "config.h"
 #include "ReadableStreamReader.h"
 
+#include "ExceptionCode.h"
 #include <runtime/JSCJSValueInlines.h>
 
 #if ENABLE(STREAMS_API)
 
 namespace WebCore {
 
-void ReadableStreamReader::closed(ReadableStream::ClosedSuccessCallback&& successCallback, ReadableStream::FailureCallback&& failureCallback)
+void ReadableStreamReader::cancel(JSC::JSValue reason, ReadableStream::CancelPromise&& promise)
 {
     if (m_stream.isReadable() && m_stream.reader() != this) {
-        successCallback();
+        promise.resolve(nullptr);
         return;
     }
-    m_stream.closed(WTF::move(successCallback), WTF::move(failureCallback));
+    m_stream.cancelNoCheck(reason, WTF::move(promise));
 }
 
-void ReadableStreamReader::read(ReadableStream::ReadSuccessCallback&& successCallback, ReadableStream::ReadEndCallback&& endCallback, ReadableStream::FailureCallback&& failureCallback)
+void ReadableStreamReader::closed(ReadableStream::ClosedPromise&& promise)
 {
     if (m_stream.isReadable() && m_stream.reader() != this) {
-        endCallback();
+        promise.resolve(nullptr);
         return;
     }
-    m_stream.read(WTF::move(successCallback), WTF::move(endCallback), WTF::move(failureCallback));
+    m_stream.closed(WTF::move(promise));
+}
+
+void ReadableStreamReader::read(ReadableStream::ReadPromise&& promise)
+{
+    if (m_stream.isReadable() && m_stream.reader() != this) {
+        promise.resolveEnd();
+        return;
+    }
+    m_stream.read(WTF::move(promise));
+}
+
+void ReadableStreamReader::releaseLock(ExceptionCode& ec)
+{
+    if (m_stream.reader() != this)
+        return;
+    if (m_stream.hasReadPendingRequests()) {
+        ec = TypeError;
+        return;
+    }
+    m_stream.releaseReader();
 }
 
 }

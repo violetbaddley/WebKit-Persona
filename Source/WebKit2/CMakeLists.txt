@@ -216,7 +216,6 @@ set(WebKit2_SOURCES
     Shared/CacheModel.cpp
     Shared/ChildProcess.cpp
     Shared/ChildProcessProxy.cpp
-    Shared/ConnectionStack.cpp
     Shared/ContextMenuContextData.cpp
     Shared/DictionaryPopupInfo.cpp
     Shared/EditorState.cpp
@@ -252,6 +251,7 @@ set(WebKit2_SOURCES
     Shared/WebImage.cpp
     Shared/WebKeyboardEvent.cpp
     Shared/WebKit2Initialize.cpp
+    Shared/WebMediaSessionMetadata.cpp
     Shared/WebMemorySampler.cpp
     Shared/WebMouseEvent.cpp
     Shared/WebOpenPanelParameters.cpp
@@ -295,7 +295,7 @@ set(WebKit2_SOURCES
     Shared/API/c/WKPluginInformation.cpp
     Shared/API/c/WKRenderLayer.cpp
     Shared/API/c/WKRenderObject.cpp
-    Shared/API/c/WKSecurityOrigin.cpp
+    Shared/API/c/WKSecurityOriginRef.cpp
     Shared/API/c/WKSerializedScriptValue.cpp
     Shared/API/c/WKString.cpp
     Shared/API/c/WKType.cpp
@@ -393,12 +393,14 @@ set(WebKit2_SOURCES
     UIProcess/API/APIFrameInfo.cpp
     UIProcess/API/APINavigation.cpp
     UIProcess/API/APINavigationData.cpp
+    UIProcess/API/APIPageConfiguration.cpp
     UIProcess/API/APIProcessPoolConfiguration.cpp
     UIProcess/API/APISession.cpp
     UIProcess/API/APISessionState.cpp
     UIProcess/API/APIUserContentExtension.cpp
     UIProcess/API/APIUserContentExtensionStore.cpp
     UIProcess/API/APIWebsiteDataStore.cpp
+    UIProcess/API/APIWindowFeatures.cpp
 
     UIProcess/API/C/WKApplicationCacheManager.cpp
     UIProcess/API/C/WKAuthenticationChallenge.cpp
@@ -426,6 +428,7 @@ set(WebKit2_SOURCES
     UIProcess/API/C/WKInspector.cpp
     UIProcess/API/C/WKKeyValueStorageManager.cpp
     UIProcess/API/C/WKMediaCacheManager.cpp
+    UIProcess/API/C/WKMediaSessionMetadata.cpp
     UIProcess/API/C/WKNavigationActionRef.cpp
     UIProcess/API/C/WKNavigationDataRef.cpp
     UIProcess/API/C/WKNavigationRef.cpp
@@ -437,6 +440,7 @@ set(WebKit2_SOURCES
     UIProcess/API/C/WKOpenPanelResultListener.cpp
     UIProcess/API/C/WKOriginDataManager.cpp
     UIProcess/API/C/WKPage.cpp
+    UIProcess/API/C/WKPageConfigurationRef.cpp
     UIProcess/API/C/WKPageGroup.cpp
     UIProcess/API/C/WKPluginSiteDataManager.cpp
     UIProcess/API/C/WKPreferences.cpp
@@ -444,9 +448,11 @@ set(WebKit2_SOURCES
     UIProcess/API/C/WKResourceCacheManager.cpp
     UIProcess/API/C/WKSessionStateRef.cpp
     UIProcess/API/C/WKTextChecker.cpp
+    UIProcess/API/C/WKUserContentControllerRef.cpp
     UIProcess/API/C/WKUserMediaPermissionRequest.cpp
     UIProcess/API/C/WKVibration.cpp
     UIProcess/API/C/WKViewportAttributes.cpp
+    UIProcess/API/C/WKWindowFeaturesRef.cpp
 
     UIProcess/Authentication/AuthenticationChallengeProxy.cpp
     UIProcess/Authentication/AuthenticationDecisionListener.cpp

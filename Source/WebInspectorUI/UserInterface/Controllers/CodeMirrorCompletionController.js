@@ -39,6 +39,7 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
         this._endOffset = NaN;
         this._lineNumber = NaN;
         this._prefix = "";
+        this._noEndingSemicolon = false;
         this._completions = [];
         this._extendedCompletionProviders = {};
 
@@ -67,6 +68,8 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
         this._codeMirror.on("cursorActivity", this._handleCursorActivityListener);
         this._codeMirror.on("blur", this._handleHideActionListener);
         this._codeMirror.on("scroll", this._handleHideActionListener);
+
+        this._updatePromise = null;
     }
 
     // Public
@@ -124,6 +127,8 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
         }
 
         this._applyCompletionHint(completions[index]);
+
+        this._resolveUpdatePromise(WebInspector.CodeMirrorCompletionController.UpdatePromise.CompletionsFound);
     }
 
     isCompletionChange(change)
@@ -157,6 +162,8 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
 
         delete this._currentCompletion;
         delete this._ignoreNextCursorActivity;
+
+        this._resolveUpdatePromise(WebInspector.CodeMirrorCompletionController.UpdatePromise.NoCompletionsFound);
     }
 
     close()
@@ -167,6 +174,17 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
         this._codeMirror.off("cursorActivity", this._handleCursorActivityListener);
         this._codeMirror.off("blur", this._handleHideActionListener);
         this._codeMirror.off("scroll", this._handleHideActionListener);
+    }
+
+    completeAtCurrentPositionIfNeeded(force)
+    {
+        this._resolveUpdatePromise(WebInspector.CodeMirrorCompletionController.UpdatePromise.Canceled);
+
+        var update = this._updatePromise = new WebInspector.WrappedPromise;
+
+        this._completeAtCurrentPosition(force);
+
+        return update.promise;
     }
 
     // Protected
@@ -185,7 +203,21 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
         this._commitCompletionHint();
     }
 
+    set noEndingSemicolon(noEndingSemicolon)
+    {
+        this._noEndingSemicolon = noEndingSemicolon;
+    }
+
     // Private
+
+    _resolveUpdatePromise(message)
+    {
+        if (!this._updatePromise)
+            return;
+
+        this._updatePromise.resolve(message);
+        this._updatePromise = null;
+    }
 
     get _currentReplacementText()
     {
@@ -213,6 +245,15 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
         this._notifyCompletionsHiddenIfNeededTimeout = setTimeout(notify.bind(this), WebInspector.CodeMirrorCompletionController.CompletionsHiddenDelay);
     }
 
+    _createCompletionHintMarker(position, text)
+    {
+        var container = document.createElement("span");
+        container.classList.add(WebInspector.CodeMirrorCompletionController.CompletionHintStyleClassName);
+        container.textContent = text;
+
+        this._completionHintMarker = this._codeMirror.setUniqueBookmark(position, {widget: container, insertLeft: true});
+    }
+
     _applyCompletionHint(completionText)
     {
         console.assert(completionText);
@@ -229,15 +270,9 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
 
             var from = {line: this._lineNumber, ch: this._startOffset};
             var cursor = {line: this._lineNumber, ch: this._endOffset};
-            var to = {line: this._lineNumber, ch: this._startOffset + replacementText.length};
+            var currentText = this._codeMirror.getRange(from, cursor);
 
-            this._codeMirror.replaceRange(replacementText, from, cursor, WebInspector.CodeMirrorCompletionController.CompletionOrigin);
-            this._removeLastChangeFromHistory();
-
-            this._codeMirror.setCursor(cursor);
-
-            if (cursor.ch !== to.ch)
-                this._completionHintMarker = this._codeMirror.markText(cursor, to, {className: WebInspector.CodeMirrorCompletionController.CompletionHintStyleClassName});
+            this._createCompletionHintMarker(cursor, replacementText.replace(currentText, ""));
         }
 
         this._ignoreChange = true;
@@ -304,17 +339,21 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
 
         this._notifyCompletionsHiddenSoon();
 
+        function clearMarker(marker)
+        {
+            if (!marker)
+                return;
+
+            var range = marker.find();
+            if (range)
+                marker.clear();
+
+            return null;
+        }
+
         function update()
         {
-            var range = this._completionHintMarker.find();
-            if (range) {
-                this._completionHintMarker.clear();
-
-                this._codeMirror.replaceRange("", range.from, range.to, WebInspector.CodeMirrorCompletionController.DeleteCompletionOrigin);
-                this._removeLastChangeFromHistory();
-            }
-
-            this._completionHintMarker = null;
+            this._completionHintMarker = clearMarker(this._completionHintMarker);
 
             if (dontRestorePrefix)
                 return;
@@ -524,7 +563,7 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
 
             // If there is a suffix and it isn't a semicolon, then we should use a space since
             // the user is editing in the middle.
-            this._implicitSuffix = suffix && suffix !== ";" ? " " : ";";
+            this._implicitSuffix = suffix && suffix !== ";" ? " " : (this._noEndingSemicolon ? "" : ";");
 
             // Don't use an implicit suffix if it would be the same as the existing suffix.
             if (this._implicitSuffix === suffix)
@@ -794,6 +833,12 @@ WebInspector.CodeMirrorCompletionController = class CodeMirrorCompletionControll
 
         this.hideCompletions();
     }
+};
+
+WebInspector.CodeMirrorCompletionController.UpdatePromise = {
+    Canceled: "code-mirror-completion-controller-canceled",
+    CompletionsFound: "code-mirror-completion-controller-completions-found",
+    NoCompletionsFound: "code-mirror-completion-controller-no-completions-found"
 };
 
 WebInspector.CodeMirrorCompletionController.GenericStopCharactersRegex = /[\s=:;,]/;

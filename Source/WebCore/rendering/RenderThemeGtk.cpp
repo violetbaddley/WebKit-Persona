@@ -93,6 +93,8 @@ void RenderThemeGtk::updateCachedSystemFontDescription(CSSValueID, FontDescripti
     // This will be a font selection string like "Sans 10" so we cannot use it as the family name.
     GUniqueOutPtr<gchar> fontName;
     g_object_get(settings, "gtk-font-name", &fontName.outPtr(), nullptr);
+    if (!fontName || !fontName.get()[0])
+        return;
 
     PangoFontDescription* pangoDescription = pango_font_description_from_string(fontName.get());
     if (!pangoDescription)
@@ -372,18 +374,12 @@ bool RenderThemeGtk::controlSupportsTints(const RenderObject& o) const
     return isEnabled(o);
 }
 
-int RenderThemeGtk::baselinePosition(const RenderObject& renderer) const
+int RenderThemeGtk::baselinePosition(const RenderBox& box) const
 {
-    if (!is<RenderBox>(renderer))
-        return 0;
-
     // FIXME: This strategy is possibly incorrect for the GTK+ port.
-    if (renderer.style().appearance() == CheckboxPart || renderer.style().appearance() == RadioPart) {
-        const auto& box = downcast<RenderBox>(renderer);
+    if (box.style().appearance() == CheckboxPart || box.style().appearance() == RadioPart)
         return box.marginTop() + box.height() - 2;
-    }
-
-    return RenderTheme::baselinePosition(renderer);
+    return RenderTheme::baselinePosition(box);
 }
 
 static GtkTextDirection gtkTextDirection(TextDirection direction)
@@ -864,7 +860,7 @@ bool RenderThemeGtk::paintMenuList(const RenderObject& renderObject, const Paint
     return false;
 }
 
-bool RenderThemeGtk::paintMenuListButtonDecorations(const RenderObject& object, const PaintInfo& info, const FloatRect& rect)
+bool RenderThemeGtk::paintMenuListButtonDecorations(const RenderBox& object, const PaintInfo& info, const FloatRect& rect)
 {
     return paintMenuList(object, info, rect);
 }

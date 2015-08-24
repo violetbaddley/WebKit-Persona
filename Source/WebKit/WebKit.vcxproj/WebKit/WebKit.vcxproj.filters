@@ -296,7 +296,6 @@
     <ClCompile Include="..\..\win\WebCoreSupport\AcceleratedCompositingContext.cpp">
       <Filter>WebCoreSupport</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\win\WebCoreSupport\WebVisitedLinkStore.cpp" />
     <ClCompile Include="..\..\win\WebApplicationCache.cpp">
       <Filter>Sources</Filter>
     </ClCompile>
@@ -307,6 +306,9 @@
       <Filter>Sources\Plugins</Filter>
     </ClCompile>
     <ClCompile Include="..\..\win\Plugins\PluginDebug.cpp">
+      <Filter>Sources\Plugins</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\win\Plugins\PluginMainThreadScheduler.cpp">
       <Filter>Sources\Plugins</Filter>
     </ClCompile>
     <ClCompile Include="..\..\win\Plugins\PluginMessageThrottlerWin.cpp">
@@ -335,6 +337,9 @@
     </ClCompile>
     <ClCompile Include="..\..\WebCoreSupport\WebViewGroup.cpp">
       <Filter>Sources</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\win\WebCoreSupport\WebVisitedLinkStore.cpp">
+      <Filter>WebCoreSupport</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -613,6 +618,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\win\Plugins\PluginView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\win\Plugins\PluginMainThreadScheduler.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\win\Plugins\PluginMessageThrottlerWin.h">

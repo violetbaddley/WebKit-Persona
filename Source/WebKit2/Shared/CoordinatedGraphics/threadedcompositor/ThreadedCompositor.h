@@ -60,7 +60,7 @@ public:
         virtual void commitScrollOffset(uint32_t layerID, const WebCore::IntSize& offset) = 0;
     };
 
-    static PassRefPtr<ThreadedCompositor> create(Client*);
+    static Ref<ThreadedCompositor> create(Client*);
     virtual ~ThreadedCompositor();
 
     void setNeedsDisplay();
@@ -111,9 +111,9 @@ private:
 
     ThreadIdentifier m_threadIdentifier;
     ThreadCondition m_initializeRunLoopCondition;
-    Mutex m_initializeRunLoopConditionMutex;
+    Lock m_initializeRunLoopConditionMutex;
     ThreadCondition m_terminateRunLoopCondition;
-    Mutex m_terminateRunLoopConditionMutex;
+    Lock m_terminateRunLoopConditionMutex;
 };
 
 } // namespace WebKit

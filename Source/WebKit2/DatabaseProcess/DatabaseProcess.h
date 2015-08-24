@@ -53,7 +53,7 @@ public:
 
     const String& indexedDatabaseDirectory() const { return m_indexedDatabaseDirectory; }
 
-    PassRefPtr<UniqueIDBDatabase> getOrCreateUniqueIDBDatabase(const UniqueIDBDatabaseIdentifier&);
+    RefPtr<UniqueIDBDatabase> getOrCreateUniqueIDBDatabase(const UniqueIDBDatabaseIdentifier&);
     void removeUniqueIDBDatabase(const UniqueIDBDatabase&);
 
     void ensureIndexedDatabaseRelativePathExists(const String&);
@@ -106,7 +106,7 @@ private:
     HashMap<UniqueIDBDatabaseIdentifier, RefPtr<UniqueIDBDatabase>> m_idbDatabases;
 
     Deque<std::unique_ptr<AsyncTask>> m_databaseTasks;
-    Mutex m_databaseTaskMutex;
+    Lock m_databaseTaskMutex;
 };
 
 } // namespace WebKit

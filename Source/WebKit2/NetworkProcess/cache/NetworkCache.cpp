@@ -113,7 +113,7 @@ static Key makeCacheKey(const WebCore::ResourceRequest& request)
     // FIXME: This implements minimal Range header disk cache support. We don't parse
     // ranges so only the same exact range request will be served from the cache.
     String range = request.httpHeaderField(WebCore::HTTPHeaderName::Range);
-    return { request.httpMethod(), partition, range, request.url().string()  };
+    return { partition, range, request.url().string() };
 }
 
 static String headerValueForVary(const WebCore::ResourceRequest& request, const String& headerName)
@@ -377,8 +377,8 @@ void Cache::retrieve(const WebCore::ResourceRequest& originalRequest, uint64_t w
         };
 
 #if !LOG_DISABLED
-        auto elapsedMS = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - startTime).count();
-        LOG(NetworkCache, "(NetworkProcess) retrieve complete useDecision=%d priority=%u time=%lldms", useDecision, originalRequest.priority(), elapsedMS);
+        auto elapsedMS = static_cast<int64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - startTime).count());
+        LOG(NetworkCache, "(NetworkProcess) retrieve complete useDecision=%d priority=%u time=%" PRIi64 "ms", useDecision, originalRequest.priority(), elapsedMS);
 #endif
         completionHandler(WTF::move(entry));
 
@@ -405,10 +405,17 @@ void Cache::store(const WebCore::ResourceRequest& originalRequest, const WebCore
     StoreDecision storeDecision = makeStoreDecision(originalRequest, response);
     if (storeDecision != StoreDecision::Yes) {
         LOG(NetworkCache, "(NetworkProcess) didn't store, storeDecision=%d", storeDecision);
-        if (m_statistics) {
-            auto key = makeCacheKey(originalRequest);
-            m_statistics->recordNotCachingResponse(key, storeDecision);
+        auto key = makeCacheKey(originalRequest);
+
+        auto isSuccessfulRevalidation = response.httpStatusCode() == 304;
+        if (!isSuccessfulRevalidation) {
+            // Make sure we don't keep a stale entry in the cache.
+            remove(key);
         }
+
+        if (m_statistics)
+            m_statistics->recordNotCachingResponse(key, storeDecision);
+
         return;
     }
 
@@ -454,6 +461,11 @@ void Cache::remove(const Key& key)
     m_storage->remove(key);
 }
 
+void Cache::remove(const WebCore::ResourceRequest& request)
+{
+    remove(makeCacheKey(request));
+}
+
 void Cache::traverse(std::function<void (const Entry*)>&& traverseHandler)
 {
     ASSERT(isEnabled());
@@ -482,7 +494,7 @@ void Cache::dumpContentsToFile()
     if (!m_storage)
         return;
     auto fd = WebCore::openFile(dumpFilePath(), WebCore::OpenForWrite);
-    if (!fd)
+    if (!WebCore::isHandleValid(fd))
         return;
     auto prologue = String("{\n\"entries\": [\n").utf8();
     WebCore::writeToFile(fd, prologue.data(), prologue.length());
@@ -545,7 +557,6 @@ void Cache::deleteDumpFile()
 void Cache::clear(std::chrono::system_clock::time_point modifiedSince, std::function<void ()>&& completionHandler)
 {
     LOG(NetworkCache, "(NetworkProcess) clearing cache");
-    deleteDumpFile();
 
     if (m_statistics)
         m_statistics->clear();
@@ -555,6 +566,8 @@ void Cache::clear(std::chrono::system_clock::time_point modifiedSince, std::func
         return;
     }
     m_storage->clear(modifiedSince, WTF::move(completionHandler));
+
+    deleteDumpFile();
 }
 
 void Cache::clear()

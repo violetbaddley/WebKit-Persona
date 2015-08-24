@@ -447,15 +447,16 @@ LayoutUnit RenderFlexibleBox::mainAxisContentExtent(LayoutUnit contentLogicalHei
     return contentLogicalWidth();
 }
 
-LayoutUnit RenderFlexibleBox::computeMainAxisExtentForChild(RenderBox& child, SizeType sizeType, const Length& size)
+Optional<LayoutUnit> RenderFlexibleBox::computeMainAxisExtentForChild(RenderBox& child, SizeType sizeType, const Length& size)
 {
     // FIXME: This is wrong for orthogonal flows. It should use the flexbox's writing-mode, not the child's in order
     // to figure out the logical height/width.
-    // FIXME: This is wrong if the height is set to an intrinsic keyword value. computeContentLogicalHeight will return -1.
-    // Instead, we need to layout the child an get the appropriate height value.
-    // https://bugs.webkit.org/show_bug.cgi?id=113610
-    if (isColumnFlow())
-        return child.computeContentLogicalHeight(size);
+    if (isColumnFlow()) {
+        // We don't have to check for "auto" here - computeContentLogicalHeight will just return Nullopt for that case anyway.
+        if (size.isIntrinsic())
+            child.layoutIfNeeded();
+        return child.computeContentLogicalHeight(size, child.logicalHeight() - child.borderAndPaddingLogicalHeight());
+    }
     // FIXME: Figure out how this should work for regions and pass in the appropriate values.
     RenderRegion* region = nullptr;
     return child.computeLogicalWidthInRegionUsing(sizeType, size, contentLogicalWidth(), this, region) - child.borderAndPaddingLogicalWidth();
@@ -667,7 +668,7 @@ LayoutUnit RenderFlexibleBox::preferredMainAxisContentExtentForChild(RenderBox& 
         ASSERT(mainAxisExtent - mainAxisBorderAndPaddingExtentForChild(child) >= 0);
         return mainAxisExtent - mainAxisBorderAndPaddingExtentForChild(child);
     }
-    return std::max(LayoutUnit::fromPixel(0), computeMainAxisExtentForChild(child, MainOrPreferredSize, flexBasis));
+    return computeMainAxisExtentForChild(child, MainOrPreferredSize, flexBasis).valueOr(0);
 }
 
 void RenderFlexibleBox::layoutFlexItems(bool relayoutChildren, Vector<LineContext>& lineContexts)
@@ -844,17 +845,13 @@ void RenderFlexibleBox::prepareOrderIteratorAndMargins()
 LayoutUnit RenderFlexibleBox::adjustChildSizeForMinAndMax(RenderBox& child, LayoutUnit childSize)
 {
     Length max = isHorizontalFlow() ? child.style().maxWidth() : child.style().maxHeight();
-    if (max.isSpecifiedOrIntrinsic()) {
-        LayoutUnit maxExtent = computeMainAxisExtentForChild(child, MaxSize, max);
-        if (maxExtent != -1 && childSize > maxExtent)
-            childSize = maxExtent;
-    }
+    if (max.isSpecifiedOrIntrinsic())
+        childSize = std::min(childSize, computeMainAxisExtentForChild(child, MaxSize, max).valueOr(childSize));
 
     Length min = isHorizontalFlow() ? child.style().minWidth() : child.style().minHeight();
-    LayoutUnit minExtent = 0;
     if (min.isSpecifiedOrIntrinsic())
-        minExtent = computeMainAxisExtentForChild(child, MinSize, min);
-    return std::max(childSize, minExtent);
+        return std::max(childSize, computeMainAxisExtentForChild(child, MinSize, min).valueOr(childSize));
+    return childSize;
 }
 
 bool RenderFlexibleBox::computeNextFlexLine(OrderedFlexItemList& orderedChildren, LayoutUnit& preferredMainAxisExtent, double& totalFlexGrow, double& totalWeightedFlexShrink, LayoutUnit& minMaxAppliedMainAxisExtent, bool& hasInfiniteLineLength)
@@ -1336,7 +1333,8 @@ void RenderFlexibleBox::applyStretchAlignmentToChild(RenderBox& child, LayoutUni
         // FIXME: If the child has orthogonal flow, then it already has an override height set, so use it.
         if (!hasOrthogonalFlow(child)) {
             LayoutUnit stretchedLogicalHeight = child.logicalHeight() + availableAlignmentSpaceForChild(lineCrossAxisExtent, child);
-            LayoutUnit desiredLogicalHeight = child.constrainLogicalHeightByMinMax(stretchedLogicalHeight);
+            ASSERT(!child.needsLayout());
+            LayoutUnit desiredLogicalHeight = child.constrainLogicalHeightByMinMax(stretchedLogicalHeight, child.logicalHeight() - child.borderAndPaddingLogicalHeight());
 
             // FIXME: Can avoid laying out here in some cases. See https://webkit.org/b/87905.
             if (desiredLogicalHeight != child.logicalHeight()) {

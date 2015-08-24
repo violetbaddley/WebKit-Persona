@@ -40,7 +40,6 @@
 #include "ElementAncestorIterator.h"
 #include "Frame.h"
 #include "HTMLElement.h"
-#include "LocaleToScriptMapping.h"
 #include "Rect.h"
 #include "RenderTheme.h"
 #include "SVGElement.h"
@@ -49,6 +48,7 @@
 #include "StyleFontSizeFunctions.h"
 #include "StyleGeneratedImage.h"
 #include "StyleResolver.h"
+#include "WillChangeData.h"
 
 namespace WebCore {
 
@@ -125,6 +125,7 @@ public:
 #if ENABLE(IOS_TEXT_AUTOSIZING)
     static void applyValueWebkitTextSizeAdjust(StyleResolver&, CSSValue&);
 #endif
+    static void applyValueWebkitTextZoom(StyleResolver&, CSSValue&);
     static void applyValueWebkitWritingMode(StyleResolver&, CSSValue&);
     static void applyValueAlt(StyleResolver&, CSSValue&);
 #if ENABLE(CSS_SCROLL_SNAP)
@@ -133,6 +134,7 @@ public:
     static void applyInitialWebkitScrollSnapPointsY(StyleResolver&);
     static void applyInheritWebkitScrollSnapPointsY(StyleResolver&);
 #endif
+    static void applyValueWillChange(StyleResolver&, CSSValue&);
 
 private:
     static void resetEffectiveZoom(StyleResolver&);
@@ -690,14 +692,12 @@ inline void StyleBuilderCustom::applyValueClip(StyleResolver& styleResolver, CSS
 inline void StyleBuilderCustom::applyValueWebkitLocale(StyleResolver& styleResolver, CSSValue& value)
 {
     auto& primitiveValue = downcast<CSSPrimitiveValue>(value);
-
-    if (primitiveValue.getValueID() == CSSValueAuto)
-        styleResolver.style()->setLocale(nullAtom);
-    else
-        styleResolver.style()->setLocale(primitiveValue.getStringValue());
     
     FontDescription fontDescription = styleResolver.style()->fontDescription();
-    fontDescription.setScript(localeToScriptCodeForFontSelection(styleResolver.style()->locale()));
+    if (primitiveValue.getValueID() == CSSValueAuto)
+        fontDescription.setLocale(nullAtom);
+    else
+        fontDescription.setLocale(primitiveValue.getStringValue());
     styleResolver.setFontDescription(fontDescription);
 }
 
@@ -730,6 +730,16 @@ inline void StyleBuilderCustom::applyValueWebkitTextSizeAdjust(StyleResolver& st
     styleResolver.state().setFontDirty(true);
 }
 #endif
+
+inline void StyleBuilderCustom::applyValueWebkitTextZoom(StyleResolver& styleResolver, CSSValue& value)
+{
+    auto& primitiveValue = downcast<CSSPrimitiveValue>(value);
+    if (primitiveValue.getValueID() == CSSValueNormal)
+        styleResolver.style()->setTextZoom(TextZoomNormal);
+    else if (primitiveValue.getValueID() == CSSValueReset)
+        styleResolver.style()->setTextZoom(TextZoomReset);
+    styleResolver.state().setFontDirty(true);
+}
 
 template <CSSPropertyID id>
 inline void StyleBuilderCustom::applyTextOrBoxShadowValue(StyleResolver& styleResolver, CSSValue& value)
@@ -1708,6 +1718,37 @@ inline void StyleBuilderCustom::applyInheritWebkitScrollSnapPointsY(StyleResolve
     styleResolver.style()->setScrollSnapPointsY(styleResolver.parentStyle()->scrollSnapPointsY() ? std::make_unique<ScrollSnapPoints>(*styleResolver.parentStyle()->scrollSnapPointsY()) : nullptr);
 }
 #endif
+
+inline void StyleBuilderCustom::applyValueWillChange(StyleResolver& styleResolver, CSSValue& value)
+{
+    if (is<CSSPrimitiveValue>(value)) {
+        ASSERT(downcast<CSSPrimitiveValue>(value).getValueID() == CSSValueAuto);
+        styleResolver.style()->setWillChange(nullptr);
+        return;
+    }
+
+    Ref<WillChangeData> willChange = WillChangeData::create();
+    for (auto& item : downcast<CSSValueList>(value)) {
+        if (!is<CSSPrimitiveValue>(item.get()))
+            continue;
+
+        const auto& primitiveValue = downcast<CSSPrimitiveValue>(item.get());
+        switch (primitiveValue.getValueID()) {
+        case CSSValueScrollPosition:
+            willChange->addFeature(WillChangeData::Feature::ScrollPosition);
+            break;
+        case CSSValueContents:
+            willChange->addFeature(WillChangeData::Feature::Contents);
+            break;
+        default:
+            if (primitiveValue.isPropertyID())
+                willChange->addFeature(WillChangeData::Feature::Property, primitiveValue.getPropertyID());
+            break;
+        }
+    }
+
+    styleResolver.style()->setWillChange(WTF::move(willChange));
+}
 
 } // namespace WebCore
 

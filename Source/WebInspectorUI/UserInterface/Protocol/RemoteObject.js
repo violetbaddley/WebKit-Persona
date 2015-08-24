@@ -46,7 +46,7 @@ WebInspector.RemoteObject = class RemoteObject
             console.assert(!value);
 
             this._objectId = objectId;
-            this._description = description;
+            this._description = description || "";
             this._hasChildren = type !== "symbol";
             this._size = size;
             this._classPrototype = classPrototype;
@@ -68,6 +68,11 @@ WebInspector.RemoteObject = class RemoteObject
     }
 
     // Static
+
+    static createFakeRemoteObject()
+    {
+        return new WebInspector.RemoteObject(WebInspector.RemoteObject.FakeRemoteObjectId, "object");
+    }
 
     static fromPrimitiveValue(value)
     {
@@ -219,7 +224,7 @@ WebInspector.RemoteObject = class RemoteObject
 
     getDisplayablePropertyDescriptors(callback)
     {
-        if (!this._objectId || this._isSymbol()) {
+        if (!this._objectId || this._isSymbol() || this._isFakeObject()) {
             callback([]);
             return;
         }
@@ -266,7 +271,7 @@ WebInspector.RemoteObject = class RemoteObject
 
     deprecatedGetDisplayableProperties(callback)
     {
-        if (!this._objectId || this._isSymbol()) {
+        if (!this._objectId || this._isSymbol() || this._isFakeObject()) {
             callback([]);
             return;
         }
@@ -301,12 +306,13 @@ WebInspector.RemoteObject = class RemoteObject
 
     setPropertyValue(name, value, callback)
     {
-        if (!this._objectId || this._isSymbol()) {
+        if (!this._objectId || this._isSymbol() || this._isFakeObject()) {
             callback("Can't set a property of non-object.");
             return;
         }
 
-        RuntimeAgent.evaluate.invoke({expression:value, doNotPauseOnExceptionsAndMuteConsole:true}, evaluatedCallback.bind(this));
+        // FIXME: It doesn't look like setPropertyValue is used yet. This will need to be tested when it is again (editable ObjectTrees).
+        RuntimeAgent.evaluate.invoke({expression:appendWebInspectorSourceURL(value), doNotPauseOnExceptionsAndMuteConsole:true}, evaluatedCallback.bind(this));
 
         function evaluatedCallback(error, result, wasThrown)
         {
@@ -322,7 +328,7 @@ WebInspector.RemoteObject = class RemoteObject
 
             delete result.description; // Optimize on traffic.
 
-            RuntimeAgent.callFunctionOn(this._objectId, setPropertyValue.toString(), [{value:name}, result], true, undefined, propertySetCallback.bind(this));
+            RuntimeAgent.callFunctionOn(this._objectId, appendWebInspectorSourceURL(setPropertyValue.toString()), [{value:name}, result], true, undefined, propertySetCallback.bind(this));
 
             if (result._objectId)
                 RuntimeAgent.releaseObject(result._objectId);
@@ -406,7 +412,7 @@ WebInspector.RemoteObject = class RemoteObject
         if (args)
             args = args.map(WebInspector.RemoteObject.createCallArgument);
 
-        RuntimeAgent.callFunctionOn(this._objectId, functionDeclaration.toString(), args, true, undefined, generatePreview, mycallback);
+        RuntimeAgent.callFunctionOn(this._objectId, appendWebInspectorSourceURL(functionDeclaration.toString()), args, true, undefined, generatePreview, mycallback);
     }
 
     callFunctionJSON(functionDeclaration, args, callback)
@@ -416,7 +422,7 @@ WebInspector.RemoteObject = class RemoteObject
             callback((error || wasThrown) ? null : result.value);
         }
 
-        RuntimeAgent.callFunctionOn(this._objectId, functionDeclaration.toString(), args, true, true, mycallback);
+        RuntimeAgent.callFunctionOn(this._objectId, appendWebInspectorSourceURL(functionDeclaration.toString()), args, true, true, mycallback);
     }
     
     invokeGetter(getterRemoteObject, callback)
@@ -456,7 +462,7 @@ WebInspector.RemoteObject = class RemoteObject
 
     release()
     {
-        if (this._objectId)
+        if (this._objectId && !this._isFakeObject())
             RuntimeAgent.releaseObject(this._objectId);
     }
 
@@ -477,11 +483,51 @@ WebInspector.RemoteObject = class RemoteObject
         return WebInspector.RemoteObject.createCallArgument(this);
     }
 
+    findFunctionSourceCodeLocation()
+    {
+        var result = new WebInspector.WrappedPromise;
+
+        if (!this._isFunction() || !this._objectId) {
+            result.resolve(WebInspector.RemoteObject.SourceCodeLocationPromise.MissingObjectId);
+            return result.promise;
+        }
+
+        DebuggerAgent.getFunctionDetails(this._objectId, function(error, response) {
+            if (error) {
+                result.reject(error);
+                return;
+            }
+
+            var location = response.location;
+            var sourceCode = WebInspector.debuggerManager.scriptForIdentifier(location.scriptId);
+
+            if (!sourceCode || sourceCode.url.startsWith("__WebInspector")) {
+                result.resolve(WebInspector.RemoteObject.SourceCodeLocationPromise.NoSourceFound);
+                return;
+            }
+
+            var sourceCodeLocation = sourceCode.createSourceCodeLocation(location.lineNumber, location.columnNumber || 0);
+            result.resolve(sourceCodeLocation);
+        });
+
+        return result.promise;
+    }
+
     // Private
+
+    _isFakeObject()
+    {
+        return this._objectId === WebInspector.RemoteObject.FakeRemoteObjectId;
+    }
 
     _isSymbol()
     {
         return this._type === "symbol";
+    }
+
+    _isFunction()
+    {
+        return this._type === "function";
     }
 
     _weakCollectionObjectGroup()
@@ -491,12 +537,25 @@ WebInspector.RemoteObject = class RemoteObject
 
     _getPropertyDescriptors(ownProperties, callback)
     {
-        if (!this._objectId || this._isSymbol()) {
+        if (!this._objectId || this._isSymbol() || this._isFakeObject()) {
             callback([]);
             return;
         }
 
         RuntimeAgent.getProperties(this._objectId, ownProperties, true, this._getPropertyDescriptorsResolver.bind(this, callback));
+    }
+
+    getOwnPropertyDescriptorsAsObject(callback)
+    {
+        this.getOwnPropertyDescriptors(function(properties) {
+            var propertiesResult = {};
+            var internalPropertiesResult = {};
+            for (var propertyDescriptor of properties) {
+                var object = propertyDescriptor.isInternalProperty ? internalPropertiesResult : propertiesResult;
+                object[propertyDescriptor.name] = propertyDescriptor;
+            }
+            callback(propertiesResult, internalPropertiesResult);
+        });
     }
 
     _getPropertyDescriptorsResolver(callback, error, properties, internalProperties)
@@ -522,7 +581,7 @@ WebInspector.RemoteObject = class RemoteObject
     // FIXME: Phase out these deprecated functions. They return DeprecatedRemoteObjectProperty instead of PropertyDescriptors.
     _deprecatedGetProperties(ownProperties, callback)
     {
-        if (!this._objectId || this._isSymbol()) {
+        if (!this._objectId || this._isSymbol() || this._isFakeObject()) {
             callback([]);
             return;
         }
@@ -562,6 +621,13 @@ WebInspector.RemoteObject = class RemoteObject
         callback(result);
     }
 };
+
+WebInspector.RemoteObject.FakeRemoteObjectId = "fake-remote-object";
+
+WebInspector.RemoteObject.SourceCodeLocationPromise = {
+    NoSourceFound: "remote-object-source-code-location-promise-no-source-found",
+    MissingObjectId: "remote-object-source-code-location-promise-missing-object-id"
+}
 
 // FIXME: Phase out this deprecated class.
 WebInspector.DeprecatedRemoteObjectProperty = class DeprecatedRemoteObjectProperty

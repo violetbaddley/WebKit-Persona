@@ -1,21 +1,29 @@
 #!/usr/bin/env python
 
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 
 
 class HTTPServerDriver(object):
+    platforms = []
+
+    __metaclass__ = ABCMeta
+
     @abstractmethod
     def serve(self, webRoot):
         pass
 
     @abstractmethod
-    def fetchResult(self):
+    def fetch_result(self):
         pass
 
     @abstractmethod
-    def killServer(self):
+    def kill_server(self):
         pass
 
     @abstractmethod
-    def getReturnCode(self):
+    def get_return_code(self):
+        pass
+
+    @abstractmethod
+    def set_device_id(self, device_id):
         pass

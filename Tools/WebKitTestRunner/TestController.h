@@ -34,11 +34,14 @@
 #include <vector>
 #include <wtf/Vector.h>
 
+OBJC_CLASS WKWebViewConfiguration;
+
 namespace WTR {
 
 class TestInvocation;
 class PlatformWebView;
 class EventSenderProxy;
+struct ViewOptions;
 
 // FIXME: Rename this TestRunner?
 class TestController {
@@ -67,7 +70,6 @@ public:
 
     EventSenderProxy* eventSenderProxy() { return m_eventSenderProxy.get(); }
 
-    void ensureViewSupportsOptions(WKDictionaryRef options);
     bool shouldUseRemoteLayerTree() const { return m_shouldUseRemoteLayerTree; }
     
     // Runs the run loop until `done` is true or the timeout elapses.
@@ -89,6 +91,7 @@ public:
     void setMockGeolocationPosition(double latitude, double longitude, double accuracy, bool providesAltitude, double altitude, bool providesAltitudeAccuracy, double altitudeAccuracy, bool providesHeading, double heading, bool providesSpeed, double speed);
     void setMockGeolocationPositionUnavailableError(WKStringRef errorMessage);
     void handleGeolocationPermissionRequest(WKGeolocationPermissionRequestRef);
+    bool isGeolocationProviderActive() const;
 
     // MediaStream.
     void setUserMediaPermission(bool);
@@ -123,7 +126,7 @@ public:
 
 private:
     void initialize(int argc, const char* argv[]);
-    void createWebViewWithOptions(WKDictionaryRef);
+    void createWebViewWithOptions(const ViewOptions&);
     void run();
 
     void runTestingServerLoop();
@@ -131,18 +134,26 @@ private:
 
     void platformInitialize();
     void platformDestroy();
+    WKContextRef platformAdjustContext(WKContextRef, WKContextConfigurationRef);
     void platformInitializeContext();
+    void platformCreateWebView(WKPageConfigurationRef, const ViewOptions&);
+    static PlatformWebView* platformCreateOtherPage(PlatformWebView* parentView, WKPageConfigurationRef, const ViewOptions&);
     void platformResetPreferencesToConsistentValues();
+    void platformResetStateToConsistentValues();
     void platformConfigureViewForTest(const TestInvocation&);
     void platformWillRunTest(const TestInvocation&);
     void platformRunUntil(bool& done, double timeout);
     void platformDidCommitLoadForFrame(WKPageRef, WKFrameRef);
+    WKPreferencesRef platformPreferences();
     void initializeInjectedBundlePath();
     void initializeTestPluginDirectory();
 
+    void ensureViewSupportsOptionsForTest(const TestInvocation&);
+    ViewOptions viewOptionsForTest(const TestInvocation&) const;
+    void updatePlatformSpecificViewOptionsForTest(ViewOptions&, const TestInvocation&) const;
+
     void updateWebViewSizeForTest(const TestInvocation&);
     void updateWindowScaleForTest(PlatformWebView*, const TestInvocation&);
-    void updateLayoutTypeForTest(const TestInvocation&);
 
     void decidePolicyForGeolocationPermissionRequestIfPossible();
     void decidePolicyForUserMediaPermissionRequestIfPossible();
@@ -206,7 +217,7 @@ private:
     static void didUpdateHistoryTitle(WKContextRef, WKPageRef, WKStringRef title, WKURLRef, WKFrameRef, const void*);
     void didUpdateHistoryTitle(WKStringRef title, WKURLRef, WKFrameRef);
 
-    static WKPageRef createOtherPage(WKPageRef oldPage, WKURLRequestRef, WKDictionaryRef, WKEventModifiers, WKEventMouseButton, const void*);
+    static WKPageRef createOtherPage(WKPageRef, WKPageConfigurationRef, WKNavigationActionRef, WKWindowFeaturesRef, const void*);
 
     static void runModal(WKPageRef, const void* clientInfo);
     static void runModal(PlatformWebView*);
@@ -231,6 +242,7 @@ private:
     std::unique_ptr<PlatformWebView> m_mainWebView;
     WKRetainPtr<WKContextRef> m_context;
     WKRetainPtr<WKPageGroupRef> m_pageGroup;
+    WKRetainPtr<WKPageConfigurationRef> m_configuration;
 
     enum State {
         Initial,

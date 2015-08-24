@@ -1,5 +1,5 @@
 /*
-* Copyright (C) 2014 Apple Inc.  All rights reserved.
+* Copyright (C) 2014-2015 Apple Inc.  All rights reserved.
 *
 * Redistribution and use in source and binary forms, with or without
 * modification, are permitted provided that the following conditions
@@ -36,19 +36,8 @@ static const CFTimeInterval waitForNewResourceLoadDuration = 0.1;
 
 PageLoadTestClient::PageLoadTestClient(WinLauncher* host, bool pageLoadTesting)
     : m_host(host)
-    , m_pageLoadEndTime(0)
-    , m_totalTime(0)
-    , m_totalSquareRootsOfTime(0)
-    , m_longestTime(0)
-    , m_geometricMeanProductSum(1.0)
-    , m_frames(0)
-    , m_onLoadEvents(0)
-    , m_currentURLIndex(0)
-    , m_currentRepetition(0)
-    , m_pagesTimed(0)
     , m_repetitions(pageLoadTesting ? 20 : 1)
     , m_waitForLoadToReallyEnd(this, &PageLoadTestClient::endPageLoad)
-    , m_currentPageLoadFinished(false)
     , m_pageLoadTesting(pageLoadTesting)
 {
 }
@@ -60,8 +49,12 @@ void PageLoadTestClient::pageLoadStartedAtTime(CFAbsoluteTime startTime)
 
 void PageLoadTestClient::didStartProvisionalLoad(IWebFrame& frame)
 {
-    BOOL mainFrame;
-    if (FAILED(frame.isMainFrame(&mainFrame)))
+    _com_ptr_t<_com_IIID<IWebFrame2, &__uuidof(IWebFrame2)>> frame2;
+    if (FAILED(frame.QueryInterface(&frame2.GetInterfacePtr())))
+        return;
+
+    BOOL mainFrame = FALSE;
+    if (frame2 && FAILED(frame2->isMainFrame(&mainFrame)))
         return;
 
     if (mainFrame) {
@@ -230,7 +223,7 @@ void PageLoadTestClient::dumpRunStatistics()
     if (m_pagesTimed) {
         meanTime = m_totalTime / m_pagesTimed;
         squareMeanRootTime = (m_totalSquareRootsOfTime / m_pagesTimed) * (m_totalSquareRootsOfTime / m_pagesTimed);
-        geometricMeanTime = std::pow(m_geometricMeanProductSum, (1.0 / m_pagesTimed));
+        geometricMeanTime = pow(m_geometricMeanProductSum, (1.0 / m_pagesTimed));
     }
 
     file->printf("FINISHED:    Total Time = %.1f ms\n", m_totalTime * 1000.0);

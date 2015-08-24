@@ -27,26 +27,18 @@
 #import "Language.h"
 
 #import "BlockExceptions.h"
+#import "CFBundleSPI.h"
 #import "WebCoreNSStringExtras.h"
 #import <mutex>
 #import <wtf/Assertions.h>
+#import <wtf/Lock.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/text/WTFString.h>
 
 namespace WebCore {
 
-static std::mutex& preferredLanguagesMutex()
-{
-    static dispatch_once_t onceToken;
-    static std::mutex* mutex;
-
-    dispatch_once(&onceToken, ^{
-        mutex = std::make_unique<std::mutex>().release();
-    });
-
-    return *mutex;
-}
+static StaticLock preferredLanguagesMutex;
 
 static Vector<String>& preferredLanguages()
 {
@@ -66,7 +58,7 @@ static Vector<String>& preferredLanguages()
     UNUSED_PARAM(notification);
 
     {
-        std::lock_guard<std::mutex> lock(WebCore::preferredLanguagesMutex());
+        std::lock_guard<StaticLock> lock(WebCore::preferredLanguagesMutex);
         WebCore::preferredLanguages().clear();
     }
 
@@ -79,7 +71,31 @@ namespace WebCore {
 
 static String httpStyleLanguageCode(NSString *language)
 {
-    return [[NSLocale canonicalLanguageIdentifierFromString:canonicalLocaleName(language)] lowercaseString];
+    SInt32 languageCode;
+    SInt32 regionCode; 
+    SInt32 scriptCode; 
+    CFStringEncoding stringEncoding; 
+
+    // FIXME: This transformation is very wrong:
+    // 1. There is no reason why CFBundle localization names would be at all related to language names as used on the Web.
+    // 2. Script Manager codes cannot represent all languages that are now supported by the platform, so the conversion is lossy.
+    // 3. This should probably match what is sent by the network layer as Accept-Language, but currently, that's implemented separately.
+    CFBundleGetLocalizationInfoForLocalization((CFStringRef)language, &languageCode, &regionCode, &scriptCode, &stringEncoding);
+    RetainPtr<CFStringRef> preferredLanguageCode = adoptCF(CFBundleCopyLocalizationForLocalizationInfo(languageCode, regionCode, scriptCode, stringEncoding));
+    if (preferredLanguageCode)
+        language = (NSString *)preferredLanguageCode.get();
+
+    // Make the string lowercase.
+    NSString *lowercaseLanguageCode = [language lowercaseString];
+
+    // Turn a '_' into a '-' if it appears after a 2-letter language code.
+    if ([lowercaseLanguageCode length] >= 3 && [lowercaseLanguageCode characterAtIndex:2] == '_') {
+        RetainPtr<NSMutableString> mutableLanguageCode = adoptNS([lowercaseLanguageCode mutableCopy]);
+        [mutableLanguageCode.get() replaceCharactersInRange:NSMakeRange(2, 1) withString:@"-"];
+        return mutableLanguageCode.get();
+    }
+
+    return lowercaseLanguageCode;
 }
 
 Vector<String> platformUserPreferredLanguages()
@@ -93,7 +109,7 @@ Vector<String> platformUserPreferredLanguages()
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS;
 
-    std::lock_guard<std::mutex> lock(preferredLanguagesMutex());
+    std::lock_guard<StaticLock> lock(preferredLanguagesMutex);
     Vector<String>& userPreferredLanguages = preferredLanguages();
 
     if (userPreferredLanguages.isEmpty()) {

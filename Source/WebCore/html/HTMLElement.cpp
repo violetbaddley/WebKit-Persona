@@ -869,7 +869,7 @@ bool HTMLElement::rendererIsNeeded(const RenderStyle& style)
             return false;
     } else if (hasTagName(noembedTag)) {
         Frame* frame = document().frame();
-        if (frame && frame->loader().subframeLoader().allowPlugins(NotAboutToInstantiatePlugin))
+        if (frame && frame->loader().subframeLoader().allowPlugins())
             return false;
     }
     return StyledElement::rendererIsNeeded(style);
@@ -1150,7 +1150,7 @@ void HTMLElement::addHTMLColorToStyle(MutableStyleProperties& style, CSSProperty
     if (!parsedColor.isValid())
         parsedColor.setRGB(parseColorStringWithCrazyLegacyRules(colorString));
 
-    style.setProperty(propertyID, cssValuePool().createColorValue(parsedColor.rgb()));
+    style.setProperty(propertyID, CSSValuePool::singleton().createColorValue(parsedColor.rgb()));
 }
 
 bool HTMLElement::willRespondToMouseMoveEvents()

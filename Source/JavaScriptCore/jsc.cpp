@@ -28,6 +28,7 @@
 #include "CodeBlock.h"
 #include "Completion.h"
 #include "CopiedSpaceInlines.h"
+#include "DFGPlan.h"
 #include "Disassembler.h"
 #include "Exception.h"
 #include "ExceptionHelpers.h"
@@ -38,10 +39,13 @@
 #include "JSArrayBuffer.h"
 #include "JSCInlines.h"
 #include "JSFunction.h"
+#include "JSInternalPromise.h"
+#include "JSInternalPromiseDeferred.h"
 #include "JSLock.h"
 #include "JSONObject.h"
 #include "JSProxy.h"
 #include "JSString.h"
+#include "JSWASMModule.h"
 #include "ProfilerDatabase.h"
 #include "SamplingTool.h"
 #include "StackVisitor.h"
@@ -49,6 +53,7 @@
 #include "StructureRareDataInlines.h"
 #include "TestRunnerUtils.h"
 #include "TypeProfilerLog.h"
+#include "WASMModuleParser.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,10 +102,6 @@
 
 using namespace JSC;
 using namespace WTF;
-
-namespace JSC {
-WTF_IMPORT extern const struct HashTable globalObjectTable;
-}
 
 namespace {
 
@@ -458,8 +459,8 @@ static EncodedJSValue JSC_HOST_CALL functionFullGC(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionEdenGC(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionHeapSize(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionDeleteAllCompiledCode(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionAddressOf(ExecState*);
 #ifndef NDEBUG
-static EncodedJSValue JSC_HOST_CALL functionReleaseExecutableMemory(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionDumpCallFrame(ExecState*);
 #endif
 static EncodedJSValue JSC_HOST_CALL functionVersion(ExecState*);
@@ -490,6 +491,12 @@ static EncodedJSValue JSC_HOST_CALL functionReturnTypeFor(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionDumpBasicBlockExecutionRanges(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionHasBasicBlockExecuted(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionEnableExceptionFuzz(ExecState*);
+#if ENABLE(WEBASSEMBLY)
+static EncodedJSValue JSC_HOST_CALL functionLoadWebAssembly(ExecState*);
+#endif
+#if ENABLE(ES6_MODULES)
+static EncodedJSValue JSC_HOST_CALL functionCheckModuleSyntax(ExecState*);
+#endif
 
 #if ENABLE(SAMPLING_FLAGS)
 static EncodedJSValue JSC_HOST_CALL functionSetSamplingFlags(ExecState*);
@@ -510,20 +517,17 @@ struct Script {
 class CommandLine {
 public:
     CommandLine(int argc, char** argv)
-        : m_interactive(false)
-        , m_dump(false)
-        , m_exitCode(false)
-        , m_profile(false)
     {
         parseArguments(argc, argv);
     }
 
-    bool m_interactive;
-    bool m_dump;
-    bool m_exitCode;
+    bool m_interactive { false };
+    bool m_dump { false };
+    bool m_module { false };
+    bool m_exitCode { false };
     Vector<Script> m_scripts;
     Vector<String> m_arguments;
-    bool m_profile;
+    bool m_profile { false };
     String m_profilerOutput;
 
     void parseArguments(int, char**);
@@ -555,6 +559,17 @@ void StopWatch::stop()
 long StopWatch::getElapsedMS()
 {
     return static_cast<long>((m_stopTime - m_startTime) * 1000);
+}
+
+static inline String stringFromUTF(const char* utf8)
+{
+    return String::fromUTF8WithLatin1Fallback(utf8, strlen(utf8));
+}
+
+static inline SourceCode jscSource(const char* utf8, const String& filename)
+{
+    String str = stringFromUTF(utf8);
+    return makeSource(str, filename);
 }
 
 class GlobalObject : public JSGlobalObject {
@@ -599,9 +614,9 @@ protected:
         addFunction(vm, "edenGC", functionEdenGC, 0);
         addFunction(vm, "gcHeapSize", functionHeapSize, 0);
         addFunction(vm, "deleteAllCompiledCode", functionDeleteAllCompiledCode, 0);
+        addFunction(vm, "addressOf", functionAddressOf, 1);
 #ifndef NDEBUG
         addFunction(vm, "dumpCallFrame", functionDumpCallFrame, 0);
-        addFunction(vm, "releaseExecutableMemory", functionReleaseExecutableMemory, 0);
 #endif
         addFunction(vm, "version", functionVersion, 1);
         addFunction(vm, "run", functionRun, 1);
@@ -652,6 +667,13 @@ protected:
 
         addFunction(vm, "enableExceptionFuzz", functionEnableExceptionFuzz, 0);
         
+#if ENABLE(WEBASSEMBLY)
+        addFunction(vm, "loadWebAssembly", functionLoadWebAssembly, 1);
+#endif
+#if ENABLE(ES6_MODULES)
+        addFunction(vm, "checkModuleSyntax", functionCheckModuleSyntax, 1);
+#endif
+
         JSArray* array = constructEmptyArray(globalExec(), 0);
         for (size_t i = 0; i < arguments.size(); ++i)
             array->putDirectIndex(globalExec(), i, jsString(globalExec(), arguments[i]));
@@ -671,26 +693,36 @@ protected:
         Identifier identifier = Identifier::fromString(&vm, name);
         putDirect(vm, identifier, JSFunction::create(vm, this, arguments, identifier.string(), function, NoIntrinsic, function));
     }
+
+    static JSInternalPromise* moduleLoaderFetch(JSGlobalObject* globalObject, ExecState* exec, JSValue key)
+    {
+        JSInternalPromiseDeferred* deferred = JSInternalPromiseDeferred::create(exec, globalObject);
+        String moduleKey = key.toString(exec)->value(exec);
+        if (exec->hadException()) {
+            JSValue exception = exec->exception();
+            exec->clearException();
+            deferred->reject(exec, exception);
+            return deferred->promise();
+        }
+
+        // Here, now we consider moduleKey as the fileName.
+        Vector<char> utf8;
+        if (!fillBufferWithContentsOfFile(moduleKey, utf8)) {
+            deferred->reject(exec, createError(exec, makeString("Could not open file '", moduleKey, "'.")));
+            return deferred->promise();
+        }
+        deferred->resolve(exec, jsString(exec, stringFromUTF(utf8.data())));
+        return deferred->promise();
+    }
 };
 
-const ClassInfo GlobalObject::s_info = { "global", &JSGlobalObject::s_info, &globalObjectTable, CREATE_METHOD_TABLE(GlobalObject) };
-const GlobalObjectMethodTable GlobalObject::s_globalObjectMethodTable = { &allowsAccessFrom, &supportsProfiling, &supportsRichSourceInfo, &shouldInterruptScript, &javaScriptRuntimeFlags, 0, &shouldInterruptScriptBeforeTimeout };
+const ClassInfo GlobalObject::s_info = { "global", &JSGlobalObject::s_info, nullptr, CREATE_METHOD_TABLE(GlobalObject) };
+const GlobalObjectMethodTable GlobalObject::s_globalObjectMethodTable = { &allowsAccessFrom, &supportsProfiling, &supportsRichSourceInfo, &shouldInterruptScript, &javaScriptRuntimeFlags, 0, &shouldInterruptScriptBeforeTimeout, nullptr, &moduleLoaderFetch, nullptr, nullptr };
 
 
 GlobalObject::GlobalObject(VM& vm, Structure* structure)
     : JSGlobalObject(vm, structure, &s_globalObjectMethodTable)
 {
-}
-
-static inline String stringFromUTF(const char* utf8)
-{
-    return String::fromUTF8WithLatin1Fallback(utf8, strlen(utf8));
-}
-
-static inline SourceCode jscSource(const char* utf8, const String& filename)
-{
-    String str = stringFromUTF(utf8);
-    return makeSource(str, filename);
 }
 
 EncodedJSValue JSC_HOST_CALL functionPrint(ExecState* exec)
@@ -699,7 +731,7 @@ EncodedJSValue JSC_HOST_CALL functionPrint(ExecState* exec)
         if (i)
             putchar(' ');
 
-        printf("%s", exec->uncheckedArgument(i).toString(exec)->view(exec).utf8().data());
+        printf("%s", exec->uncheckedArgument(i).toString(exec)->view(exec).get().utf8().data());
     }
 
     putchar('\n');
@@ -720,7 +752,7 @@ EncodedJSValue JSC_HOST_CALL functionDumpCallFrame(ExecState* exec)
 
 EncodedJSValue JSC_HOST_CALL functionDebug(ExecState* exec)
 {
-    fprintf(stderr, "--> %s\n", exec->argument(0).toString(exec)->view(exec).utf8().data());
+    fprintf(stderr, "--> %s\n", exec->argument(0).toString(exec)->view(exec).get().utf8().data());
     return JSValue::encode(jsUndefined());
 }
 
@@ -877,14 +909,19 @@ EncodedJSValue JSC_HOST_CALL functionDeleteAllCompiledCode(ExecState* exec)
     return JSValue::encode(jsUndefined());
 }
 
-#ifndef NDEBUG
-EncodedJSValue JSC_HOST_CALL functionReleaseExecutableMemory(ExecState* exec)
+// This function is not generally very helpful in 64-bit code as the tag and payload
+// share a register. But in 32-bit JITed code the tag may not be checked if an
+// optimization removes type checking requirements, such as in ===.
+EncodedJSValue JSC_HOST_CALL functionAddressOf(ExecState* exec)
 {
-    JSLockHolder lock(exec);
-    exec->vm().releaseExecutableMemory();
-    return JSValue::encode(jsUndefined());
+    JSValue value = exec->argument(0);
+    if (!value.isCell())
+        return JSValue::encode(jsUndefined());
+    // Need to cast to uint64_t so bitwise_cast will play along.
+    uint64_t asNumber = reinterpret_cast<uint64_t>(value.asCell());
+    EncodedJSValue returnValue = JSValue::encode(jsNumber(bitwise_cast<double>(asNumber)));
+    return returnValue;
 }
-#endif
 
 EncodedJSValue JSC_HOST_CALL functionVersion(ExecState*)
 {
@@ -1129,7 +1166,7 @@ EncodedJSValue JSC_HOST_CALL functionReturnTypeFor(ExecState* exec)
     RELEASE_ASSERT(functionValue.isFunction());
     FunctionExecutable* executable = (jsDynamicCast<JSFunction*>(functionValue.asCell()->getObject()))->jsExecutable();
 
-    unsigned offset = executable->source().startOffset();
+    unsigned offset = executable->typeProfilingStartOffset();
     String jsonString = exec->vm().typeProfiler()->typeInformationForExpressionAtOffset(TypeProfilerSearchDescriptorFunctionReturn, offset, executable->sourceID(), exec->vm());
     return JSValue::encode(JSONParse(exec, jsonString));
 }
@@ -1164,6 +1201,41 @@ EncodedJSValue JSC_HOST_CALL functionEnableExceptionFuzz(ExecState*)
     Options::enableExceptionFuzz() = true;
     return JSValue::encode(jsUndefined());
 }
+
+#if ENABLE(WEBASSEMBLY)
+EncodedJSValue JSC_HOST_CALL functionLoadWebAssembly(ExecState* exec)
+{
+    String fileName = exec->argument(0).toString(exec)->value(exec);
+    Vector<char> buffer;
+    if (!fillBufferWithContentsOfFile(fileName, buffer))
+        return JSValue::encode(exec->vm().throwException(exec, createError(exec, ASCIILiteral("Could not open file."))));
+    RefPtr<WebAssemblySourceProvider> sourceProvider = WebAssemblySourceProvider::create(reinterpret_cast<Vector<uint8_t>&>(buffer), fileName);
+    SourceCode source(sourceProvider);
+    String errorMessage;
+    JSWASMModule* module = parseWebAssembly(exec, source, errorMessage);
+    if (!module)
+        return JSValue::encode(exec->vm().throwException(exec, createSyntaxError(exec, errorMessage)));
+    return JSValue::encode(module);
+}
+#endif
+
+#if ENABLE(ES6_MODULES)
+EncodedJSValue JSC_HOST_CALL functionCheckModuleSyntax(ExecState* exec)
+{
+    String source = exec->argument(0).toString(exec)->value(exec);
+
+    StopWatch stopWatch;
+    stopWatch.start();
+
+    ParserError error;
+    bool validSyntax = checkModuleSyntax(exec, makeSource(source), error);
+    stopWatch.stop();
+
+    if (!validSyntax)
+        exec->vm().throwException(exec, jsNontrivialString(exec, toString("SyntaxError: ", error.message(), ":", error.line())));
+    return JSValue::encode(jsNumber(stopWatch.getElapsedMS()));
+}
+#endif
 
 // Use SEH for Release builds only to get rid of the crash report dialog
 // (luckily the same tests fail in Release and Debug builds so far). Need to
@@ -1230,11 +1302,10 @@ int main(int argc, char** argv)
     ecore_init();
 #endif
 
-    // Initialize JSC before getting VM.
-#if ENABLE(SAMPLING_REGIONS)
-    WTF::initializeMainThread();
-#endif
-    JSC::initializeThreading();
+    // Need to initialize WTF threading before we start any threads. Cannot initialize JSC
+    // threading yet, since that would do somethings that we'd like to defer until after we
+    // have a chance to parse options.
+    WTF::initializeThreading();
 
     if (char* timeoutString = getenv("JSC_timeout")) {
         if (sscanf(timeoutString, "%lf", &s_desiredTimeout) != 1) {
@@ -1265,7 +1336,18 @@ int main(int argc, char** argv)
     jscExit(res);
 }
 
-static bool runWithScripts(GlobalObject* globalObject, const Vector<Script>& scripts, bool dump)
+static void dumpException(GlobalObject* globalObject, NakedPtr<Exception> evaluationException)
+{
+    if (evaluationException) {
+        printf("Exception: %s\n", evaluationException->value().toString(globalObject->globalExec())->value(globalObject->globalExec()).utf8().data());
+        Identifier stackID = Identifier::fromString(globalObject->globalExec(), "stack");
+        JSValue stackValue = evaluationException->value().get(globalObject->globalExec(), stackID);
+        if (!stackValue.isUndefinedOrNull())
+            printf("%s\n", stackValue.toString(globalObject->globalExec())->value(globalObject->globalExec()).utf8().data());
+    }
+}
+
+static bool runWithScripts(GlobalObject* globalObject, const Vector<Script>& scripts, bool dump, bool module)
 {
     const char* script;
     String fileName;
@@ -1294,17 +1376,23 @@ static bool runWithScripts(GlobalObject* globalObject, const Vector<Script>& scr
 
         vm.startSampling();
 
-        NakedPtr<Exception> evaluationException;
-        JSValue returnValue = evaluate(globalObject->globalExec(), jscSource(script, fileName), JSValue(), evaluationException);
-        success = success && !evaluationException;
-        if (dump && !evaluationException)
-            printf("End: %s\n", returnValue.toString(globalObject->globalExec())->value(globalObject->globalExec()).utf8().data());
-        if (evaluationException) {
-            printf("Exception: %s\n", evaluationException->value().toString(globalObject->globalExec())->value(globalObject->globalExec()).utf8().data());
-            Identifier stackID = Identifier::fromString(globalObject->globalExec(), "stack");
-            JSValue stackValue = evaluationException->value().get(globalObject->globalExec(), stackID);
-            if (!stackValue.isUndefinedOrNull())
-                printf("%s\n", stackValue.toString(globalObject->globalExec())->value(globalObject->globalExec()).utf8().data());
+        if (module) {
+#if ENABLE(ES6_MODULES)
+            NakedPtr<Exception> evaluationException;
+            evaluateModule(globalObject->globalExec(), jscSource(script, fileName), evaluationException);
+            dumpException(globalObject, evaluationException);
+            globalObject->globalExec()->clearException();
+            globalObject->vm().drainMicrotasks();
+#else
+            RELEASE_ASSERT_NOT_REACHED();
+#endif
+        } else {
+            NakedPtr<Exception> evaluationException;
+            JSValue returnValue = evaluate(globalObject->globalExec(), jscSource(script, fileName), JSValue(), evaluationException);
+            success = success && !evaluationException;
+            if (dump && !evaluationException)
+                printf("End: %s\n", returnValue.toString(globalObject->globalExec())->value(globalObject->globalExec()).utf8().data());
+            dumpException(globalObject, evaluationException);
         }
 
         vm.stopSampling();
@@ -1383,6 +1471,7 @@ static void runInteractive(GlobalObject* globalObject)
             printf("%s\n", returnValue.toString(globalObject->globalExec())->value(globalObject->globalExec()).utf8().data());
 
         globalObject->globalExec()->clearException();
+        globalObject->vm().drainMicrotasks();
     }
     printf("\n");
 }
@@ -1395,6 +1484,9 @@ static NO_RETURN void printUsageStatement(bool help = false)
     fprintf(stderr, "  -f         Specifies a source file (deprecated)\n");
     fprintf(stderr, "  -h|--help  Prints this help message\n");
     fprintf(stderr, "  -i         Enables interactive mode (default if no files are specified)\n");
+#if ENABLE(ES6_MODULES)
+    fprintf(stderr, "  -m         Execute as a module\n");
+#endif
 #if HAVE(SIGNAL_H)
     fprintf(stderr, "  -s         Installs signal handlers that exit on a crash (Unix platforms only)\n");
 #endif
@@ -1411,6 +1503,8 @@ static NO_RETURN void printUsageStatement(bool help = false)
 
 void CommandLine::parseArguments(int argc, char** argv)
 {
+    Options::initialize();
+    
     int i = 1;
     bool needToDumpOptions = false;
     bool needToExit = false;
@@ -1444,6 +1538,12 @@ void CommandLine::parseArguments(int argc, char** argv)
             m_profilerOutput = argv[i];
             continue;
         }
+#if ENABLE(ES6_MODULES)
+        if (!strcmp(arg, "-m")) {
+            m_module = true;
+            continue;
+        }
+#endif
         if (!strcmp(arg, "-s")) {
 #if HAVE(SIGNAL_H)
             signal(SIGILL, _exit);
@@ -1475,8 +1575,7 @@ void CommandLine::parseArguments(int argc, char** argv)
         }
 
         // See if the -- option is a JSC VM option.
-        // NOTE: At this point, we know that the arg starts with "--". Skip it.
-        if (JSC::Options::setOption(&arg[2])) {
+        if (strstr(arg, "--") == arg && JSC::Options::setOption(&arg[2])) {
             // The arg was recognized as a VM option and has been parsed.
             continue; // Just continue with the next arg. 
         }
@@ -1493,7 +1592,7 @@ void CommandLine::parseArguments(int argc, char** argv)
         m_arguments.append(argv[i]);
 
     if (needToDumpOptions)
-        JSC::Options::dumpAllOptions(JSC::Options::DumpLevel::Verbose, "All JSC runtime options:", stderr);
+        JSC::Options::dumpAllOptions(stderr, JSC::Options::DumpLevel::Verbose, "All JSC runtime options:");
     JSC::Options::ensureOptionsAreCoherent();
     if (needToExit)
         jscExit(EXIT_SUCCESS);
@@ -1504,6 +1603,13 @@ int jscmain(int argc, char** argv)
     // Note that the options parsing can affect VM creation, and thus
     // comes first.
     CommandLine options(argc, argv);
+
+    // Initialize JSC before getting VM.
+#if ENABLE(SAMPLING_REGIONS)
+    WTF::initializeMainThread();
+#endif
+    JSC::initializeThreading();
+
     VM* vm = &VM::create(LargeHeap).leakRef();
     int result;
     {
@@ -1513,7 +1619,7 @@ int jscmain(int argc, char** argv)
             vm->m_perBytecodeProfiler = std::make_unique<Profiler::Database>(*vm);
     
         GlobalObject* globalObject = GlobalObject::create(*vm, GlobalObject::createStructure(*vm, jsNull()), options.m_arguments);
-        bool success = runWithScripts(globalObject, options.m_scripts, options.m_dump);
+        bool success = runWithScripts(globalObject, options.m_scripts, options.m_dump, options.m_module);
         if (options.m_interactive && success)
             runInteractive(globalObject);
 
@@ -1534,7 +1640,18 @@ int jscmain(int argc, char** argv)
             Options::fireExecutableAllocationFuzzAt() || Options::fireExecutableAllocationFuzzAtOrAfter();
         if (Options::enableExecutableAllocationFuzz() && (!fireAtEnabled || Options::verboseExecutableAllocationFuzz()))
             printf("JSC EXECUTABLE ALLOCATION FUZZ: encountered %u checks.\n", numberOfExecutableAllocationFuzzChecks());
+        if (Options::enableOSRExitFuzz()) {
+            printf("JSC OSR EXIT FUZZ: encountered %u static checks.\n", numberOfStaticOSRExitFuzzChecks());
+            printf("JSC OSR EXIT FUZZ: encountered %u dynamic checks.\n", numberOfOSRExitFuzzChecks());
+        }
 #endif
+        auto compileTimeStats = DFG::Plan::compileTimeStats();
+        Vector<CString> compileTimeKeys;
+        for (auto& entry : compileTimeStats)
+            compileTimeKeys.append(entry.key);
+        std::sort(compileTimeKeys.begin(), compileTimeKeys.end());
+        for (CString key : compileTimeKeys)
+            printf("%40s: %.3lf ms\n", key.data(), compileTimeStats.get(key));
     }
     
     return result;

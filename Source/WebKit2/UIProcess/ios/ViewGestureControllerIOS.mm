@@ -64,15 +64,6 @@ using namespace WebCore;
 }
 
 static const float swipeSnapshotRemovalRenderTreeSizeTargetFraction = 0.5;
-static const std::chrono::seconds swipeSnapshotRemovalWatchdogDuration = 3_s;
-static const std::chrono::milliseconds swipeSnapshotRemovalActiveLoadMonitoringInterval = 250_ms;
-
-// The key in this map is the associated page ID.
-static HashMap<uint64_t, WebKit::ViewGestureController*>& viewGestureControllersForAllPages()
-{
-    static NeverDestroyed<HashMap<uint64_t, WebKit::ViewGestureController*>> viewGestureControllers;
-    return viewGestureControllers.get();
-}
 
 - (instancetype)initWithViewGestureController:(WebKit::ViewGestureController*)gestureController gestureRecognizerView:(UIView *)gestureRecognizerView
 {
@@ -146,21 +137,12 @@ static HashMap<uint64_t, WebKit::ViewGestureController*>& viewGestureControllers
 
 namespace WebKit {
 
-ViewGestureController::ViewGestureController(WebPageProxy& webPageProxy)
-    : m_webPageProxy(webPageProxy)
-    , m_swipeWatchdogTimer(RunLoop::main(), this, &ViewGestureController::swipeSnapshotWatchdogTimerFired)
-    , m_swipeActiveLoadMonitoringTimer(RunLoop::main(), this, &ViewGestureController::activeLoadMonitoringTimerFired)
-{
-    viewGestureControllersForAllPages().add(webPageProxy.pageID(), this);
-}
-
-ViewGestureController::~ViewGestureController()
+void ViewGestureController::platformTeardown()
 {
     [m_swipeTransitionContext _setTransitionIsInFlight:NO];
     [m_swipeTransitionContext _setInteractor:nil];
     [m_swipeTransitionContext _setAnimator:nil];
     [m_swipeInteractiveTransitionDelegate invalidate];
-    viewGestureControllersForAllPages().remove(m_webPageProxy.pageID());
 }
 
 void ViewGestureController::setAlternateBackForwardListSourceView(WKWebView *view)
@@ -184,6 +166,8 @@ void ViewGestureController::beginSwipeGesture(_UINavigationInteractiveTransition
 
     m_webPageProxyForBackForwardListForCurrentSwipe = m_alternateBackForwardListSourceView.get() ? m_alternateBackForwardListSourceView.get()->_page : &m_webPageProxy;
     m_webPageProxyForBackForwardListForCurrentSwipe->navigationGestureDidBegin();
+    if (&m_webPageProxy != m_webPageProxyForBackForwardListForCurrentSwipe)
+        m_webPageProxy.navigationGestureDidBegin();
 
     auto& backForwardList = m_webPageProxyForBackForwardListForCurrentSwipe->backForwardList();
 
@@ -247,9 +231,8 @@ void ViewGestureController::beginSwipeGesture(_UINavigationInteractiveTransition
     }];
     uint64_t pageID = m_webPageProxy.pageID();
     [m_swipeTransitionContext _setCompletionHandler:^(_UIViewControllerTransitionContext *context, BOOL didComplete) {
-        auto gestureControllerIter = viewGestureControllersForAllPages().find(pageID);
-        if (gestureControllerIter != viewGestureControllersForAllPages().end())
-            gestureControllerIter->value->endSwipeGesture(targetItem.get(), context, !didComplete);
+        if (auto gestureController = gestureControllerForPage(pageID))
+            gestureController->endSwipeGesture(targetItem.get(), context, !didComplete);
     }];
     [m_swipeTransitionContext _setInteractiveUpdateHandler:^(BOOL, CGFloat, BOOL, _UIViewControllerTransitionContext *) { }];
 
@@ -285,6 +268,8 @@ void ViewGestureController::endSwipeGesture(WebBackForwardListItem* targetItem, 
         RefPtr<WebPageProxy> webPageProxyForBackForwardListForCurrentSwipe = m_webPageProxyForBackForwardListForCurrentSwipe;
         removeSwipeSnapshot();
         webPageProxyForBackForwardListForCurrentSwipe->navigationGestureDidEnd(false, *targetItem);
+        if (&m_webPageProxy != webPageProxyForBackForwardListForCurrentSwipe)
+            m_webPageProxy.navigationGestureDidEnd();
         return;
     }
 
@@ -293,34 +278,48 @@ void ViewGestureController::endSwipeGesture(WebBackForwardListItem* targetItem, 
         m_snapshotRemovalTargetRenderTreeSize = snapshot->renderTreeSize() * swipeSnapshotRemovalRenderTreeSizeTargetFraction;
 
     m_webPageProxyForBackForwardListForCurrentSwipe->navigationGestureDidEnd(true, *targetItem);
+    if (&m_webPageProxy != m_webPageProxyForBackForwardListForCurrentSwipe)
+        m_webPageProxy.navigationGestureDidEnd();
+
     m_webPageProxyForBackForwardListForCurrentSwipe->goToBackForwardItem(targetItem);
 
     if (auto drawingArea = m_webPageProxy.drawingArea()) {
         uint64_t pageID = m_webPageProxy.pageID();
         uint64_t gesturePendingSnapshotRemoval = m_gesturePendingSnapshotRemoval;
         drawingArea->dispatchAfterEnsuringDrawing([pageID, gesturePendingSnapshotRemoval] (CallbackBase::Error error) {
-            auto gestureControllerIter = viewGestureControllersForAllPages().find(pageID);
-            if (gestureControllerIter != viewGestureControllersForAllPages().end() && gestureControllerIter->value->m_gesturePendingSnapshotRemoval == gesturePendingSnapshotRemoval)
-                gestureControllerIter->value->willCommitPostSwipeTransitionLayerTree(error == CallbackBase::Error::None);
+            if (auto gestureController = gestureControllerForPage(pageID)) {
+                if (gestureController->m_gesturePendingSnapshotRemoval == gesturePendingSnapshotRemoval)
+                    gestureController->willCommitPostSwipeTransitionLayerTree(error == CallbackBase::Error::None);
+            }
         });
-        drawingArea->hideContentUntilNextUpdate();
+        drawingArea->hideContentUntilPendingUpdate();
     } else {
         removeSwipeSnapshot();
         return;
     }
 
-    m_swipeWaitingForRenderTreeSizeThreshold = true;
-    m_swipeWaitingForRepaint = true;
-    m_swipeWaitingForDidFinishLoad = true;
-    m_swipeWaitingForSubresourceLoads = true;
-    m_swipeWaitingForScrollPositionRestoration = true;
-
-    m_swipeWatchdogTimer.startOneShot(swipeSnapshotRemovalWatchdogDuration.count());
+    // FIXME: Should we wait for VisuallyNonEmptyLayout like we do on Mac?
+    m_snapshotRemovalTracker.start(SnapshotRemovalTracker::RenderTreeSizeThreshold
+        | SnapshotRemovalTracker::RepaintAfterNavigation
+        | SnapshotRemovalTracker::MainFrameLoad
+        | SnapshotRemovalTracker::SubresourceLoads
+        | SnapshotRemovalTracker::ScrollPositionRestoration, [this] {
+            this->removeSwipeSnapshot();
+    });
 
     if (ViewSnapshot* snapshot = targetItem->snapshot()) {
         m_backgroundColorForCurrentSnapshot = snapshot->backgroundColor();
         m_webPageProxy.didChangeBackgroundColor();
     }
+}
+
+void ViewGestureController::setRenderTreeSize(uint64_t renderTreeSize)
+{
+    if (m_activeGestureType != ViewGestureType::Swipe)
+        return;
+
+    if (!m_snapshotRemovalTargetRenderTreeSize || renderTreeSize > m_snapshotRemovalTargetRenderTreeSize)
+        didHitRenderTreeSizeThreshold();
 }
 
 void ViewGestureController::willCommitPostSwipeTransitionLayerTree(bool successful)
@@ -333,110 +332,18 @@ void ViewGestureController::willCommitPostSwipeTransitionLayerTree(bool successf
         return;
     }
 
-    if (!m_swipeWaitingForRepaint)
-        return;
-
-    m_swipeWaitingForRepaint = false;
-    removeSwipeSnapshotIfReady();
-}
-
-void ViewGestureController::setRenderTreeSize(uint64_t renderTreeSize)
-{
-    if (m_activeGestureType != ViewGestureType::Swipe)
-        return;
-
-    if (!m_swipeWaitingForRenderTreeSizeThreshold)
-        return;
-
-    if (!m_snapshotRemovalTargetRenderTreeSize || renderTreeSize > m_snapshotRemovalTargetRenderTreeSize) {
-        m_swipeWaitingForRenderTreeSizeThreshold = false;
-        removeSwipeSnapshotIfReady();
-    }
-}
-
-void ViewGestureController::didRestoreScrollPosition()
-{
-    if (m_activeGestureType != ViewGestureType::Swipe)
-        return;
-
-    if (!m_swipeWaitingForScrollPositionRestoration)
-        return;
-
-    m_swipeWaitingForScrollPositionRestoration = false;
-    removeSwipeSnapshotIfReady();
-}
-
-void ViewGestureController::didFinishLoadForMainFrame()
-{
-    if (m_activeGestureType != ViewGestureType::Swipe)
-        return;
-
-    if (!m_swipeWaitingForDidFinishLoad)
-        return;
-
-    m_swipeWaitingForDidFinishLoad = false;
-
-    if (m_webPageProxy.pageLoadState().isLoading()) {
-        m_swipeActiveLoadMonitoringTimer.startRepeating(swipeSnapshotRemovalActiveLoadMonitoringInterval);
-        return;
-    }
-
-    m_swipeWaitingForSubresourceLoads = false;
-    removeSwipeSnapshotIfReady();
-}
-
-void ViewGestureController::didSameDocumentNavigationForMainFrame(SameDocumentNavigationType type)
-{
-    if (m_activeGestureType != ViewGestureType::Swipe)
-        return;
-
-    // This is nearly equivalent to didFinishLoad in the same document navigation case.
-    m_swipeWaitingForDidFinishLoad = false;
-
-    if (type != SameDocumentNavigationSessionStateReplace && type != SameDocumentNavigationSessionStatePop)
-        return;
-
-    m_swipeActiveLoadMonitoringTimer.startRepeating(swipeSnapshotRemovalActiveLoadMonitoringInterval);
-}
-
-void ViewGestureController::activeLoadMonitoringTimerFired()
-{
-    if (m_webPageProxy.pageLoadState().isLoading())
-        return;
-
-    m_swipeWaitingForSubresourceLoads = false;
-    removeSwipeSnapshotIfReady();
-}
-
-void ViewGestureController::swipeSnapshotWatchdogTimerFired()
-{
-    removeSwipeSnapshot();
-}
-
-void ViewGestureController::removeSwipeSnapshotIfReady()
-{
-    if (m_swipeWaitingForRenderTreeSizeThreshold || m_swipeWaitingForRepaint || m_swipeWaitingForDidFinishLoad || m_swipeWaitingForSubresourceLoads || m_swipeWaitingForScrollPositionRestoration)
-        return;
-
-    removeSwipeSnapshot();
+    didRepaintAfterNavigation();
 }
 
 void ViewGestureController::removeSwipeSnapshot()
 {
-    m_swipeWaitingForRenderTreeSizeThreshold = false;
-    m_swipeWaitingForRepaint = false;
-    m_swipeWaitingForDidFinishLoad = false;
-    m_swipeWaitingForSubresourceLoads = false;
-    m_swipeWaitingForScrollPositionRestoration = false;
-
-    m_swipeWatchdogTimer.stop();
-    m_swipeActiveLoadMonitoringTimer.stop();
+    m_snapshotRemovalTracker.reset();
 
     if (m_activeGestureType != ViewGestureType::Swipe)
         return;
-    
+
     ++m_gesturePendingSnapshotRemoval;
-    
+
     [m_snapshotView removeFromSuperview];
     m_snapshotView = nullptr;
     
