@@ -54,7 +54,7 @@
     
     WebKit::WebsiteDataStore::Configuration conf = API::WebsiteDataStore::ei_dataStoreConfigurationWith(appCache, netCache, webSQL, locStorage, mediaKeys);
     
-    return [WebKit::wrapper(*API::WebsiteDataStore::create(conf).release().leakRef()) autorelease];
+    return [WebKit::wrapper(API::WebsiteDataStore::create(conf).leakRef()) autorelease];
     
 }
 
