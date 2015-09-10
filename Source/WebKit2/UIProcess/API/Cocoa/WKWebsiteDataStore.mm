@@ -45,11 +45,11 @@
 
 + (WKWebsiteDataStore *)ei_dataStoreWithBaseURL:(NSURL * __nonnull)base {
     
-    const char *appCache = [[[[base URLByAppendingPathComponent:@"OfflineWebApplicationCache" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
-    const char *netCache = [[[[base URLByAppendingPathComponent:@"NetworkCache" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
-    const char *locStorage = [[[[base URLByAppendingPathComponent:@"LocalStorage" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
-    const char *mediaKeys = [[[[base URLByAppendingPathComponent:@"MediaKeys" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
-    const char *webSQL = [[[[base URLByAppendingPathComponent:@"WebSQL" isDirectory:YES] absoluteURL] path] fileSystemRepresentation];
+    const char *appCache = [[[[base URLByAppendingPathComponent:@"OfflineWebApplicationCache" isDirectory:YES] absoluteURL] path] cStringUsingEncoding:NSUTF8StringEncoding];
+    const char *netCache = [[[[base URLByAppendingPathComponent:@"NetworkCache" isDirectory:YES] absoluteURL] path] cStringUsingEncoding:NSUTF8StringEncoding];
+    const char *locStorage = [[[[base URLByAppendingPathComponent:@"LocalStorage" isDirectory:YES] absoluteURL] path] cStringUsingEncoding:NSUTF8StringEncoding];
+    const char *mediaKeys = [[[[base URLByAppendingPathComponent:@"MediaKeys" isDirectory:YES] absoluteURL] path] cStringUsingEncoding:NSUTF8StringEncoding];
+    const char *webSQL = [[[[base URLByAppendingPathComponent:@"WebSQL" isDirectory:YES] absoluteURL] path] cStringUsingEncoding:NSUTF8StringEncoding];
 
     
     WebKit::WebsiteDataStore::Configuration conf = API::WebsiteDataStore::ei_dataStoreConfigurationWith(appCache, netCache, webSQL, locStorage, mediaKeys);
